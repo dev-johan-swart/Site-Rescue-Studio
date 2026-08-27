@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Free Website Health Check | Site Rescue Studio</title>
+
+  <meta
+    name="description"
+    content="Run a free website health check with Site Rescue Studio. Discover SEO, mobile, accessibility, technical and business website issues."
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/scanner.css"
+  >
+</head>
+
+<body>
+
+  <header class="scanner-header">
+
+    <a
+      href="index.html"
+      class="brand"
+    >
+      <span class="brand-mark">SR</span>
+
+      <span>
+        Site Rescue Studio
+        <small>Fix. Improve. Grow.</small>
+      </span>
+    </a>
+
+    <a
+      href="index.html"
+      class="back-link"
+    >
+      ← Back to website
+    </a>
+
+  </header>
+
+
+  <main>
+
+    <section class="scanner-hero">
+
+      <div class="eyebrow">
+        FREE WEBSITE HEALTH CHECK
+      </div>
+
+      <h1>
+        How healthy is
+        <span>your website?</span>
+      </h1>
+
+      <p>
+        Enter your website address and we'll check
+        the important things that can affect
+        visibility, usability and conversions.
+      </p>
+
+
+      <form
+        id="scannerForm"
+        class="scanner-form"
+      >
+
+        <label for="websiteUrl">
+          Website URL
+        </label>
+
+        <div class="url-row">
+
+          <input
+            id="websiteUrl"
+            name="websiteUrl"
+            type="text"
+            placeholder="example.co.za"
+            autocomplete="url"
+            required
+          >
+
+          <button
+            type="submit"
+            id="scanButton"
+          >
+            <span id="scanButtonText">
+              Scan Website
+            </span>
+
+            <span
+              id="scanSpinner"
+              class="spinner"
+              hidden
+            ></span>
+          </button>
+
+        </div>
+
+        <p class="form-note">
+          No account required. Your website is scanned
+          automatically.
+        </p>
+
+      </form>
+
+
+      <div
+        id="scannerError"
+        class="scanner-error"
+        hidden
+      ></div>
+
+    </section>
+
+
+    <section
+      id="results"
+      class="results"
+      hidden
+    >
+
+      <div class="results-header">
+
+        <div>
+
+          <div class="eyebrow">
+            SCAN COMPLETE
+          </div>
+
+          <h2>
+            Website Health Report
+          </h2>
+
+          <p id="scannedUrl"></p>
+
+        </div>
+
+        <button
+          id="newScanButton"
+          class="secondary-button"
+        >
+          Scan Another Website
+        </button>
+
+      </div>
+
+
+      <div class="score-grid">
+
+        <article class="score-card overall">
+
+          <div class="score-label">
+            Overall
+          </div>
+
+          <div
+            id="overallScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+          <div
+            id="overallLabel"
+            class="score-status"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+          <div class="score-label">
+            SEO
+          </div>
+
+          <div
+            id="seoScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+          <div class="score-label">
+            Mobile
+          </div>
+
+          <div
+            id="mobileScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+          <div class="score-label">
+            Accessibility
+          </div>
+
+          <div
+            id="accessibilityScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+          <div class="score-label">
+            Technical
+          </div>
+
+          <div
+            id="technicalScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+          <div class="score-label">
+            Business
+          </div>
+
+          <div
+            id="businessScore"
+            class="score-number"
+          >
+            —
+          </div>
+
+        </article>
+
+
+        <article class="score-card">
+
+            <div class="score-label">
+              Performance
+            </div>
+          
+            <div
+              id="performanceScore"
+              class="score-number"
+            >
+              —
+            </div>
+          
+        </article>
+
+      </div>
+
+
+      <section class="issues-section">
+
+        <div class="section-heading">
+
+          <div class="eyebrow">
+            PRIORITY FINDINGS
+          </div>
+
+          <h2>
+            What should be fixed?
+          </h2>
+
+        </div>
+
+        <div
+          id="issuesList"
+          class="issues-list"
+        ></div>
+
+      </section>
+
+      <section
+        id="recommendationsSection"
+        class="scanner-section recommendations-section"
+        hidden
+      >
+        <div class="section-label">
+          SITE RESCUE RECOMMENDATIONS
+        </div>
+
+        <h2 class="section-title">
+          What should you do next?
+        </h2>
+
+        <p class="section-text">
+          Based on the results of your website health check,
+          we've identified practical improvements that can
+          strengthen your website's visibility, usability
+          and ability to generate enquiries.
+        </p>
+
+        <div
+          id="recommendationsList"
+          class="recommendations-list"
+        ></div>
+      </section>
+
+      <div
+        class="report-action"
+        id="reportAction"
+        hidden
+      >
+
+        <button
+          type="button"
+          id="downloadReportButton"
+          class="primary-button"
+        >
+
+          <span id="downloadReportText">
+            Download Website Rescue Report
+          </span>
+
+          <span
+            id="downloadReportSpinner"
+            hidden
+          >
+            Generating Report...
+          </span>
+
+        </button>
+
+        <p class="report-note">
+          Get a professional summary of your website health,
+          findings and recommended improvements.
+        </p>
+
+      </div>
+
+
+      <section class="details-section">
+
+        <div class="section-heading">
+
+          <div class="eyebrow">
+            DETAILED CHECKS
+          </div>
+
+          <h2>
+            Website health breakdown
+          </h2>
+
+        </div>
+
+
+        <div
+          id="checkSections"
+          class="check-sections"
+        ></div>
+
+        <div
+          id="performanceDetails"
+          class="performance-details"
+        ></div>
+
+      </section>
+
+
+      <section class="business-cta">
+
+        <div>
+
+          <div class="eyebrow">
+            NEED HELP?
+          </div>
+
+          <h2>
+            We can fix the problems for you.
+          </h2>
+
+          <p>
+            Your free scan identifies the problems.
+            Site Rescue Studio can help turn those
+            findings into a faster, clearer and
+            more effective website.
+          </p>
+
+        </div>
+
+        <a
+          href="/index.html#contact"
+          class="primary-button"
+        >
+          Request Website Rescue
+        </a>
+
+      </section>
+
+    </section>
+
+  </main>
+
+
+  <footer>
+
+    <p>
+      © 2026 Site Rescue Studio.
+      Fix. Improve. Grow.
+    </p>
+
+  </footer>
+
+
+  <script src="js/scanner.js"></script>
+
+</body>
+</html>
