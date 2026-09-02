@@ -1,4 +1,5 @@
 const PDFDocument = require("pdfkit");
+const path = require("path");
 
 /*
  * ============================================================
@@ -8,6 +9,12 @@ const PDFDocument = require("pdfkit");
  */
 
 const SITE_RESCUE_URL = "https://site-rescue-studio.vercel.app/";
+
+const LOGO_PATH = path.join(
+  process.cwd(),
+  "assets",
+  "logo-prime.png"
+);
 
 const BRAND = {
   dark: "#111827",
@@ -380,10 +387,10 @@ function drawCover(
   scores,
   scannedAt
 ) {
-    /*
+  /*
    * Full-page branded cover background.
    */
-    doc
+  doc
     .save()
     .rect(
       0,
@@ -391,7 +398,7 @@ function drawCover(
       doc.page.width,
       doc.page.height
     )
-    .fillColor(BRAND.dark)
+    .fillColor("#1F2937")
     .fill()
     .restore();
 
@@ -405,37 +412,63 @@ function drawCover(
   const scoreColor =
     getScoreColor(overall);
 
-  doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
-    .fontSize(20)
-    .text(
-      "SITE RESCUE STUDIO",
+  /*
+   * Site Rescue Studio logo
+   *
+   * The logo is loaded from the project assets directory so
+   * the same brand asset is used by the website and PDF.
+   */
+  try {
+    doc.image(
+      LOGO_PATH,
+      PAGE.left + 145,
+      55,
       {
-        align: "center"
+        fit: [205, 90],
+        align: "center",
+        valign: "center"
       }
     );
-
-  doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica")
-    .fontSize(10)
-    .text(
-      "FIX. IMPROVE. GROW.",
-      {
-        align: "center"
-      }
+  } catch (logoError) {
+    console.warn(
+      "Site Rescue Studio logo could not be loaded:",
+      logoError.message
     );
 
-  doc.moveDown(4);
+    /*
+     * Fallback keeps the report usable if the asset is
+     * temporarily unavailable.
+     */
+    doc
+      .fillColor(BRAND.white)
+      .font("Helvetica-Bold")
+      .fontSize(20)
+      .text(
+        "SITE RESCUE STUDIO",
+        {
+          align: "center"
+        }
+      );
+  }
 
+  /*
+   * ----------------------------------------------------------
+   * REPORT TITLE
+   * ----------------------------------------------------------
+   *
+   * Position the title explicitly below the logo so the
+   * logo and title never overlap.
+   */
   doc
-    .fillColor(BRAND.dark)
+    .fillColor(BRAND.white)
     .font("Helvetica-Bold")
     .fontSize(30)
     .text(
       "Website Health Report",
+      PAGE.left,
+      175,
       {
+        width: PAGE.width,
         align: "center"
       }
     );
@@ -443,7 +476,7 @@ function drawCover(
   doc.moveDown(0.8);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(BRAND.light)
     .font("Helvetica")
     .fontSize(12)
     .text(
@@ -471,7 +504,7 @@ function drawCover(
   doc.moveDown(0.3);
 
   doc
-    .fillColor(BRAND.dark)
+    .fillColor(BRAND.white)
     .font("Helvetica-Bold")
     .fontSize(18)
     .text(
@@ -484,7 +517,7 @@ function drawCover(
   doc.moveDown(1);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(BRAND.light)
     .font("Helvetica")
     .fontSize(11)
     .text(
