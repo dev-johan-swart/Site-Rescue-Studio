@@ -1,0 +1,27 @@
+{
+  "name": "site-rescue-studio",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-johan-swart/Site-Rescue-Studio.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dev-johan-swart/Site-Rescue-Studio/issues"
+  },
+  "homepage": "https://github.com/dev-johan-swart/Site-Rescue-Studio#readme",
+  "description": "",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "pdfkit": "^0.19.1"
+  }
+}

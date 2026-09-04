@@ -1,4 +1,5 @@
 const { URL } = require("url");
+const { saveProspect } = require("../lib/prospectStore");
 
 const USER_AGENT =
   "Site Rescue Studio Website Health Scanner/3.0";
@@ -5100,6 +5101,59 @@ function drawEvidenceMessage(
 
       /*
        * --------------------------------------------------
+       * SAVE PROSPECT
+       * --------------------------------------------------
+       *
+       * Prospect storage is auxiliary.
+       * A database failure must never break a scan.
+       */
+
+      let prospectSaved = false;
+
+      try {
+        const prospectResult =
+          await saveProspect({
+            scannerVersion:
+              "3.0",
+
+            url:
+              targetUrl.href,
+
+            finalUrl,
+
+            scores: {
+              overall,
+              seo:
+                seoScore,
+
+              mobile:
+                mobileScore,
+
+              accessibility:
+                accessibilityScore,
+
+              technical:
+                technicalScore,
+
+              business:
+                businessScore,
+
+              performance:
+                performanceScore
+            }
+          });
+
+        prospectSaved =
+          prospectResult.saved === true;
+      } catch (prospectError) {
+        console.error(
+          "Prospect database save failed:",
+          prospectError
+        );
+      }
+
+      /*
+       * --------------------------------------------------
        * RESPONSE
        * --------------------------------------------------
        */
@@ -5109,6 +5163,8 @@ function drawEvidenceMessage(
       ).json({
         success:
           true,
+
+        prospectSaved,
 
         scannerVersion:
           "3.0",
