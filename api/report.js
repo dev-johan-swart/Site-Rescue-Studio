@@ -8,7 +8,8 @@ const path = require("path");
  * ============================================================
  */
 
-const SITE_RESCUE_URL = "https://site-rescue-studio.vercel.app/";
+const SITE_RESCUE_URL =
+  "https://site-rescue-studio.vercel.app/";
 
 const LOGO_PATH = path.join(
   process.cwd(),
@@ -69,6 +70,202 @@ const PAGE = {
 
 /*
  * ============================================================
+ * REPORT RECOMMENDATION MAPPINGS
+ * ============================================================
+ *
+ * These provide useful report recommendations when the scanner
+ * identifies an issue but does not supply a separate
+ * recommendation object.
+ *
+ * IMPORTANT:
+ * These are generic mappings. They do not replace scanner
+ * findings; they supplement missing recommendation content.
+ */
+
+const REPORT_RECOMMENDATION_MAPPINGS = {
+  "Text size": {
+    why:
+      "Very small text can make content harder to read, especially on mobile devices.",
+    action:
+      "Review small font sizes and use readable responsive typography that remains comfortable across screen sizes.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Touch target sizing": {
+    why:
+      "Small buttons and controls can be difficult to tap accurately on phones and other touch devices.",
+    action:
+      "Increase the size and spacing of interactive controls so they are easier to use on touch screens.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive typography": {
+    why:
+      "Fixed or non-responsive font sizing can make text less comfortable to read across different screen sizes.",
+    action:
+      "Use responsive typography with scalable units such as rem, em, or clamp() where appropriate.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive CSS": {
+    why:
+      "Without responsive CSS rules, layouts may not adapt well to different screen sizes.",
+    action:
+      "Add appropriate responsive rules so the layout adapts cleanly to smaller screens.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Flexible layout": {
+    why:
+      "Rigid layouts can make content harder to use on smaller screens.",
+    action:
+      "Use flexible layout techniques such as Flexbox or CSS Grid where appropriate.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive sizing": {
+    why:
+      "Fixed sizing can cause content to become cramped or overflow on smaller screens.",
+    action:
+      "Use flexible sizing units and max-width constraints where appropriate.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive images": {
+    why:
+      "Images that do not adapt to available space can contribute to horizontal scrolling or poor mobile presentation.",
+    action:
+      "Make images fluid and prevent them from exceeding their available container width.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Form control sizing": {
+    why:
+      "Oversized fixed-width form controls can force users to scroll horizontally on smaller screens.",
+    action:
+      "Use responsive widths for inputs, selects, textareas and buttons.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive tables": {
+    why:
+      "Wide tables can overflow the screen and make information difficult to use on mobile devices.",
+    action:
+      "Place wide tables inside a responsive scrolling container or use an alternative mobile-friendly layout.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Responsive embedded content": {
+    why:
+      "Fixed-size embedded content can extend beyond the available screen width.",
+    action:
+      "Make maps, videos, iframes and other embedded content responsive.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Mobile navigation": {
+    why:
+      "Navigation that does not adapt to smaller screens can make important pages difficult to reach.",
+    action:
+      "Provide a responsive mobile navigation pattern that remains easy to use on smaller screens.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Mobile-friendly input types": {
+    why:
+      "Using appropriate input types can make forms easier to complete on mobile devices.",
+    action:
+      "Use suitable input types such as email, tel, number, URL and search where appropriate.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Viewport zoom accessibility": {
+    why:
+      "Restricting browser zoom can make content harder to read and reduce accessibility for users who need magnification.",
+    action:
+      "Avoid unnecessarily restricting user zooming in the viewport configuration.",
+    service:
+      "Accessibility optimisation"
+  },
+
+  "Fixed-width layout risk": {
+    why:
+      "Large fixed-width CSS values can cause content to extend beyond the available screen width.",
+    action:
+      "Replace rigid widths with responsive sizing, max-width constraints and flexible layout rules where appropriate.",
+    service:
+      "Mobile optimisation"
+  },
+
+  "Server response time": {
+    why:
+      "A slow initial server response can delay the beginning of the page loading process.",
+    action:
+      "Review hosting, server configuration, caching, redirects and backend processing to reduce initial response time.",
+    service:
+      "Performance optimisation"
+  },
+
+  "Missing meta description": {
+    why:
+      "A missing or weak meta description can reduce the clarity of a page's search-result snippet.",
+    action:
+      "Add a concise, relevant meta description that accurately explains the page and supports search intent.",
+    service:
+      "Technical SEO"
+  },
+
+  "Structured data": {
+    why:
+      "Structured data helps search engines better understand important information about the website.",
+    action:
+      "Add valid, relevant Schema.org structured data where appropriate and keep it aligned with the visible page content.",
+    service:
+      "Technical SEO"
+  },
+
+  "Open Graph": {
+    why:
+      "Missing social sharing metadata can reduce control over how pages appear when shared on social platforms.",
+    action:
+      "Add appropriate Open Graph and Twitter/X metadata for important pages.",
+    service:
+      "Technical SEO"
+  },
+
+  "Empty links": {
+    why:
+      "Empty or placeholder links can create confusing interactions and reduce usability.",
+    action:
+      "Give every interactive link a meaningful destination or remove unused placeholder links.",
+    service:
+      "Website improvement"
+  },
+
+  "Missing contact information": {
+    why:
+      "Missing or difficult-to-find contact information can make it harder for visitors to become enquiries.",
+    action:
+      "Make phone, email, location and other relevant contact methods easy to find and use.",
+    service:
+      "Conversion optimisation"
+  }
+};
+
+/*
+ * ============================================================
  * MAIN HANDLER
  * ============================================================
  */
@@ -97,6 +294,8 @@ module.exports = async function handler(req, res) {
       recommendations = [],
       metadata = {},
       issues = [],
+      checks = {},
+      businessEvidence = {},
       pageSpeed = null,
       counts = {},
       linkHealth = {},
@@ -129,10 +328,28 @@ module.exports = async function handler(req, res) {
       chunks.push(chunk);
     });
 
-    const pdfFinished = new Promise((resolve, reject) => {
-      doc.on("end", resolve);
-      doc.on("error", reject);
-    });
+    const pdfFinished = new Promise(
+      (resolve, reject) => {
+        doc.on("end", resolve);
+        doc.on("error", reject);
+      }
+    );
+
+    /*
+     * ----------------------------------------------------------
+     * BUILD FINAL RECOMMENDATIONS
+     * ----------------------------------------------------------
+     *
+     * Scanner recommendations are preserved.
+     * Missing recommendations are supplemented from the
+     * issue-to-recommendation mappings above.
+     */
+
+    const reportRecommendations =
+      buildReportRecommendations(
+        recommendations,
+        issues
+      );
 
     /*
      * ----------------------------------------------------------
@@ -163,7 +380,7 @@ module.exports = async function handler(req, res) {
 
     /*
      * ----------------------------------------------------------
-     * PERFORMANCE
+     * PERFORMANCE SNAPSHOT
      * ----------------------------------------------------------
      *
      * Only create this page when PageSpeed data actually
@@ -205,7 +422,34 @@ module.exports = async function handler(req, res) {
 
     drawRecommendations(
       doc,
-      recommendations
+      reportRecommendations
+    );
+
+    /*
+     * ----------------------------------------------------------
+     * DETAILED HEALTH CHECKS
+     * ----------------------------------------------------------
+     */
+
+    addReportPage(doc);
+
+    drawDetailedHealthChecks(
+      doc,
+      checks,
+      pageSpeed
+    );
+
+    /*
+     * ----------------------------------------------------------
+     * BUSINESS EVIDENCE
+     * ----------------------------------------------------------
+     */
+
+    addReportPage(doc);
+
+    drawBusinessEvidence(
+      doc,
+      businessEvidence
     );
 
     /*
@@ -221,7 +465,9 @@ module.exports = async function handler(req, res) {
       metadata,
       counts,
       linkHealth,
-      responseTime
+      responseTime,
+      checks,
+      url
     );
 
     /*
@@ -293,12 +539,179 @@ module.exports = async function handler(req, res) {
 
 /*
  * ============================================================
- * PAGE MANAGEMENT
+ * REPORT RECOMMENDATION BUILDER
  * ============================================================
  */
 
+function buildReportRecommendations(
+  recommendations,
+  issues
+) {
+  const output = [];
+
+  /*
+   * Preserve all scanner-generated recommendations first.
+   */
+
+  if (Array.isArray(recommendations)) {
+    recommendations.forEach(item => {
+      if (!item) {
+        return;
+      }
+
+      if (typeof item === "string") {
+        output.push({
+          title: item,
+          severity: "info"
+        });
+
+        return;
+      }
+
+      output.push({
+        title:
+          item.title ||
+          item.name ||
+          "Recommendation",
+
+        why:
+          item.why ||
+          item.reason ||
+          "",
+
+        action:
+          item.action ||
+          item.recommendation ||
+          item.description ||
+          "",
+
+        service:
+          item.service ||
+          item.category ||
+          "",
+
+        severity:
+          item.severity ||
+          "info"
+      });
+    });
+  }
+
+  /*
+   * Supplement recommendations from issue mappings.
+   */
+
+  if (Array.isArray(issues)) {
+    issues.forEach(issue => {
+      const normalized =
+        normalizeIssue(issue);
+
+      const issueTitle =
+        String(
+          normalized.title || ""
+        ).trim();
+
+      const mapping =
+        findRecommendationMapping(
+          issueTitle
+        );
+
+      if (!mapping) {
+        return;
+      }
+
+      const alreadyExists =
+        output.some(item => {
+          const existingTitle =
+            String(
+              item?.title ||
+              ""
+            ).trim()
+            .toLowerCase();
+
+          return (
+            existingTitle ===
+            issueTitle.toLowerCase()
+          );
+        });
+
+      if (alreadyExists) {
+        return;
+      }
+
+      output.push({
+        title: issueTitle,
+        why: mapping.why,
+        action: mapping.action,
+        service: mapping.service,
+        severity:
+          normalized.severity ||
+          "info"
+      });
+    });
+  }
+
+  return output;
+}
+
+function findRecommendationMapping(
+  issueTitle
+) {
+  const title =
+    String(
+      issueTitle || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  if (!title) {
+    return null;
+  }
+
+  const exactKey =
+    Object.keys(
+      REPORT_RECOMMENDATION_MAPPINGS
+    ).find(
+      key =>
+        key.toLowerCase() === title
+    );
+
+  if (exactKey) {
+    return REPORT_RECOMMENDATION_MAPPINGS[
+      exactKey
+    ];
+  }
+
+  const partialKey =
+    Object.keys(
+      REPORT_RECOMMENDATION_MAPPINGS
+    ).find(
+      key => {
+        const normalizedKey =
+          key.toLowerCase();
+
+        return (
+          title.includes(
+            normalizedKey
+          ) ||
+          normalizedKey.includes(
+            title
+          )
+        );
+      }
+    );
+
+  return partialKey
+    ? REPORT_RECOMMENDATION_MAPPINGS[
+        partialKey
+      ]
+    : null;
+}
+
 /*
- * Create a standard report page.
+ * ============================================================
+ * PAGE MANAGEMENT
+ * ============================================================
  */
 
 function addReportPage(doc) {
@@ -310,17 +723,12 @@ function addReportPage(doc) {
   doc.y = PAGE.top;
 }
 
-/*
- * Bottom edge of the usable content area.
- */
-
 function contentBottom(doc) {
-  return doc.page.height - PAGE.bottom;
+  return (
+    doc.page.height -
+    PAGE.bottom
+  );
 }
-
-/*
- * Top edge of usable content.
- */
 
 function contentTop() {
   return PAGE.top;
@@ -330,23 +738,17 @@ function contentTop() {
  * ============================================================
  * ENSURE SPACE
  * ============================================================
- *
- * Keeps blocks together whenever possible.
- *
- * Important:
- * A block that is taller than a complete page cannot be kept
- * together. In that case we allow it to begin on a fresh page
- * rather than repeatedly creating blank pages.
  */
 
 function ensureSpace(
   doc,
   requiredHeight
 ) {
-  const safeHeight = Math.max(
-    0,
-    Number(requiredHeight) || 0
-  );
+  const safeHeight =
+    Math.max(
+      0,
+      Number(requiredHeight) || 0
+    );
 
   const available =
     contentBottom(doc) -
@@ -357,11 +759,6 @@ function ensureSpace(
   ) {
     return false;
   }
-
-  /*
-   * If we're already near the top of a fresh page,
-   * don't create another page unnecessarily.
-   */
 
   if (
     doc.y <=
@@ -387,9 +784,6 @@ function drawCover(
   scores,
   scannedAt
 ) {
-  /*
-   * Full-page branded cover background.
-   */
   doc
     .save()
     .rect(
@@ -398,11 +792,15 @@ function drawCover(
       doc.page.width,
       doc.page.height
     )
-    .fillColor("#1F2937")
+    .fillColor(
+      BRAND.dark2
+    )
     .fill()
     .restore();
 
-  doc.fillColor(BRAND.white);
+  doc.fillColor(
+    BRAND.white
+  );
 
   const overall =
     numericScore(
@@ -410,14 +808,14 @@ function drawCover(
     );
 
   const scoreColor =
-    getScoreColor(overall);
+    getScoreColor(
+      overall
+    );
 
   /*
-   * Site Rescue Studio logo
-   *
-   * The logo is loaded from the project assets directory so
-   * the same brand asset is used by the website and PDF.
+   * Logo
    */
+
   try {
     doc.image(
       LOGO_PATH,
@@ -435,13 +833,13 @@ function drawCover(
       logoError.message
     );
 
-    /*
-     * Fallback keeps the report usable if the asset is
-     * temporarily unavailable.
-     */
     doc
-      .fillColor(BRAND.white)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.white
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(20)
       .text(
         "SITE RESCUE STUDIO",
@@ -452,16 +850,16 @@ function drawCover(
   }
 
   /*
-   * ----------------------------------------------------------
-   * REPORT TITLE
-   * ----------------------------------------------------------
-   *
-   * Position the title explicitly below the logo so the
-   * logo and title never overlap.
+   * Report title
    */
+
   doc
-    .fillColor(BRAND.white)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(30)
     .text(
       "Website Health Report",
@@ -476,7 +874,9 @@ function drawCover(
   doc.moveDown(0.8);
 
   doc
-    .fillColor(BRAND.light)
+    .fillColor(
+      BRAND.light
+    )
     .font("Helvetica")
     .fontSize(12)
     .text(
@@ -490,7 +890,9 @@ function drawCover(
 
   doc
     .fillColor(scoreColor)
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(58)
     .text(
       Number.isFinite(overall)
@@ -504,11 +906,17 @@ function drawCover(
   doc.moveDown(0.3);
 
   doc
-    .fillColor(BRAND.white)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(18)
     .text(
-      getOverallLabel(overall),
+      getOverallLabel(
+        overall
+      ),
       {
         align: "center"
       }
@@ -517,11 +925,15 @@ function drawCover(
   doc.moveDown(1);
 
   doc
-    .fillColor(BRAND.light)
+    .fillColor(
+      BRAND.light
+    )
     .font("Helvetica")
     .fontSize(11)
     .text(
-      getOverallDescription(overall),
+      getOverallDescription(
+        overall
+      ),
       PAGE.left,
       doc.y,
       {
@@ -538,11 +950,15 @@ function drawCover(
   doc.moveDown(1);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(
+      BRAND.muted
+    )
     .font("Helvetica")
     .fontSize(10)
     .text(
-      `Generated ${formatDate(scannedAt)}`,
+      `Generated ${formatDate(
+        scannedAt
+      )}`,
       {
         align: "center"
       }
@@ -551,8 +967,12 @@ function drawCover(
   doc.moveDown(1);
 
   doc
-    .fillColor(BRAND.text)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.text
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(11)
     .text(
       "Website optimisation • SEO • Performance • Accessibility • Conversion",
@@ -565,7 +985,7 @@ function drawCover(
 
   drawWebsiteButton(
     doc,
-    "Visit Site Rescue Studio →",
+    "Visit Site Rescue Studio",
     SITE_RESCUE_URL,
     190,
     doc.y,
@@ -594,7 +1014,9 @@ function drawOverviewPage(
   );
 
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(10.5)
     .text(
@@ -610,21 +1032,36 @@ function drawOverviewPage(
   doc.moveDown(1.5);
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(15)
-    .text("Health Scores");
+    .text(
+      "Health Scores"
+    );
 
   doc.moveDown(0.8);
 
   const scoreRows = [
     ["Overall", scores?.overall],
     ["SEO", scores?.seo],
-    ["Performance", scores?.performance],
+    [
+      "Performance",
+      scores?.performance
+    ],
     ["Mobile", scores?.mobile],
-    ["Accessibility", scores?.accessibility],
+    [
+      "Accessibility",
+      scores?.accessibility
+    ],
     ["Business", scores?.business],
-    ["Technical", scores?.technical]
+    [
+      "Technical",
+      scores?.technical
+    ]
   ];
 
   drawScoreDashboard(
@@ -642,7 +1079,9 @@ function drawOverviewPage(
   doc.moveDown(0.6);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(
+      BRAND.muted
+    )
     .font("Helvetica")
     .fontSize(9)
     .text(
@@ -671,8 +1110,11 @@ function drawScoreDashboard(
   const gapX = 19;
   const gapY = 8;
 
-  const startX = PAGE.left;
-  const startY = doc.y;
+  const startX =
+    PAGE.left;
+
+  const startY =
+    doc.y;
 
   rows.forEach(
     ([label, score], index) => {
@@ -680,7 +1122,9 @@ function drawScoreDashboard(
         index % 2;
 
       const row =
-        Math.floor(index / 2);
+        Math.floor(
+          index / 2
+        );
 
       const x =
         startX +
@@ -746,7 +1190,9 @@ function drawScoreCard(
       height,
       8
     )
-    .fillColor(BRAND.lighter)
+    .fillColor(
+      BRAND.lighter
+    )
     .fill();
 
   doc
@@ -758,33 +1204,45 @@ function drawScoreCard(
       8
     )
     .lineWidth(1)
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .stroke();
 
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(8)
     .text(
-      String(label).toUpperCase(),
+      String(
+        label
+      ).toUpperCase(),
       x + 13,
       y + 10,
       {
-        width: width - 26,
+        width:
+          width - 26,
         lineGap: 0
       }
     );
 
   doc
     .fillColor(color)
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(17)
     .text(
       formatScore(value),
       x + 13,
       y + 27,
       {
-        width: width - 26,
+        width:
+          width - 26,
         lineGap: 0
       }
     );
@@ -793,7 +1251,9 @@ function drawScoreCard(
     x + 13;
 
   const barY =
-    y + height - 9;
+    y +
+    height -
+    9;
 
   const barWidth =
     width - 26;
@@ -808,7 +1268,9 @@ function drawScoreCard(
       barHeight,
       2
     )
-    .fillColor(BRAND.border)
+    .fillColor(
+      BRAND.border
+    )
     .fill();
 
   if (
@@ -866,8 +1328,12 @@ function drawAssessmentSummary(
     );
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(15)
     .text(
       "Assessment Summary"
@@ -917,12 +1383,18 @@ function drawAssessmentSummary(
           height,
           8
         )
-        .fillColor(card.bg)
+        .fillColor(
+          card.bg
+        )
         .fill();
 
       doc
-        .fillColor(card.color)
-        .font("Helvetica-Bold")
+        .fillColor(
+          card.color
+        )
+        .font(
+          "Helvetica-Bold"
+        )
         .fontSize(8)
         .text(
           card.label,
@@ -934,8 +1406,12 @@ function drawAssessmentSummary(
         );
 
       doc
-        .fillColor(BRAND.dark)
-        .font("Helvetica-Bold")
+        .fillColor(
+          BRAND.dark
+        )
+        .font(
+          "Helvetica-Bold"
+        )
         .fontSize(22)
         .text(
           String(card.value),
@@ -999,8 +1475,12 @@ function drawPerformancePage(
   doc.moveDown(1);
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(15)
     .text(
       "Core Web Vitals"
@@ -1009,7 +1489,8 @@ function drawPerformancePage(
   doc.moveDown(0.8);
 
   const vitals =
-    pageSpeed?.vitals || {};
+    pageSpeed?.vitals ||
+    {};
 
   const vitalRows = [
     [
@@ -1144,19 +1625,20 @@ function getFindingCardHeight(
 ) {
   const titleText =
     String(
-      title || "Website issue"
+      title ||
+      "Website issue"
     );
 
   const descriptionText =
     String(
-      description || ""
+      description ||
+      ""
     );
 
-  /*
-   * Title measurement.
-   */
-
-  doc.font("Helvetica-Bold")
+  doc
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(12);
 
   const titleHeight =
@@ -1168,14 +1650,13 @@ function getFindingCardHeight(
       }
     );
 
-  /*
-   * Description measurement.
-   */
-
   let descriptionHeight = 0;
 
-  if (descriptionText) {
-    doc.font("Helvetica")
+  if (
+    descriptionText
+  ) {
+    doc
+      .font("Helvetica")
       .fontSize(9.5);
 
     descriptionHeight =
@@ -1239,10 +1720,6 @@ function drawFindingCard(
       description
     );
 
-  /*
-   * Background.
-   */
-
   doc
     .roundedRect(
       x,
@@ -1251,7 +1728,9 @@ function drawFindingCard(
       height,
       8
     )
-    .fillColor(BRAND.lighter)
+    .fillColor(
+      BRAND.lighter
+    )
     .fill();
 
   doc
@@ -1263,11 +1742,13 @@ function drawFindingCard(
       8
     )
     .lineWidth(1)
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .stroke();
 
   /*
-   * Number badge.
+   * Number badge
    */
 
   doc
@@ -1278,15 +1759,24 @@ function drawFindingCard(
       30,
       6
     )
-    .fillColor(BRAND.dark)
+    .fillColor(
+      BRAND.dark
+    )
     .fill();
 
   doc
-    .fillColor(BRAND.white)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(10)
     .text(
-      String(number).padStart(2, "0"),
+      String(number).padStart(
+        2,
+        "0"
+      ),
       x + 12,
       y + 18,
       {
@@ -1297,16 +1787,21 @@ function drawFindingCard(
     );
 
   /*
-   * Title.
+   * Title
    */
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(12)
     .text(
       String(
-        title || "Website issue"
+        title ||
+        "Website issue"
       ),
       x + 55,
       y + 9,
@@ -1317,7 +1812,7 @@ function drawFindingCard(
     );
 
   /*
-   * Severity badge.
+   * Severity badge
    */
 
   doc
@@ -1337,7 +1832,9 @@ function drawFindingCard(
     .fillColor(
       severityInfo.color
     )
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7)
     .text(
       `${severityInfo.label} PRIORITY`,
@@ -1351,18 +1848,21 @@ function drawFindingCard(
     );
 
   /*
-   * Description.
+   * Description
    */
 
   if (description) {
     doc
-      .font("Helvetica-Bold")
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(12);
 
     const titleHeight =
       doc.heightOfString(
         String(
-          title || "Website issue"
+          title ||
+          "Website issue"
         ),
         {
           width: 300,
@@ -1374,12 +1874,17 @@ function drawFindingCard(
       y +
       Math.max(
         39,
-        12 + titleHeight
+        12 +
+          titleHeight
       );
 
     doc
-      .fillColor(BRAND.muted)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.muted
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(7.5)
       .text(
         "WHAT WE FOUND",
@@ -1391,7 +1896,9 @@ function drawFindingCard(
       );
 
     doc
-      .fillColor(BRAND.text)
+      .fillColor(
+        BRAND.text
+      )
       .font("Helvetica")
       .fontSize(9.5)
       .text(
@@ -1404,10 +1911,6 @@ function drawFindingCard(
         }
       );
   }
-
-  /*
-   * Cursor below card.
-   */
 
   doc.y =
     y +
@@ -1434,7 +1937,9 @@ function drawRecommendations(
   );
 
   if (
-    !Array.isArray(recommendations) ||
+    !Array.isArray(
+      recommendations
+    ) ||
     recommendations.length === 0
   ) {
     drawInfoBox(
@@ -1489,28 +1994,28 @@ function getRecommendationCardHeight(
 
   const why =
     String(
-      item.why || ""
+      item.why ||
+      ""
     );
 
   const action =
     String(
-      item.action || ""
+      item.action ||
+      ""
     );
 
   const service =
     String(
-      item.service || ""
+      item.service ||
+      ""
     );
 
   const contentWidth = 455;
 
-  /*
-   * Measure using the same font settings as
-   * the renderer.
-   */
-
   doc
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(14);
 
   const titleHeight =
@@ -1560,7 +2065,9 @@ function getRecommendationCardHeight(
 
   if (service) {
     doc
-      .font("Helvetica-Bold")
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(9.5);
 
     serviceHeight =
@@ -1573,10 +2080,6 @@ function getRecommendationCardHeight(
       );
   }
 
-  /*
-   * Header.
-   */
-
   let height =
     Math.max(
       68,
@@ -1585,10 +2088,6 @@ function getRecommendationCardHeight(
         14
     );
 
-  /*
-   * Why.
-   */
-
   if (why) {
     height +=
       12 +
@@ -1596,20 +2095,12 @@ function getRecommendationCardHeight(
       12;
   }
 
-  /*
-   * Action.
-   */
-
   if (action) {
     height +=
       12 +
       actionHeight +
       12;
   }
-
-  /*
-   * Service.
-   */
 
   if (service) {
     height +=
@@ -1650,17 +2141,20 @@ function drawRecommendationCard(
 
   const why =
     String(
-      item.why || ""
+      item.why ||
+      ""
     );
 
   const action =
     String(
-      item.action || ""
+      item.action ||
+      ""
     );
 
   const service =
     String(
-      item.service || ""
+      item.service ||
+      ""
     );
 
   const severityInfo =
@@ -1680,10 +2174,6 @@ function drawRecommendationCard(
       item
     );
 
-  /*
-   * Card background.
-   */
-
   doc
     .roundedRect(
       x,
@@ -1692,7 +2182,9 @@ function drawRecommendationCard(
       height,
       9
     )
-    .fillColor(BRAND.white)
+    .fillColor(
+      BRAND.white
+    )
     .fill();
 
   doc
@@ -1703,12 +2195,14 @@ function drawRecommendationCard(
       height,
       9
     )
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .lineWidth(1)
     .stroke();
 
   /*
-   * Left accent.
+   * Left accent
    */
 
   doc
@@ -1725,15 +2219,22 @@ function drawRecommendationCard(
     .fill();
 
   /*
-   * Number.
+   * Number
    */
 
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(8)
     .text(
-      String(number).padStart(2, "0"),
+      String(number).padStart(
+        2,
+        "0"
+      ),
       x + 18,
       y + 14,
       {
@@ -1743,12 +2244,16 @@ function drawRecommendationCard(
     );
 
   /*
-   * Title.
+   * Title
    */
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(14)
     .text(
       title,
@@ -1761,7 +2266,7 @@ function drawRecommendationCard(
     );
 
   /*
-   * Priority badge.
+   * Priority badge
    */
 
   doc
@@ -1781,7 +2286,9 @@ function drawRecommendationCard(
     .fillColor(
       severityInfo.color
     )
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7)
     .text(
       `${severityInfo.label} PRIORITY`,
@@ -1795,12 +2302,13 @@ function drawRecommendationCard(
     );
 
   /*
-   * Calculate title height using the exact
-   * rendering settings.
+   * Calculate title height using the exact rendering settings.
    */
 
   doc
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(14);
 
   const titleHeight =
@@ -1827,8 +2335,12 @@ function drawRecommendationCard(
 
   if (why) {
     doc
-      .fillColor(BRAND.muted)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.muted
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(7.5)
       .text(
         "WHY IT MATTERS",
@@ -1842,7 +2354,9 @@ function drawRecommendationCard(
     currentY += 12;
 
     doc
-      .fillColor(BRAND.text)
+      .fillColor(
+        BRAND.text
+      )
       .font("Helvetica")
       .fontSize(9.5)
       .text(
@@ -1850,7 +2364,8 @@ function drawRecommendationCard(
         x + 18,
         currentY,
         {
-          width: contentWidth,
+          width:
+            contentWidth,
           lineGap: 2
         }
       );
@@ -1859,7 +2374,8 @@ function drawRecommendationCard(
       doc.heightOfString(
         why,
         {
-          width: contentWidth,
+          width:
+            contentWidth,
           lineGap: 2
         }
       ) +
@@ -1872,8 +2388,12 @@ function drawRecommendationCard(
 
   if (action) {
     doc
-      .fillColor(BRAND.muted)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.muted
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(7.5)
       .text(
         "RECOMMENDED ACTION",
@@ -1887,7 +2407,9 @@ function drawRecommendationCard(
     currentY += 12;
 
     doc
-      .fillColor(BRAND.text)
+      .fillColor(
+        BRAND.text
+      )
       .font("Helvetica")
       .fontSize(9.5)
       .text(
@@ -1895,7 +2417,8 @@ function drawRecommendationCard(
         x + 18,
         currentY,
         {
-          width: contentWidth,
+          width:
+            contentWidth,
           lineGap: 2
         }
       );
@@ -1904,7 +2427,8 @@ function drawRecommendationCard(
       doc.heightOfString(
         action,
         {
-          width: contentWidth,
+          width:
+            contentWidth,
           lineGap: 2
         }
       ) +
@@ -1917,8 +2441,12 @@ function drawRecommendationCard(
 
   if (service) {
     doc
-      .fillColor(BRAND.muted)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.muted
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(7.5)
       .text(
         "RECOMMENDED SERVICE",
@@ -1932,23 +2460,24 @@ function drawRecommendationCard(
     currentY += 12;
 
     doc
-      .fillColor(BRAND.blue)
-      .font("Helvetica-Bold")
+      .fillColor(
+        BRAND.blue
+      )
+      .font(
+        "Helvetica-Bold"
+      )
       .fontSize(9.5)
       .text(
         service,
         x + 18,
         currentY,
         {
-          width: contentWidth,
+          width:
+            contentWidth,
           lineGap: 0
         }
       );
   }
-
-  /*
-   * Cursor below complete card.
-   */
 
   doc.y =
     y +
@@ -1956,6 +2485,1140 @@ function drawRecommendationCard(
     14;
 
   doc.x = PAGE.left;
+}
+
+/*
+ * ============================================================
+ * DETAILED HEALTH CHECKS
+ * ============================================================
+ */
+
+function drawDetailedHealthChecks(
+  doc,
+  checks,
+  pageSpeed
+) {
+  checks =
+    checks || {};
+
+  sectionTitle(
+    doc,
+    "Detailed Health Checks",
+    "The individual checks performed during the website assessment."
+  );
+
+  const sections = [
+    {
+      title: "SEO",
+      checks:
+        Array.isArray(
+          checks.seo
+        )
+          ? checks.seo
+          : []
+    },
+    {
+      title: "Accessibility",
+      checks:
+        Array.isArray(
+          checks.accessibility
+        )
+          ? checks.accessibility
+          : []
+    },
+    {
+      title: "Mobile",
+      checks:
+        Array.isArray(
+          checks.mobile
+        )
+          ? checks.mobile
+          : []
+    },
+    {
+      title: "Technical",
+      checks:
+        Array.isArray(
+          checks.technical
+        )
+          ? checks.technical
+          : []
+    }
+  ];
+
+  sections.forEach(
+    section => {
+      if (
+        !section.checks.length
+      ) {
+        return;
+      }
+
+      ensureSpace(
+        doc,
+        65
+      );
+
+      drawSubheading(
+        doc,
+        section.title
+      );
+
+      section.checks.forEach(
+        check => {
+          const item =
+            normalizeHealthCheck(
+              check
+            );
+
+          const height =
+            getHealthCheckHeight(
+              doc,
+              item
+            );
+
+          ensureSpace(
+            doc,
+            height + 8
+          );
+
+          drawHealthCheck(
+            doc,
+            item
+          );
+        }
+      );
+
+      doc.moveDown(0.8);
+    }
+  );
+
+  /*
+   * Performance
+   */
+
+  ensureSpace(
+    doc,
+    75
+  );
+
+  drawSubheading(
+    doc,
+    "Performance"
+  );
+
+  if (
+    pageSpeed &&
+    pageSpeed.available
+  ) {
+    const performanceChecks =
+      [];
+
+    const vitals =
+      pageSpeed.vitals ||
+      {};
+
+    if (
+      vitals.lcp !==
+        undefined &&
+      vitals.lcp !==
+        null &&
+      vitals.lcp !== ""
+    ) {
+      performanceChecks.push({
+        title:
+          "Largest Contentful Paint",
+        description:
+          `LCP: ${vitals.lcp}`,
+        status: "info"
+      });
+    }
+
+    if (
+      vitals.cls !==
+        undefined &&
+      vitals.cls !==
+        null &&
+      vitals.cls !== ""
+    ) {
+      performanceChecks.push({
+        title:
+          "Cumulative Layout Shift",
+        description:
+          `CLS: ${vitals.cls}`,
+        status: "info"
+      });
+    }
+
+    if (
+      vitals.inp !==
+        undefined &&
+      vitals.inp !==
+        null &&
+      vitals.inp !== ""
+    ) {
+      performanceChecks.push({
+        title:
+          "Interaction to Next Paint",
+        description:
+          `INP: ${vitals.inp}`,
+        status: "info"
+      });
+    }
+
+    if (
+      vitals.fcp !==
+        undefined &&
+      vitals.fcp !==
+        null &&
+      vitals.fcp !== ""
+    ) {
+      performanceChecks.push({
+        title:
+          "First Contentful Paint",
+        description:
+          `FCP: ${vitals.fcp}`,
+        status: "info"
+      });
+    }
+
+    if (
+      vitals.tbt !==
+        undefined &&
+      vitals.tbt !==
+        null &&
+      vitals.tbt !== ""
+    ) {
+      performanceChecks.push({
+        title:
+          "Total Blocking Time",
+        description:
+          `TBT: ${vitals.tbt}`,
+        status: "info"
+      });
+    }
+
+    performanceChecks.forEach(
+      check => {
+        const item =
+          normalizeHealthCheck(
+            check
+          );
+
+        ensureSpace(
+          doc,
+          getHealthCheckHeight(
+            doc,
+            item
+          ) + 8
+        );
+
+        drawHealthCheck(
+          doc,
+          item
+        );
+      }
+    );
+
+    if (
+      !performanceChecks.length
+    ) {
+      drawHealthCheck(
+        doc,
+        {
+          title:
+            "Performance data",
+          description:
+            "Performance data was available, but no individual metrics were returned.",
+          status: "info"
+        }
+      );
+    }
+  } else {
+    drawHealthCheck(
+      doc,
+      {
+        title:
+          "Performance analysis",
+        description:
+          "PageSpeed performance data was not available for this scan.",
+        status: "info"
+      }
+    );
+  }
+}
+
+/*
+ * ============================================================
+ * HEALTH CHECK HELPERS
+ * ============================================================
+ */
+
+function normalizeHealthCheck(
+  check
+) {
+  if (
+    typeof check ===
+    "string"
+  ) {
+    return {
+      title: check,
+      description: "",
+      status: "info",
+      severity: ""
+    };
+  }
+
+  const item =
+    check || {};
+
+  return {
+    title:
+      item.title ||
+      item.name ||
+      "Health check",
+
+    description:
+      item.description ||
+      item.detail ||
+      item.message ||
+      "",
+
+    status:
+      item.status ||
+      item.result ||
+      "info",
+
+    severity:
+      item.severity ||
+      ""
+  };
+}
+
+function getHealthCheckStatusColor(
+  status
+) {
+  const value =
+    String(
+      status ||
+      "info"
+    ).toLowerCase();
+
+  if (
+    value === "pass" ||
+    value === "passed" ||
+    value === "ok" ||
+    value === "success"
+  ) {
+    return BRAND.green;
+  }
+
+  if (
+    value === "fail" ||
+    value === "failed" ||
+    value === "error"
+  ) {
+    return BRAND.red;
+  }
+
+  if (
+    value === "warning" ||
+    value === "warn"
+  ) {
+    return BRAND.orange;
+  }
+
+  return BRAND.blue;
+}
+
+function getHealthCheckStatusLabel(
+  status
+) {
+  const value =
+    String(
+      status ||
+      "info"
+    ).toLowerCase();
+
+  if (
+    value === "pass" ||
+    value === "passed" ||
+    value === "ok" ||
+    value === "success"
+  ) {
+    return "PASS";
+  }
+
+  if (
+    value === "fail" ||
+    value === "failed" ||
+    value === "error"
+  ) {
+    return "FAIL";
+  }
+
+  if (
+    value === "warning" ||
+    value === "warn"
+  ) {
+    return "WARNING";
+  }
+
+  return "INFO";
+}
+
+function getHealthCheckHeight(
+  doc,
+  item
+) {
+  const description =
+    item.description ||
+    "No additional details were returned.";
+
+  doc
+    .font("Helvetica")
+    .fontSize(9.5);
+
+  const descriptionHeight =
+    doc.heightOfString(
+      description,
+      {
+        width: 395,
+        lineGap: 2
+      }
+    );
+
+  return Math.max(
+    50,
+    34 +
+      descriptionHeight +
+      12
+  );
+}
+
+function drawHealthCheck(
+  doc,
+  item
+) {
+  const startY =
+    doc.y;
+
+  const width =
+    PAGE.width;
+
+  const height =
+    getHealthCheckHeight(
+      doc,
+      item
+    );
+
+  const statusColor =
+    getHealthCheckStatusColor(
+      item.status
+    );
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      width,
+      height,
+      7
+    )
+    .fillColor(
+      BRAND.lighter
+    )
+    .fill();
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      width,
+      height,
+      7
+    )
+    .lineWidth(1)
+    .strokeColor(
+      BRAND.border
+    )
+    .stroke();
+
+  /*
+   * Status indicator
+   */
+
+  doc
+    .roundedRect(
+      PAGE.left + 12,
+      startY + 12,
+      70,
+      20,
+      5
+    )
+    .fillColor(
+      statusColor
+    )
+    .fill();
+
+  doc
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
+    .fontSize(7.5)
+    .text(
+      getHealthCheckStatusLabel(
+        item.status
+      ),
+      PAGE.left + 12,
+      startY + 18,
+      {
+        width: 70,
+        align: "center"
+      }
+    );
+
+  /*
+   * Title
+   */
+
+  doc
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
+    .fontSize(10)
+    .text(
+      item.title,
+      PAGE.left + 94,
+      startY + 14,
+      {
+        width:
+          width - 108
+      }
+    );
+
+  /*
+   * Description
+   */
+
+  doc
+    .fillColor(
+      BRAND.text
+    )
+    .font("Helvetica")
+    .fontSize(9.5)
+    .text(
+      item.description ||
+        "No additional details were returned.",
+      PAGE.left + 94,
+      startY + 34,
+      {
+        width:
+          width - 108,
+        lineGap: 2
+      }
+    );
+
+  doc.y =
+    startY +
+    height;
+
+  doc.x = PAGE.left;
+}
+
+/*
+ * ============================================================
+ * BUSINESS EVIDENCE
+ * ============================================================
+ */
+
+function drawBusinessEvidence(
+  doc,
+  businessEvidence
+) {
+  businessEvidence =
+    businessEvidence || {};
+
+  sectionTitle(
+    doc,
+    "Business Readiness",
+    "Evidence showing how easily visitors can contact or engage with the business."
+  );
+
+  const evidenceItems = [
+    {
+      key: "phone",
+      title: "Phone number"
+    },
+    {
+      key: "email",
+      title: "Email address"
+    },
+    {
+      key: "whatsapp",
+      title: "WhatsApp"
+    },
+    {
+      key: "contactForm",
+      title: "Contact form"
+    },
+    {
+      key: "location",
+      title: "Business location"
+    },
+    {
+      key: "cta",
+      title: "Call to action"
+    }
+  ];
+
+  let rendered = 0;
+
+  evidenceItems.forEach(
+    evidence => {
+      const raw =
+        businessEvidence[
+          evidence.key
+        ];
+
+      if (
+        raw === undefined ||
+        raw === null
+      ) {
+        return;
+      }
+
+      const normalized =
+        normalizeBusinessEvidence(
+          evidence.key,
+          raw
+        );
+
+      const height =
+        getEvidenceHeight(
+          doc,
+          normalized
+        );
+
+      ensureSpace(
+        doc,
+        height + 8
+      );
+
+      drawEvidenceCard(
+        doc,
+        normalized
+      );
+
+      rendered++;
+    }
+  );
+
+  if (!rendered) {
+    drawEvidenceMessage(
+      doc,
+      "No business evidence was supplied for this scan.",
+      false
+    );
+
+    return;
+  }
+
+  doc.moveDown(0.5);
+
+  drawInfoBox(
+    doc,
+    "Business readiness note",
+    "Business evidence is based on information detected by the scanner across the pages it was able to inspect. Presence of an item indicates detected evidence; it does not guarantee that every visitor will experience the same result in every browser or device."
+  );
+}
+
+function normalizeBusinessEvidence(
+  key,
+  value
+) {
+  const entries =
+    Array.isArray(value)
+      ? value
+      : [value];
+
+  const usableEntries =
+    entries
+      .filter(
+        entry =>
+          entry !==
+            null &&
+          entry !==
+            undefined &&
+          entry !==
+            ""
+      )
+      .map(
+        entry =>
+          typeof entry ===
+          "object"
+            ? entry
+            : {
+                value:
+                  String(entry)
+              }
+      );
+
+  return {
+    key,
+    title:
+      getBusinessEvidenceTitle(
+        key
+      ),
+    entries:
+      usableEntries
+  };
+}
+
+function getBusinessEvidenceTitle(
+  key
+) {
+  const labels = {
+    phone:
+      "Phone number",
+    email:
+      "Email address",
+    whatsapp:
+      "WhatsApp",
+    contactForm:
+      "Contact form",
+    location:
+      "Business location",
+    cta:
+      "Call to action"
+  };
+
+  return (
+    labels[key] ||
+    "Business evidence"
+  );
+}
+
+function getEvidenceStatus(
+  evidence
+) {
+  return evidence.entries.length
+    ? "Detected"
+    : "Not detected";
+}
+
+function formatBusinessEvidence(
+  key,
+  entry
+) {
+  if (
+    entry ===
+      null ||
+    entry ===
+      undefined
+  ) {
+    return "Evidence detected.";
+  }
+
+  if (
+    typeof entry ===
+    "string"
+  ) {
+    return entry;
+  }
+
+  const parts = [];
+
+  if (
+    entry.url
+  ) {
+    parts.push(
+      `Page: ${cleanDisplayUrl(
+        entry.url
+      )}`
+    );
+  } else if (
+    entry.page
+  ) {
+    parts.push(
+      `Page: ${cleanDisplayUrl(
+        entry.page
+      )}`
+    );
+  }
+
+  if (
+    entry.value
+  ) {
+    parts.push(
+      `Value: ${entry.value}`
+    );
+  }
+
+  if (
+    entry.text
+  ) {
+    parts.push(
+      `Text: ${entry.text}`
+    );
+  }
+
+  if (
+    entry.href
+  ) {
+    parts.push(
+      `Link: ${entry.href}`
+    );
+  }
+
+  if (
+    entry.clickable !==
+      undefined
+  ) {
+    parts.push(
+      entry.clickable
+        ? "Clickable"
+        : "Not clickable"
+    );
+  }
+
+  if (
+    entry.usable !==
+      undefined
+  ) {
+    parts.push(
+      entry.usable
+        ? "Usable"
+        : "Not confirmed usable"
+    );
+  }
+
+  if (
+    entry.formCount !==
+      undefined
+  ) {
+    parts.push(
+      `Forms detected: ${entry.formCount}`
+    );
+  }
+
+  if (
+    entry.forms !==
+      undefined
+  ) {
+    const count =
+      Array.isArray(
+        entry.forms
+      )
+        ? entry.forms.length
+        : entry.forms;
+
+    parts.push(
+      `Forms detected: ${count}`
+    );
+  }
+
+  if (
+    entry.address
+  ) {
+    parts.push(
+      `Address: ${entry.address}`
+    );
+  }
+
+  if (
+    entry.mapLink
+  ) {
+    parts.push(
+      "Map link detected"
+    );
+  }
+
+  if (
+    entry.mapEmbed
+  ) {
+    parts.push(
+      "Map embed detected"
+    );
+  }
+
+  if (
+    entry.cta
+  ) {
+    parts.push(
+      `CTA: ${entry.cta}`
+    );
+  }
+
+  if (
+    !parts.length
+  ) {
+    parts.push(
+      "Evidence detected."
+    );
+  }
+
+  return parts.join(
+    " • "
+  );
+}
+
+function getEvidenceHeight(
+  doc,
+  evidence
+) {
+  const entries =
+    evidence.entries.length
+      ? evidence.entries
+      : [
+          {
+            value:
+              "No evidence detected."
+          }
+        ];
+
+  let bodyHeight = 0;
+
+  entries.forEach(
+    entry => {
+      const text =
+        formatBusinessEvidence(
+          evidence.key,
+          entry
+        );
+
+      doc
+        .font("Helvetica")
+        .fontSize(9.5);
+
+      bodyHeight +=
+        doc.heightOfString(
+          text,
+          {
+            width: 350,
+            lineGap: 2
+          }
+        ) +
+        5;
+    }
+  );
+
+  return Math.max(
+    72,
+    45 +
+      bodyHeight +
+      12
+  );
+}
+
+function drawEvidenceCard(
+  doc,
+  evidence
+) {
+  const x =
+    PAGE.left;
+
+  const width =
+    PAGE.width;
+
+  const y =
+    doc.y;
+
+  const height =
+    getEvidenceHeight(
+      doc,
+      evidence
+    );
+
+  const detected =
+    evidence.entries.length >
+    0;
+
+  const statusColor =
+    detected
+      ? BRAND.green
+      : BRAND.orange;
+
+  const statusBg =
+    detected
+      ? BRAND.greenLight
+      : BRAND.orangeLight;
+
+  doc
+    .roundedRect(
+      x,
+      y,
+      width,
+      height,
+      8
+    )
+    .fillColor(
+      BRAND.lighter
+    )
+    .fill();
+
+  doc
+    .roundedRect(
+      x,
+      y,
+      width,
+      height,
+      8
+    )
+    .lineWidth(1)
+    .strokeColor(
+      BRAND.border
+    )
+    .stroke();
+
+  /*
+   * Title
+   */
+
+  doc
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
+    .fontSize(11)
+    .text(
+      evidence.title,
+      x + 16,
+      y + 14,
+      {
+        width: 270,
+        lineGap: 0
+      }
+    );
+
+  /*
+   * Status badge
+   */
+
+  doc
+    .roundedRect(
+      x + 385,
+      y + 11,
+      110 - 20,
+      22,
+      5
+    )
+    .fillColor(
+      statusBg
+    )
+    .fill();
+
+  doc
+    .fillColor(
+      statusColor
+    )
+    .font(
+      "Helvetica-Bold"
+    )
+    .fontSize(7)
+    .text(
+      getEvidenceStatus(
+        evidence
+      ).toUpperCase(),
+      x + 385,
+      y + 18,
+      {
+        width: 90,
+        align: "center",
+        lineGap: 0
+      }
+    );
+
+  /*
+   * Evidence details
+   */
+
+  let currentY =
+    y + 42;
+
+  if (
+    evidence.entries.length
+  ) {
+    evidence.entries.forEach(
+      entry => {
+        const text =
+          formatBusinessEvidence(
+            evidence.key,
+            entry
+          );
+
+        doc
+          .fillColor(
+            BRAND.text
+          )
+          .font("Helvetica")
+          .fontSize(9.5)
+          .text(
+            `• ${text}`,
+            x + 16,
+            currentY,
+            {
+              width: 455,
+              lineGap: 2
+            }
+          );
+
+        currentY +=
+          doc.heightOfString(
+            `• ${text}`,
+            {
+              width: 455,
+              lineGap: 2
+            }
+          ) +
+          5;
+      }
+    );
+  } else {
+    doc
+      .fillColor(
+        BRAND.muted
+      )
+      .font("Helvetica")
+      .fontSize(9.5)
+      .text(
+        "No evidence detected.",
+        x + 16,
+        currentY,
+        {
+          width: 455
+        }
+      );
+  }
+
+  doc.y =
+    y +
+    height +
+    8;
+
+  doc.x = PAGE.left;
+}
+
+function drawEvidenceMessage(
+  doc,
+  message,
+  positive = false
+) {
+  drawInfoBox(
+    doc,
+    positive
+      ? "Business evidence detected"
+      : "Business evidence unavailable",
+    message
+  );
 }
 
 /*
@@ -1969,7 +3632,9 @@ function drawWebsiteInformation(
   metadata,
   counts,
   linkHealth,
-  responseTime
+  responseTime,
+  checks,
+  url
 ) {
   metadata =
     metadata || {};
@@ -1980,6 +3645,420 @@ function drawWebsiteInformation(
   linkHealth =
     linkHealth || {};
 
+  checks =
+    checks || {};
+
+  /*
+   * --------------------------------------------------------
+   * NORMALISE WEBSITE METADATA
+   * --------------------------------------------------------
+   */
+
+  function formatMetadataValue(value) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return "Not detected";
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
+    if (typeof value === "number" ||
+        typeof value === "boolean") {
+      return String(value);
+    }
+
+    /*
+     * Prevent JavaScript's "[object Object]"
+     * from ever appearing in the PDF.
+     */
+
+    if (Array.isArray(value)) {
+      return value
+        .map(item => formatMetadataValue(item))
+        .filter(Boolean)
+        .join(", ") || "Detected";
+    }
+
+    if (typeof value === "object") {
+      /*
+       * Common structured-data representations.
+       */
+
+      if (Array.isArray(value.types)) {
+        return value.types.join(", ");
+      }
+
+      if (Array.isArray(value.schemaTypes)) {
+        return value.schemaTypes.join(", ");
+      }
+
+      if (Array.isArray(value.schemas)) {
+        return value.schemas.join(", ");
+      }
+
+      if (value.type) {
+        return String(value.type);
+      }
+
+      if (value.status) {
+        return String(value.status);
+      }
+
+      /*
+       * Open Graph metadata may arrive as an object.
+       * We only need to confirm its presence here.
+       */
+
+      return "Detected";
+    }
+
+    return String(value);
+  }
+
+  /*
+   * --------------------------------------------------------
+   * OPEN GRAPH
+   * --------------------------------------------------------
+   */
+
+  let openGraphValue = 
+  metadata.openGraph ?? 
+  metadata.og; 
+  
+  /* 
+  * The scanner's SEO checks are the authoritative fallback 
+  * when Open Graph data is not stored directly in metadata. 
+  */ 
+ 
+  if ( 
+    openGraphValue === null || 
+    openGraphValue === undefined || 
+    openGraphValue === "" 
+  ) { 
+    const seoChecks = 
+    Array.isArray(checks.seo) 
+    ? checks.seo 
+    : []; 
+    
+    const socialCheck = 
+    seoChecks.find(check => { 
+      const title = 
+      String( 
+        check?.title ?? 
+        check?.name ?? 
+        check?.label ?? 
+        "" 
+      ).toLowerCase(); 
+      
+      return ( 
+        title.includes("social sharing") || 
+        title.includes("open graph") 
+      ); 
+    }); 
+    
+    if (socialCheck) { 
+      const status = 
+      String( 
+        socialCheck.status ?? 
+        "" 
+      ).toLowerCase(); 
+      
+      const description = 
+      String( 
+        socialCheck.description ?? 
+        socialCheck.details ?? 
+        "" 
+      ).toLowerCase(); 
+      
+      if ( status === "pass" || 
+        description.includes("found") 
+      ) { 
+        openGraphValue = "Detected"; 
+      } 
+    } 
+  } 
+  
+  if ( 
+    openGraphValue === null || 
+    openGraphValue === undefined || 
+    openGraphValue === "" 
+  ) { 
+    openGraphValue = 
+    "Not detected"; 
+  } else if ( 
+    typeof openGraphValue === "object" 
+  ) { 
+    openGraphValue = "Detected"; 
+  } else { 
+    openGraphValue = 
+    String(openGraphValue); 
+  }
+
+  /*
+   * --------------------------------------------------------
+   * STRUCTURED DATA
+   * --------------------------------------------------------
+   */
+
+  let structuredDataValue =
+    metadata.structuredData ??
+    metadata.schema;
+
+  if (
+    structuredDataValue &&
+    typeof structuredDataValue === "object"
+  ) {
+    /*
+     * Support common scanner formats.
+     */
+
+    if (
+      Array.isArray(
+        structuredDataValue.types
+      )
+    ) {
+      structuredDataValue =
+        structuredDataValue.types.join(", ");
+    } else if (
+      Array.isArray(
+        structuredDataValue.schemaTypes
+      )
+    ) {
+      structuredDataValue =
+        structuredDataValue.schemaTypes.join(", ");
+    } else if (
+      Array.isArray(
+        structuredDataValue.schemas
+      )
+    ) {
+      structuredDataValue =
+        structuredDataValue.schemas.join(", ");
+    } else if (
+      structuredDataValue.type
+    ) {
+      structuredDataValue =
+        String(
+          structuredDataValue.type
+        );
+      } else { 
+
+        /* 
+        * Try to extract schema types from the scanner's 
+        * detailed SEO health check before falling back 
+        * to a generic "Detected" label. 
+        * */ 
+       
+        const seoChecks = 
+        Array.isArray(checks.seo) 
+        ? checks.seo 
+        : []; 
+        
+        const structuredCheck = 
+        seoChecks.find(check => { 
+          const title = 
+          String( check?.title ?? 
+            check?.name ?? 
+            check?.label ?? 
+            "" 
+          ).toLowerCase(); 
+          
+          return ( title.includes("structured data") || 
+          title.includes("schema") 
+        ); 
+      }); 
+      
+      if (structuredCheck) { 
+        const text = 
+        String( structuredCheck.description ?? 
+          structuredCheck.details ?? 
+          structuredCheck.value ?? 
+          "" 
+        ); 
+        
+        const match = 
+        text.match( 
+          /found:\s*(.+)$/i 
+        ); 
+        
+        if (match) { 
+          structuredDataValue =
+           match[1].trim(); 
+          } else { 
+            structuredDataValue = 
+            "Detected"; 
+          } 
+        } else { 
+          structuredDataValue = 
+          "Detected"; 
+        } 
+      }
+
+  } else {
+    structuredDataValue =
+      formatMetadataValue(
+        structuredDataValue
+      );
+  }
+
+  /*
+   * --------------------------------------------------------
+   * HTTP STATUS
+   * --------------------------------------------------------
+   */
+
+  let httpStatus =
+    metadata.statusCode ??
+    metadata.httpStatus ??
+    metadata.status;
+
+  /*
+   * If the scanner successfully returned a response,
+   * the detailed technical check may contain the status.
+   */
+
+  if (
+    httpStatus === undefined ||
+    httpStatus === null ||
+    httpStatus === ""
+  ) {
+    const technicalChecks =
+      Array.isArray(checks.technical)
+        ? checks.technical
+        : [];
+
+    const statusCheck =
+      technicalChecks.find(check => {
+        const title =
+          String(
+            check?.title ??
+            check?.name ??
+            check?.label ??
+            ""
+          ).toLowerCase();
+
+        return (
+          title.includes("http response") ||
+          title.includes("http status") ||
+          title.includes("response status")
+        );
+      });
+
+      if (statusCheck) {
+
+         /* 
+         * Prefer an actual numeric HTTP status. 
+         */ 
+        
+         httpStatus = 
+         statusCheck.statusCode ?? 
+         statusCheck.httpStatus; 
+         /* 
+         * Some scanner versions store the status inside 
+         * the check value. 
+         */ 
+        
+         if ( 
+          httpStatus === undefined || 
+          httpStatus === null || httpStatus === "" 
+        ) { 
+          const value = 
+          statusCheck.value; 
+          
+          if ( 
+            typeof value === "number" 
+          ) { 
+            httpStatus = value; 
+          } else if ( 
+            typeof value === "string" 
+          ) { 
+            const match = 
+            value.match(/\b([1-5]\d{2})\b/); 
+            
+            if (match) { 
+              httpStatus = 
+              match[1]; 
+            } 
+          } 
+        } 
+
+        /* 
+        * Last fallback: extract the HTTP status from the 
+        * human-readable check description. 
+        * 
+        * Example: 
+        * "The page returned HTTP 200." 
+        */ 
+       
+        if ( 
+          httpStatus === undefined || 
+          httpStatus === null || 
+          httpStatus === "" 
+        ) { 
+          const text = 
+          String( 
+            statusCheck.details ?? 
+            statusCheck.description ?? 
+            "" 
+          ); 
+          
+          const match = 
+          text.match(/\bHTTP\s+([1-5]\d{2})\b/i); 
+          
+          if (match) { 
+            httpStatus = 
+            match[1]; 
+          } 
+        } 
+      }
+  }
+
+  /*
+   * --------------------------------------------------------
+   * HTTPS
+   * --------------------------------------------------------
+   */
+
+  let httpsValue =
+    metadata.https ??
+    metadata.isHttps;
+
+  /*
+   * If HTTPS was not explicitly supplied by the scanner,
+   * derive it safely from the scanned URL.
+   */
+
+  if (
+    httpsValue === undefined ||
+    httpsValue === null ||
+    httpsValue === ""
+  ) {
+    httpsValue =
+      typeof url === "string" &&
+      url.toLowerCase().startsWith(
+        "https://"
+      );
+  }
+
+  if (
+    typeof httpsValue === "boolean"
+  ) {
+    httpsValue =
+      httpsValue
+        ? "Yes"
+        : "No";
+  }
+
+  /*
+   * --------------------------------------------------------
+   * WEBSITE INFORMATION
+   * --------------------------------------------------------
+   */
+
   sectionTitle(
     doc,
     "Website Information",
@@ -1987,9 +4066,7 @@ function drawWebsiteInformation(
   );
 
   /*
-   * ----------------------------------------------------------
    * WEBSITE METADATA
-   * ----------------------------------------------------------
    */
 
   drawSubheading(
@@ -2022,6 +4099,14 @@ function drawWebsiteInformation(
       "Viewport",
       metadata.viewport ||
         "Not detected"
+    ],
+    [
+      "Open Graph",
+      openGraphValue
+    ],
+    [
+      "Structured data",
+      structuredDataValue
     ]
   ];
 
@@ -2033,9 +4118,7 @@ function drawWebsiteInformation(
   doc.moveDown(1);
 
   /*
-   * ----------------------------------------------------------
    * TECHNICAL SNAPSHOT
-   * ----------------------------------------------------------
    */
 
   drawSubheading(
@@ -2046,8 +4129,26 @@ function drawWebsiteInformation(
   const technicalRows = [
     [
       "Initial response time",
-      isFiniteNumber(responseTime)
+      isFiniteNumber(
+        responseTime
+      )
         ? `${responseTime} ms`
+        : "Not available"
+    ],
+    [
+      "HTTP status",
+      httpStatus !== undefined &&
+      httpStatus !== null &&
+      httpStatus !== ""
+        ? String(httpStatus)
+        : "Not available"
+    ],
+    [
+      "HTTPS",
+      httpsValue !== undefined &&
+      httpsValue !== null &&
+      httpsValue !== ""
+        ? String(httpsValue)
         : "Not available"
     ],
     [
@@ -2085,9 +4186,7 @@ function drawWebsiteInformation(
   doc.moveDown(1);
 
   /*
-   * ----------------------------------------------------------
    * LINK HEALTH
-   * ----------------------------------------------------------
    */
 
   drawSubheading(
@@ -2129,12 +4228,6 @@ function drawWebsiteInformation(
   );
 
   doc.moveDown(1);
-
-  /*
-   * ----------------------------------------------------------
-   * ABOUT THIS ASSESSMENT
-   * ----------------------------------------------------------
-   */
 
   drawInfoBox(
     doc,
@@ -2188,7 +4281,7 @@ function getKeyValueRowHeight(
   const valueText =
     String(
       value ??
-      "Not available"
+        "Not available"
     );
 
   doc
@@ -2221,14 +4314,19 @@ function drawKeyValueRow(
   label,
   value
 ) {
-  const x = PAGE.left;
-  const width = PAGE.width;
-  const y = doc.y;
+  const x =
+    PAGE.left;
+
+  const width =
+    PAGE.width;
+
+  const y =
+    doc.y;
 
   const valueText =
     String(
       value ??
-      "Not available"
+        "Not available"
     );
 
   const rowHeight =
@@ -2236,10 +4334,6 @@ function drawKeyValueRow(
       doc,
       valueText
     );
-
-  /*
-   * Background.
-   */
 
   doc
     .roundedRect(
@@ -2249,19 +4343,23 @@ function drawKeyValueRow(
       rowHeight,
       5
     )
-    .fillColor(BRAND.lighter)
+    .fillColor(
+      BRAND.lighter
+    )
     .fill();
 
-  /*
-   * Label.
-   */
-
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(8.5)
     .text(
-      String(label).toUpperCase(),
+      String(
+        label
+      ).toUpperCase(),
       x + 12,
       y + 7,
       {
@@ -2270,12 +4368,10 @@ function drawKeyValueRow(
       }
     );
 
-  /*
-   * Value.
-   */
-
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(9.5)
     .text(
@@ -2287,10 +4383,6 @@ function drawKeyValueRow(
         lineGap: 2
       }
     );
-
-  /*
-   * Cursor below row.
-   */
 
   doc.y =
     y +
@@ -2311,40 +4403,43 @@ function drawInfoBox(
   title,
   text
 ) {
-  const x = PAGE.left;
-  const width = PAGE.width;
+  const x =
+    PAGE.left;
+
+  const width =
+    PAGE.width;
 
   const paddingX = 15;
+
   const innerWidth =
     width -
     paddingX * 2;
 
   const titleText =
-    String(title || "");
+    String(
+      title || ""
+    );
 
   const bodyText =
-    String(text || "");
-
-  /*
-   * Measure title using actual font.
-   */
+    String(
+      text || ""
+    );
 
   doc
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(9);
 
   const titleHeight =
     doc.heightOfString(
       titleText,
       {
-        width: innerWidth,
+        width:
+          innerWidth,
         lineGap: 0
       }
     );
-
-  /*
-   * Measure body using actual font.
-   */
 
   doc
     .font("Helvetica")
@@ -2354,7 +4449,8 @@ function drawInfoBox(
     doc.heightOfString(
       bodyText,
       {
-        width: innerWidth,
+        width:
+          innerWidth,
         lineGap: 2
       }
     );
@@ -2374,11 +4470,8 @@ function drawInfoBox(
     height + 8
   );
 
-  const y = doc.y;
-
-  /*
-   * Background.
-   */
+  const y =
+    doc.y;
 
   doc
     .roundedRect(
@@ -2388,33 +4481,34 @@ function drawInfoBox(
       height,
       8
     )
-    .fillColor(BRAND.blueLight)
+    .fillColor(
+      BRAND.blueLight
+    )
     .fill();
 
-  /*
-   * Title.
-   */
-
   doc
-    .fillColor(BRAND.blue)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.blue
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(9)
     .text(
       titleText,
       x + paddingX,
       y + 12,
       {
-        width: innerWidth,
+        width:
+          innerWidth,
         lineGap: 0
       }
     );
 
-  /*
-   * Body.
-   */
-
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(9.5)
     .text(
@@ -2422,14 +4516,11 @@ function drawInfoBox(
       x + paddingX,
       y + textTop,
       {
-        width: innerWidth,
+        width:
+          innerWidth,
         lineGap: 2
       }
     );
-
-  /*
-   * Cursor below box.
-   */
 
   doc.y =
     y +
@@ -2450,7 +4541,9 @@ function getNumberedStepHeight(
   text
 ) {
   const textValue =
-    String(text || "");
+    String(
+      text || ""
+    );
 
   doc
     .font("Helvetica")
@@ -2482,11 +4575,16 @@ function drawNumberedStep(
   number,
   text
 ) {
-  const x = PAGE.left;
-  const y = doc.y;
+  const x =
+    PAGE.left;
+
+  const y =
+    doc.y;
 
   const textValue =
-    String(text || "");
+    String(
+      text || ""
+    );
 
   const textWidth = 450;
 
@@ -2496,26 +4594,24 @@ function drawNumberedStep(
       textValue
     );
 
-  /*
-   * Number circle.
-   */
-
   doc
     .circle(
       x + 12,
       y + 12,
       12
     )
-    .fillColor(BRAND.blue)
+    .fillColor(
+      BRAND.blue
+    )
     .fill();
 
-  /*
-   * Number.
-   */
-
   doc
-    .fillColor(BRAND.white)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(8)
     .text(
       String(number),
@@ -2528,12 +4624,10 @@ function drawNumberedStep(
       }
     );
 
-  /*
-   * Text.
-   */
-
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(10.5)
     .text(
@@ -2545,10 +4639,6 @@ function drawNumberedStep(
         lineGap: 2
       }
     );
-
-  /*
-   * Cursor below step.
-   */
 
   doc.y =
     y +
@@ -2601,42 +4691,42 @@ function getProspectOpportunity(
     medium +
     low;
 
-  /*
-   * Base opportunity from overall health.
-   */
-
   let opportunity =
     "Low";
 
   if (
-    !Number.isFinite(overall)
+    !Number.isFinite(
+      overall
+    )
   ) {
-    opportunity = "Review";
+    opportunity =
+      "Review";
   } else if (
     overall < 60
   ) {
-    opportunity = "Very High";
+    opportunity =
+      "Very High";
   } else if (
     overall < 70
   ) {
-    opportunity = "High";
+    opportunity =
+      "High";
   } else if (
     overall < 80
   ) {
-    opportunity = "Good";
+    opportunity =
+      "Good";
   } else if (
     overall < 90
   ) {
-    opportunity = "Moderate";
+    opportunity =
+      "Moderate";
   }
 
-  /*
-   * Commercial opportunity can increase
-   * when multiple issues are present.
-   */
-
   if (
-    Number.isFinite(overall) &&
+    Number.isFinite(
+      overall
+    ) &&
     totalIssues >= 6 &&
     overall < 85
   ) {
@@ -2645,10 +4735,6 @@ function getProspectOpportunity(
         ? "Very High"
         : "High";
   }
-
-  /*
-   * Identify potential service areas.
-   */
 
   const services = [];
 
@@ -2727,12 +4813,9 @@ function getProspectOpportunity(
     }
   );
 
-  /*
-   * Provide sensible defaults.
-   */
-
   if (
-    services.length === 0
+    services.length ===
+    0
   ) {
     services.push(
       "Website optimisation"
@@ -2742,7 +4825,8 @@ function getProspectOpportunity(
   return {
     score: overall,
     opportunity,
-    services: services.slice(0, 4)
+    services:
+      services.slice(0, 4)
   };
 }
 
@@ -2757,9 +4841,14 @@ function drawProspectOpportunity(
       issues
     );
 
-  const x = PAGE.left;
-  const width = PAGE.width;
-  const y = doc.y;
+  const x =
+    PAGE.left;
+
+  const width =
+    PAGE.width;
+
+  const y =
+    doc.y;
 
   const height = 155;
 
@@ -2767,10 +4856,6 @@ function drawProspectOpportunity(
     doc,
     height + 15
   );
-
-  /*
-   * Card background.
-   */
 
   doc
     .roundedRect(
@@ -2780,7 +4865,9 @@ function drawProspectOpportunity(
       height,
       10
     )
-    .fillColor(BRAND.lighter)
+    .fillColor(
+      BRAND.lighter
+    )
     .fill();
 
   doc
@@ -2791,17 +4878,19 @@ function drawProspectOpportunity(
       height,
       10
     )
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .lineWidth(1)
     .stroke();
 
-  /*
-   * Heading.
-   */
-
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(13)
     .text(
       "PROSPECT OPPORTUNITY",
@@ -2813,13 +4902,13 @@ function drawProspectOpportunity(
       }
     );
 
-  /*
-   * Health score.
-   */
-
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7.5)
     .text(
       "WEBSITE HEALTH",
@@ -2836,7 +4925,9 @@ function drawProspectOpportunity(
         opportunity.score
       )
     )
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(20)
     .text(
       formatScore(
@@ -2849,13 +4940,13 @@ function drawProspectOpportunity(
       }
     );
 
-  /*
-   * Opportunity.
-   */
-
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7.5)
     .text(
       "OPPORTUNITY",
@@ -2867,8 +4958,12 @@ function drawProspectOpportunity(
     );
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(15)
     .text(
       opportunity.opportunity,
@@ -2879,13 +4974,13 @@ function drawProspectOpportunity(
       }
     );
 
-  /*
-   * Potential improvement areas.
-   */
-
   doc
-    .fillColor(BRAND.muted)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.muted
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7.5)
     .text(
       "POTENTIAL AREAS FOR IMPROVEMENT",
@@ -2897,19 +4992,23 @@ function drawProspectOpportunity(
     );
 
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(9.5)
     .text(
       opportunity.services
         .map(
-          service => `• ${service}`
+          service =>
+            `• ${service}`
         )
         .join("\n"),
       x + 18,
       y + 104,
       {
-        width: width - 36,
+        width:
+          width - 36,
         lineGap: 2
       }
     );
@@ -2939,22 +5038,21 @@ function drawFinalPage(
     "Practical next steps based on this website assessment."
   );
 
-  /*
-   * ----------------------------------------------------------
-   * SUMMARY
-   * ----------------------------------------------------------
-   */
-
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(16)
     .text(
       "What happens next?",
       PAGE.left,
       doc.y,
       {
-        width: PAGE.width
+        width:
+          PAGE.width
       }
     );
 
@@ -2966,10 +5064,14 @@ function drawFinalPage(
     );
 
   const summaryText =
-    `Your website received an overall health score of ${formatScore(overall)}. The assessment identified practical opportunities to strengthen visibility, usability, performance and customer conversion.`;
+    `Your website received an overall health score of ${formatScore(
+      overall
+    )}. The assessment identified practical opportunities to strengthen visibility, usability, performance and customer conversion.`;
 
   doc
-    .fillColor(BRAND.text)
+    .fillColor(
+      BRAND.text
+    )
     .font("Helvetica")
     .fontSize(10.5)
     .text(
@@ -2977,31 +5079,28 @@ function drawFinalPage(
       PAGE.left,
       doc.y,
       {
-        width: PAGE.width,
+        width:
+          PAGE.width,
         lineGap: 3
       }
     );
 
   doc.moveDown(1.3);
 
-    /*
-   * ----------------------------------------------------------
+  /*
    * PROSPECT OPPORTUNITY
-   * ----------------------------------------------------------
    */
 
-    drawProspectOpportunity(
-      doc,
-      scores,
-      arguments[2] || []
-    );
-  
-    doc.moveDown(0.5);
+  drawProspectOpportunity(
+    doc,
+    scores,
+    issues
+  );
+
+  doc.moveDown(0.5);
 
   /*
-   * ----------------------------------------------------------
    * NEXT STEPS
-   * ----------------------------------------------------------
    */
 
   const nextSteps = [
@@ -3036,25 +5135,25 @@ function drawFinalPage(
   doc.moveDown(1.5);
 
   /*
-   * ----------------------------------------------------------
    * CTA
-   * ----------------------------------------------------------
    */
 
-  const boxX = PAGE.left;
-  const boxWidth = PAGE.width;
-  const boxHeight = 145;
+  const boxX =
+    PAGE.left;
+
+  const boxWidth =
+    PAGE.width;
+
+  const boxHeight =
+    145;
 
   ensureSpace(
     doc,
     boxHeight + 20
   );
 
-  const boxY = doc.y;
-
-  /*
-   * CTA background.
-   */
+  const boxY =
+    doc.y;
 
   doc
     .roundedRect(
@@ -3064,16 +5163,18 @@ function drawFinalPage(
       boxHeight,
       12
     )
-    .fillColor(BRAND.dark)
+    .fillColor(
+      BRAND.dark
+    )
     .fill();
 
-  /*
-   * Heading.
-   */
-
   doc
-    .fillColor(BRAND.white)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.white
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(18)
     .text(
       "Ready to improve your website?",
@@ -3084,12 +5185,10 @@ function drawFinalPage(
       }
     );
 
-  /*
-   * Description.
-   */
-
   doc
-    .fillColor("#D1D5DB")
+    .fillColor(
+      "#D1D5DB"
+    )
     .font("Helvetica")
     .fontSize(10)
     .text(
@@ -3102,13 +5201,9 @@ function drawFinalPage(
       }
     );
 
-  /*
-   * CTA button.
-   */
-
   drawWebsiteButton(
     doc,
-    "Visit Site Rescue Studio →",
+    "Visit Site Rescue Studio",
     SITE_RESCUE_URL,
     boxX + 25,
     boxY + 105,
@@ -3117,12 +5212,10 @@ function drawFinalPage(
     true
   );
 
-  /*
-   * Website URL.
-   */
-
   doc
-    .fillColor("#9CA3AF")
+    .fillColor(
+      "#9CA3AF"
+    )
     .font("Helvetica")
     .fontSize(8)
     .text(
@@ -3142,10 +5235,6 @@ function drawFinalPage(
       }
     );
 
-  /*
-   * Move below CTA.
-   */
-
   doc.y =
     boxY +
     boxHeight +
@@ -3154,9 +5243,7 @@ function drawFinalPage(
   doc.x = PAGE.left;
 
   /*
-   * ----------------------------------------------------------
    * CLOSING BRAND
-   * ----------------------------------------------------------
    */
 
   ensureSpace(
@@ -3165,15 +5252,20 @@ function drawFinalPage(
   );
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(14)
     .text(
       "SITE RESCUE STUDIO",
       PAGE.left,
       doc.y,
       {
-        width: PAGE.width,
+        width:
+          PAGE.width,
         align: "center"
       }
     );
@@ -3181,7 +5273,9 @@ function drawFinalPage(
   doc.moveDown(0.2);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(
+      BRAND.muted
+    )
     .font("Helvetica")
     .fontSize(9)
     .text(
@@ -3189,7 +5283,8 @@ function drawFinalPage(
       PAGE.left,
       doc.y,
       {
-        width: PAGE.width,
+        width:
+          PAGE.width,
         align: "center"
       }
     );
@@ -3214,40 +5309,25 @@ function drawWebsiteButton(
   dark = false,
   accent = false
 ) {
-  /*
-   * ----------------------------------------------------------
-   * BUTTON COLORS
-   * ----------------------------------------------------------
-   *
-   * Default:
-   *   Dark background + white text
-   *
-   * Dark CTA:
-   *   White background + dark text
-   *
-   * Accent CTA:
-   *   Site Rescue blue background + white text
-   */
-
   let background;
   let textColor;
 
   if (accent) {
-    background = BRAND.blue;
-    textColor = BRAND.white;
+    background =
+      BRAND.blue;
+    textColor =
+      BRAND.white;
   } else if (dark) {
-    background = BRAND.white;
-    textColor = BRAND.dark;
+    background =
+      BRAND.white;
+    textColor =
+      BRAND.dark;
   } else {
-    background = BRAND.dark;
-    textColor = BRAND.white;
+    background =
+      BRAND.dark;
+    textColor =
+      BRAND.white;
   }
-
-  /*
-   * ----------------------------------------------------------
-   * BUTTON SHADOW / BORDER
-   * ----------------------------------------------------------
-   */
 
   if (accent) {
     doc
@@ -3258,15 +5338,11 @@ function drawWebsiteButton(
         height,
         8
       )
-      .fillColor("#1D4ED8")
+      .fillColor(
+        "#1D4ED8"
+      )
       .fill();
   }
-
-  /*
-   * ----------------------------------------------------------
-   * BACKGROUND
-   * ----------------------------------------------------------
-   */
 
   doc
     .roundedRect(
@@ -3276,12 +5352,10 @@ function drawWebsiteButton(
       height,
       8
     )
-    .fillColor(background)
+    .fillColor(
+      background
+    )
     .fill();
-
-  /*
-   * Subtle border makes the button feel more defined.
-   */
 
   if (accent) {
     doc
@@ -3293,19 +5367,19 @@ function drawWebsiteButton(
         8
       )
       .lineWidth(0.8)
-      .strokeColor("#1D4ED8")
+      .strokeColor(
+        "#1D4ED8"
+      )
       .stroke();
   }
 
-  /*
-   * ----------------------------------------------------------
-   * LABEL
-   * ----------------------------------------------------------
-   */
-
   doc
-    .fillColor(textColor)
-    .font("Helvetica-Bold")
+    .fillColor(
+      textColor
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(10)
     .text(
       String(text),
@@ -3313,16 +5387,16 @@ function drawWebsiteButton(
       y + 11,
       {
         width,
-        height: height - 8,
+        height:
+          height - 8,
         align: "center",
         lineGap: 0
       }
     );
 
   /*
-   * ----------------------------------------------------------
-   * CLICKABLE HYPERLINK
-   * ----------------------------------------------------------
+   * IMPORTANT:
+   * Keep this hyperlink. It is intentional.
    */
 
   doc.link(
@@ -3345,15 +5419,16 @@ function sectionTitle(
   title,
   subtitle
 ) {
-  const x = PAGE.left;
-  const width = PAGE.width;
+  const x =
+    PAGE.left;
 
-  /*
-   * Estimate heading block before drawing.
-   */
+  const width =
+    PAGE.width;
 
   doc
-    .font("Helvetica-Bold")
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(23);
 
   const titleHeight =
@@ -3371,7 +5446,9 @@ function sectionTitle(
 
   const subtitleHeight =
     doc.heightOfString(
-      String(subtitle || ""),
+      String(
+        subtitle || ""
+      ),
       {
         width,
         lineGap: 2
@@ -3391,13 +5468,13 @@ function sectionTitle(
 
   doc.x = x;
 
-  /*
-   * Heading.
-   */
-
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(23)
     .text(
       String(title || ""),
@@ -3409,18 +5486,18 @@ function sectionTitle(
       }
     );
 
-  /*
-   * Subtitle.
-   */
-
   doc.moveDown(0.35);
 
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(
+      BRAND.muted
+    )
     .font("Helvetica")
     .fontSize(10)
     .text(
-      String(subtitle || ""),
+      String(
+        subtitle || ""
+      ),
       x,
       doc.y,
       {
@@ -3428,10 +5505,6 @@ function sectionTitle(
         lineGap: 2
       }
     );
-
-  /*
-   * Space after section heading.
-   */
 
   doc.moveDown(1);
 
@@ -3454,15 +5527,20 @@ function drawSubheading(
   );
 
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(12)
     .text(
       String(text || ""),
       PAGE.left,
       doc.y,
       {
-        width: PAGE.width,
+        width:
+          PAGE.width,
         lineGap: 0
       }
     );
@@ -3481,13 +5559,13 @@ function drawSubheading(
 function drawHeader(doc) {
   const y = 28;
 
-  /*
-   * Brand.
-   */
-
   doc
-    .fillColor(BRAND.dark)
-    .font("Helvetica-Bold")
+    .fillColor(
+      BRAND.dark
+    )
+    .font(
+      "Helvetica-Bold"
+    )
     .fontSize(7.5)
     .text(
       "SITE RESCUE STUDIO",
@@ -3499,12 +5577,10 @@ function drawHeader(doc) {
       }
     );
 
-  /*
-   * Tagline.
-   */
-
   doc
-    .fillColor(BRAND.muted)
+    .fillColor(
+      BRAND.muted
+    )
     .font("Helvetica")
     .fontSize(6.5)
     .text(
@@ -3518,12 +5594,10 @@ function drawHeader(doc) {
       }
     );
 
-  /*
-   * Divider.
-   */
-
   doc
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .lineWidth(0.5)
     .moveTo(
       PAGE.left,
@@ -3536,12 +5610,11 @@ function drawHeader(doc) {
     )
     .stroke();
 
-  /*
-   * Content starting position.
-   */
+  doc.y =
+    PAGE.top;
 
-  doc.y = PAGE.top;
-  doc.x = PAGE.left;
+  doc.x =
+    PAGE.left;
 }
 
 /*
@@ -3563,26 +5636,15 @@ function addFooters(doc) {
   ) {
     doc.switchToPage(i);
 
-    /*
-     * --------------------------------------------------------
-     * FOOTER AREA
-     * --------------------------------------------------------
-     *
-     * The footer intentionally sits below the normal content
-     * margin. PDFKit can treat that as page overflow and create
-     * unwanted pages when doc.text() is used normally.
-     *
-     * Temporarily reduce the bottom margin while drawing the
-     * footer so PDFKit knows this is an intentional footer area.
-     */
-
     const originalBottomMargin =
       doc.page.margins.bottom;
 
-    doc.page.margins.bottom = 20;
+    doc.page.margins.bottom =
+      20;
 
     const footerY =
-      doc.page.height - 35;
+      doc.page.height -
+      35;
 
     const left =
       PAGE.left;
@@ -3593,14 +5655,10 @@ function addFooters(doc) {
 
     doc.save();
 
-    /*
-     * --------------------------------------------------------
-     * Divider
-     * --------------------------------------------------------
-     */
-
     doc
-      .strokeColor(BRAND.border)
+      .strokeColor(
+        BRAND.border
+      )
       .lineWidth(0.5)
       .moveTo(
         left,
@@ -3612,14 +5670,10 @@ function addFooters(doc) {
       )
       .stroke();
 
-    /*
-     * --------------------------------------------------------
-     * Brand
-     * --------------------------------------------------------
-     */
-
     doc
-      .fillColor(BRAND.muted)
+      .fillColor(
+        BRAND.muted
+      )
       .font("Helvetica")
       .fontSize(7)
       .text(
@@ -3633,17 +5687,13 @@ function addFooters(doc) {
         }
       );
 
-    /*
-     * --------------------------------------------------------
-     * Website
-     * --------------------------------------------------------
-     */
-
     const footerUrl =
       "site-rescue-studio.vercel.app";
 
     doc
-      .fillColor(BRAND.blue)
+      .fillColor(
+        BRAND.blue
+      )
       .font("Helvetica")
       .fontSize(7)
       .text(
@@ -3659,7 +5709,8 @@ function addFooters(doc) {
       );
 
     /*
-     * Clickable website.
+     * IMPORTANT:
+     * Keep the footer hyperlink.
      */
 
     doc.link(
@@ -3670,14 +5721,10 @@ function addFooters(doc) {
       SITE_RESCUE_URL
     );
 
-    /*
-     * --------------------------------------------------------
-     * Page number
-     * --------------------------------------------------------
-     */
-
     doc
-      .fillColor(BRAND.muted)
+      .fillColor(
+        BRAND.muted
+      )
       .font("Helvetica")
       .fontSize(7)
       .text(
@@ -3700,10 +5747,6 @@ function addFooters(doc) {
 
     doc.restore();
 
-    /*
-     * Restore the normal content margin.
-     */
-
     doc.page.margins.bottom =
       originalBottomMargin;
   }
@@ -3716,10 +5759,13 @@ function addFooters(doc) {
  */
 
 function drawDivider(doc) {
-  const y = doc.y;
+  const y =
+    doc.y;
 
   doc
-    .strokeColor(BRAND.border)
+    .strokeColor(
+      BRAND.border
+    )
     .lineWidth(0.7)
     .moveTo(
       PAGE.left,
@@ -3735,7 +5781,8 @@ function drawDivider(doc) {
   doc.y =
     y + 10;
 
-  doc.x = PAGE.left;
+  doc.x =
+    PAGE.left;
 }
 
 /*
@@ -3744,9 +5791,12 @@ function drawDivider(doc) {
  * ============================================================
  */
 
-function normalizeIssue(issue) {
+function normalizeIssue(
+  issue
+) {
   if (
-    typeof issue === "string"
+    typeof issue ===
+    "string"
   ) {
     return {
       title: issue,
@@ -3766,6 +5816,8 @@ function normalizeIssue(issue) {
 
     description:
       item.description ||
+      item.detail ||
+      item.message ||
       "",
 
     severity:
@@ -3774,12 +5826,9 @@ function normalizeIssue(issue) {
   };
 }
 
-function getDisplayValue(value) {
-  /*
-   * Do not use `value || ...`
-   * because zero can be a valid result.
-   */
-
+function getDisplayValue(
+  value
+) {
   if (
     value === null ||
     value === undefined ||
@@ -3791,6 +5840,20 @@ function getDisplayValue(value) {
   return String(value);
 }
 
+function cleanDisplayUrl(
+  value
+) {
+  try {
+    return new URL(
+      value
+    ).pathname || "/";
+  } catch {
+    return String(
+      value || ""
+    );
+  }
+}
+
 /*
  * ============================================================
  * SCORING HELPERS
@@ -3799,24 +5862,29 @@ function getDisplayValue(value) {
 
 function cleanUrl(url) {
   try {
-    return new URL(url).hostname;
+    return new URL(
+      url
+    ).hostname;
   } catch {
-    return String(url || "");
+    return String(
+      url || ""
+    );
   }
 }
 
-function isFiniteNumber(value) {
+function isFiniteNumber(
+  value
+) {
   return (
-    typeof value === "number" &&
+    typeof value ===
+      "number" &&
     Number.isFinite(value)
   );
 }
 
-function numericScore(score) {
-  /*
-   * Accept both numeric values and numeric strings.
-   */
-
+function numericScore(
+  score
+) {
   if (
     score === null ||
     score === undefined ||
@@ -3826,7 +5894,8 @@ function numericScore(score) {
   }
 
   const value =
-    typeof score === "number"
+    typeof score ===
+    "number"
       ? score
       : Number(score);
 
@@ -3845,13 +5914,19 @@ function numericScore(score) {
   );
 }
 
-function formatScore(score) {
-  return Number.isFinite(score)
+function formatScore(
+  score
+) {
+  return Number.isFinite(
+    score
+  )
     ? `${score}/100`
     : "Not available";
 }
 
-function getOverallLabel(score) {
+function getOverallLabel(
+  score
+) {
   if (
     !Number.isFinite(score)
   ) {
@@ -3873,7 +5948,9 @@ function getOverallLabel(score) {
   return "Poor";
 }
 
-function getOverallDescription(score) {
+function getOverallDescription(
+  score
+) {
   if (
     !Number.isFinite(score)
   ) {
@@ -3895,13 +5972,17 @@ function getOverallDescription(score) {
   return "The assessment identified several important areas that may benefit from attention.";
 }
 
-function getOverviewDescription(score) {
+function getOverviewDescription(
+  score
+) {
   return getOverallDescription(
     numericScore(score)
   );
 }
 
-function getScoreColor(score) {
+function getScoreColor(
+  score
+) {
   if (
     !Number.isFinite(score)
   ) {
@@ -4018,7 +6099,9 @@ function formatDate(
   try {
     const date =
       scannedAt
-        ? new Date(scannedAt)
+        ? new Date(
+            scannedAt
+          )
         : new Date();
 
     if (

@@ -130,6 +130,142 @@
 
     </section>
 
+     <!-- =========================================================
+         SCAN PROGRESS
+         Added independently from the existing scanner logic.
+         ========================================================= -->
+
+    <section
+      id="scanProgress"
+      class="scan-progress"
+      hidden
+      aria-live="polite"
+      aria-label="Website scan progress"
+    >
+
+      <div class="scan-progress-card">
+
+        <div class="scan-progress-eyebrow">
+          WEBSITE HEALTH SCAN
+        </div>
+
+        <h2 id="scanProgressTitle">
+          Preparing your website scan...
+        </h2>
+
+        <p
+          id="scanProgressUrl"
+          class="scan-progress-url"
+        ></p>
+
+        <div
+          class="scan-progress-bar"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          aria-label="Scan progress"
+        >
+          <div
+            id="scanProgressFill"
+            class="scan-progress-fill"
+          ></div>
+        </div>
+
+        <div class="scan-progress-meta">
+
+          <span id="scanProgressPercent">
+            0%
+          </span>
+
+          <span id="scanProgressStatus">
+            Starting scan...
+          </span>
+
+        </div>
+
+
+        <div
+          id="scanProgressSteps"
+          class="scan-progress-steps"
+        >
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="0"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Connecting to website</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="1"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Analysing website structure</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="2"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Discovering internal pages</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="3"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Checking SEO &amp; metadata</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="4"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Checking links &amp; technical health</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="5"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Checking business information</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="6"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Analysing performance</span>
+          </div>
+
+          <div
+            class="scan-progress-step"
+            data-progress-step="7"
+          >
+            <span class="scan-step-icon">○</span>
+            <span>Preparing your results</span>
+          </div>
+
+        </div>
+
+
+        <p class="scan-progress-note">
+          This can take a little while depending on the size
+          and response time of the website.
+        </p>
+
+      </div>
+
+    </section>
+
 
     <section
       id="results"

@@ -372,21 +372,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
-  newScanButton.addEventListener(
-    "click",
-    () => {
-
-      results.hidden = true;
-
-      urlInput.focus();
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-      });
-
-    }
-  );
+  newScanButton.addEventListener("click", () => {
+    results.hidden = true;
+    hideError();
+  
+    urlInput.value = "";
+  
+    urlInput.focus();
+  });
 
 
   function setLoading(loading) {
@@ -406,12 +399,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   function showError(message) {
-
-    errorBox.textContent =
-      message;
-
+    if (!errorBox) return;
+  
+    errorBox.innerHTML = "";
+  
+    const messageText = document.createElement("p");
+    messageText.className = "scanner-error-message";
+    messageText.textContent = message;
+  
+    errorBox.appendChild(messageText);
+  
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.className = "scanner-error-retry";
+    retryButton.textContent = "Try Again";
+  
+    retryButton.addEventListener("click", () => {
+      hideError();
+  
+      if (results) {
+        results.hidden = true;
+      }
+  
+      if (reportAction) {
+        reportAction.hidden = true;
+      }
+  
+      if (urlInput) {
+        urlInput.focus();
+        urlInput.select();
+      }
+    });
+  
+    errorBox.appendChild(retryButton);
+  
     errorBox.hidden = false;
-
   }
 
 
@@ -633,6 +655,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
     const labels = {
       seo: "SEO",
+      mobile: "Mobile",
       accessibility: "Accessibility",
       technical: "Technical",
       business: "Business"
@@ -640,6 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
     const categoryOrder = [
       "seo",
+      "mobile",
       "accessibility",
       "technical",
       "business"
@@ -727,6 +751,35 @@ document.addEventListener("DOMContentLoaded", () => {
   
   }
 
+  function getMetricStatus(metric, thresholds) {
+
+    if (
+      metric === null ||
+      metric === undefined ||
+      metric === ""
+    ) {
+      return "info";
+    }
+  
+    const value =
+      parseFloat(metric);
+  
+    if (!Number.isFinite(value)) {
+      return "info";
+    }
+  
+    if (value <= thresholds.good) {
+      return "pass";
+    }
+  
+    if (value <= thresholds.warning) {
+      return "warning";
+    }
+  
+    return "fail";
+  }
+  
+  
   function renderPerformance(
     pageSpeed
   ) {
@@ -749,7 +802,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <section class="check-section">
   
           <h3>
-            Performance Details
+            Google PageSpeed / Lighthouse Snapshot
           </h3>
   
           <p>
@@ -766,17 +819,62 @@ document.addEventListener("DOMContentLoaded", () => {
     const vitals =
       pageSpeed.vitals || {};
   
+    const lcpStatus =
+      getMetricStatus(
+        vitals.lcp,
+        {
+          good: 2.5,
+          warning: 4
+        }
+      );
+  
+    const clsStatus =
+      getMetricStatus(
+        vitals.cls,
+        {
+          good: 0.1,
+          warning: 0.25
+        }
+      );
+  
+    const inpStatus =
+      getMetricStatus(
+        vitals.inp,
+        {
+          good: 200,
+          warning: 500
+        }
+      );
+  
+    const fcpStatus =
+      getMetricStatus(
+        vitals.fcp,
+        {
+          good: 1.8,
+          warning: 3
+        }
+      );
+  
     container.innerHTML = `
   
       <section class="check-section">
   
         <h3>
-          Google Performance Snapshot
+          Google PageSpeed / Lighthouse Snapshot
         </h3>
+  
+        <p>
+          These results come from Google's
+          controlled PageSpeed/Lighthouse test
+          environment and may differ from
+          real-world devices, browsers and networks.
+        </p>
+  
   
         <div class="check">
   
           <div class="check-info">
+  
             <strong>
               Largest Contentful Paint
             </strong>
@@ -784,9 +882,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>
               Main content loading metric
             </span>
+  
           </div>
   
-          <span class="check-status pass">
+          <span class="check-status ${lcpStatus}">
             ${escapeHtml(
               vitals.lcp ||
               "Not available"
@@ -799,6 +898,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="check">
   
           <div class="check-info">
+  
             <strong>
               Cumulative Layout Shift
             </strong>
@@ -806,9 +906,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>
               Visual stability metric
             </span>
+  
           </div>
   
-          <span class="check-status pass">
+          <span class="check-status ${clsStatus}">
             ${escapeHtml(
               vitals.cls ||
               "Not available"
@@ -821,6 +922,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="check">
   
           <div class="check-info">
+  
             <strong>
               Interaction to Next Paint
             </strong>
@@ -828,9 +930,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>
               Responsiveness metric
             </span>
+  
           </div>
   
-          <span class="check-status pass">
+          <span class="check-status ${inpStatus}">
             ${escapeHtml(
               vitals.inp ||
               "Not available"
@@ -843,6 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="check">
   
           <div class="check-info">
+  
             <strong>
               First Contentful Paint
             </strong>
@@ -850,9 +954,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>
               Initial visual loading metric
             </span>
+  
           </div>
   
-          <span class="check-status pass">
+          <span class="check-status ${fcpStatus}">
             ${escapeHtml(
               vitals.fcp ||
               "Not available"
@@ -878,6 +983,797 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll("'", "&#039;");
 
   }
+
+   /* =========================================================
+   * SCAN PROGRESS SYSTEM
+   *
+   * This is intentionally separate from the existing scanner
+   * logic. It observes the existing scan request rather than
+   * replacing or rewriting it.
+   * ========================================================= */
+
+
+   const scanProgress =
+   document.getElementById(
+     "scanProgress"
+   );
+
+ const scanProgressFill =
+   document.getElementById(
+     "scanProgressFill"
+   );
+
+ const scanProgressPercent =
+   document.getElementById(
+     "scanProgressPercent"
+   );
+
+ const scanProgressStatus =
+   document.getElementById(
+     "scanProgressStatus"
+   );
+
+ const scanProgressTitle =
+   document.getElementById(
+     "scanProgressTitle"
+   );
+
+ const scanProgressUrl =
+   document.getElementById(
+     "scanProgressUrl"
+   );
+
+ const scanProgressSteps =
+   document.querySelectorAll(
+     ".scan-progress-step"
+   );
+
+
+let scanProgressTimer =
+  null;
+
+let scanProgressSafetyTimer =
+  null;
+
+let scanProgressRunning =
+  false;
+
+let scanProgressValue =
+  0;
+
+let scanProgressStep =
+  -1;
+
+let scanProgressTimeoutSeconds =
+  90;
+
+
+ const scanProgressStages = [
+
+   {
+     step: 0,
+     progress: 10,
+     title: "Connecting to your website",
+     status: "Checking the website connection..."
+   },
+
+   {
+     step: 1,
+     progress: 22,
+     title: "Analysing website structure",
+     status: "Reading the website structure..."
+   },
+
+   {
+     step: 2,
+     progress: 35,
+     title: "Discovering internal pages",
+     status: "Looking for useful pages and business information..."
+   },
+
+   {
+     step: 3,
+     progress: 48,
+     title: "Checking SEO & metadata",
+     status: "Reviewing search and page metadata..."
+   },
+
+   {
+     step: 4,
+     progress: 62,
+     title: "Checking links & technical health",
+     status: "Testing links and technical website health..."
+   },
+
+   {
+     step: 5,
+     progress: 74,
+     title: "Checking business information",
+     status: "Looking for contact and business readiness signals..."
+   },
+
+   {
+     step: 6,
+     progress: 84,
+     title: "Analysing performance",
+     status: "Reviewing available performance information..."
+   },
+
+   {
+     step: 7,
+     progress: 92,
+     title: "Preparing your results",
+     status: "Finishing the website health analysis..."
+   }
+
+ ];
+
+
+ function startScanProgress(
+  url
+) {
+
+  if (!scanProgress) {
+    return;
+  }
+
+  stopScanProgress();
+
+  scanProgressRunning =
+    true;
+
+  scanProgressValue =
+    0;
+
+  scanProgressStep =
+    -1;
+
+  scanProgress.classList.remove(
+    "complete"
+  );
+
+  scanProgress.hidden =
+    false;
+
+  setTimeout(() => {
+    const progressPosition =
+      scanProgress.getBoundingClientRect().top +
+      window.scrollY -
+      90;
+
+    window.scrollTo({
+      top: progressPosition,
+      behavior: "smooth"
+    });
+  }, 100);
+
+  scanProgressUrl.textContent =
+    url || "";
+
+  updateScanProgress(
+    0,
+    -1,
+    "Preparing your website scan...",
+    "Starting scan..."
+  );
+
+
+  /*
+   * Begin immediately with the first stage.
+   */
+
+  advanceScanProgress();
+
+
+  /*
+   * Continue moving through the stages while the
+   * existing /api/scan request is running.
+   *
+   * Progress intentionally stops at 92%.
+   */
+
+  scanProgressTimer =
+    setInterval(
+      () => {
+
+        if (!scanProgressRunning) {
+          return;
+        }
+
+        advanceScanProgress();
+
+      },
+      1800
+    );
+
+
+  /*
+   * SAFETY TIMEOUT
+   *
+   * The existing scanner request remains untouched.
+   * This timer only protects the prospect from being
+   * left waiting indefinitely on the progress screen.
+   */
+
+  scanProgressSafetyTimer =
+    setTimeout(
+      () => {
+
+        if (!scanProgressRunning) {
+          return;
+        }
+
+        showScanProgressTimeout();
+
+      },
+      scanProgressTimeoutSeconds * 1000
+    );
+
+}
+
+function showScanProgressTimeout() {
+
+  stopScanProgress();
+
+  if (!scanProgress) {
+    return;
+  }
+
+
+  scanProgress.classList.remove(
+    "complete"
+  );
+
+
+  if (scanProgressTitle) {
+
+    scanProgressTitle.textContent =
+      "This scan is taking longer than expected.";
+
+  }
+
+
+  if (scanProgressStatus) {
+
+    scanProgressStatus.textContent =
+      "The website may be slow or temporarily unavailable. You can safely try the scan again.";
+
+  }
+
+
+  if (scanProgressPercent) {
+
+    scanProgressPercent.textContent =
+      "Paused";
+
+  }
+
+
+  /*
+   * Stop the visual progress bar at its current position.
+   */
+
+  if (scanProgressFill) {
+
+    scanProgressFill.style.width =
+      `${scanProgressValue}%`;
+
+  }
+
+
+  /*
+   * Create the recovery controls once.
+   */
+
+  let timeoutActions =
+    document.getElementById(
+      "scanProgressTimeoutActions"
+    );
+
+
+  if (!timeoutActions) {
+
+    timeoutActions =
+      document.createElement(
+        "div"
+      );
+
+    timeoutActions.id =
+      "scanProgressTimeoutActions";
+
+    timeoutActions.className =
+      "scan-progress-timeout-actions";
+
+
+    const message =
+      document.createElement(
+        "p"
+      );
+
+    message.className =
+      "scan-progress-timeout-message";
+
+    message.textContent =
+      "No results have been lost. You can restart the scan and try again.";
+
+    timeoutActions.appendChild(
+      message
+    );
+
+
+    const retryButton =
+      document.createElement(
+        "button"
+      );
+
+    retryButton.type =
+      "button";
+
+    retryButton.className =
+      "scan-progress-retry";
+
+    retryButton.textContent =
+      "Try Again";
+
+
+    retryButton.addEventListener(
+      "click",
+      () => {
+
+        window.location.reload();
+
+      }
+    );
+
+
+    timeoutActions.appendChild(
+      retryButton
+    );
+
+
+    scanProgress.appendChild(
+      timeoutActions
+    );
+
+  }
+
+
+  timeoutActions.hidden =
+    false;
+
+}
+
+
+ function advanceScanProgress() {
+
+   const nextStageIndex =
+     scanProgressStep + 1;
+
+   if (
+     nextStageIndex >=
+     scanProgressStages.length
+   ) {
+
+     /*
+      * Hold at the final preparation stage until
+      * the real scan request completes.
+      */
+
+     return;
+
+   }
+
+
+   const stage =
+     scanProgressStages[
+       nextStageIndex
+     ];
+
+
+   scanProgressStep =
+     nextStageIndex;
+
+
+   updateScanProgress(
+     stage.progress,
+     stage.step,
+     stage.title,
+     stage.status
+   );
+
+ }
+
+
+ function updateScanProgress(
+   progress,
+   activeStep,
+   title,
+   status
+ ) {
+
+   if (!scanProgress) {
+     return;
+   }
+
+
+   scanProgressValue =
+     Math.max(
+       0,
+       Math.min(
+         100,
+         progress
+       )
+     );
+
+
+   if (scanProgressFill) {
+
+     scanProgressFill.style.width =
+       `${scanProgressValue}%`;
+
+   }
+
+
+   if (scanProgressPercent) {
+
+     scanProgressPercent.textContent =
+       `${scanProgressValue}%`;
+
+   }
+
+
+   if (scanProgressTitle) {
+
+     scanProgressTitle.textContent =
+       title;
+
+   }
+
+
+   if (scanProgressStatus) {
+
+     scanProgressStatus.textContent =
+       status;
+
+   }
+
+
+   scanProgressSteps.forEach(
+     (stepElement, index) => {
+
+       stepElement.classList.remove(
+         "active",
+         "complete"
+       );
+
+
+       const icon =
+         stepElement.querySelector(
+           ".scan-step-icon"
+         );
+
+
+       if (index < activeStep) {
+
+         stepElement.classList.add(
+           "complete"
+         );
+
+         if (icon) {
+           icon.textContent =
+             "✓";
+         }
+
+       } else if (
+         index === activeStep
+       ) {
+
+         stepElement.classList.add(
+           "active"
+         );
+
+         if (icon) {
+           icon.textContent =
+             "●";
+         }
+
+       } else {
+
+         if (icon) {
+           icon.textContent =
+             "○";
+         }
+
+       }
+
+     }
+   );
+
+ }
+
+
+ function completeScanProgress() {
+
+   if (!scanProgress) {
+     return;
+   }
+
+
+   scanProgressRunning =
+     false;
+
+
+   if (scanProgressTimer) {
+
+     clearInterval(
+       scanProgressTimer
+     );
+
+     scanProgressTimer =
+       null;
+
+   }
+
+
+   scanProgressValue =
+     100;
+
+
+   if (scanProgressFill) {
+
+     scanProgressFill.style.width =
+       "100%";
+
+   }
+
+
+   if (scanProgressPercent) {
+
+     scanProgressPercent.textContent =
+       "100%";
+
+   }
+
+
+   if (scanProgressTitle) {
+
+     scanProgressTitle.textContent =
+       "Scan complete";
+
+   }
+
+
+   if (scanProgressStatus) {
+
+     scanProgressStatus.textContent =
+       "Your website health report is ready.";
+
+   }
+
+
+   scanProgressSteps.forEach(
+     stepElement => {
+
+       stepElement.classList.remove(
+         "active"
+       );
+
+       stepElement.classList.add(
+         "complete"
+       );
+
+       const icon =
+         stepElement.querySelector(
+           ".scan-step-icon"
+         );
+
+       if (icon) {
+         icon.textContent =
+           "✓";
+       }
+
+     }
+   );
+
+
+   scanProgress.classList.add(
+     "complete"
+   );
+
+
+   /*
+    * Give the user a brief visual confirmation before
+    * the existing results section takes over.
+    */
+
+   setTimeout(
+     () => {
+
+       if (scanProgress) {
+         scanProgress.hidden =
+           true;
+       }
+
+     },
+     700
+   );
+
+ }
+
+
+ function stopScanProgress() {
+
+  scanProgressRunning =
+    false;
+
+
+  if (scanProgressTimer) {
+
+    clearInterval(
+      scanProgressTimer
+    );
+
+    scanProgressTimer =
+      null;
+
+  }
+
+
+  if (scanProgressSafetyTimer) {
+
+    clearTimeout(
+      scanProgressSafetyTimer
+    );
+
+    scanProgressSafetyTimer =
+      null;
+
+  }
+
+}
+
+
+ function failScanProgress() {
+
+   stopScanProgress();
+
+   if (!scanProgress) {
+     return;
+   }
+
+
+   /*
+    * Don't show "100%" on a failed scan.
+    * Leave the error handling to the existing scanner.
+    */
+
+   scanProgress.classList.remove(
+     "complete"
+   );
+
+ }
+
+
+ function watchExistingScanRequest() {
+
+   if (!scanButton) {
+     return;
+   }
+
+
+   /*
+    * We use the existing button's disabled state to determine
+    * when the existing scanner has finished.
+    *
+    * This means we don't have to modify the working fetch()
+    * code above.
+    */
+
+   const progressWatcher =
+     setInterval(
+       () => {
+
+         if (
+           scanProgressRunning &&
+           scanButton.disabled === false
+         ) {
+
+           clearInterval(
+             progressWatcher
+           );
+
+           /*
+            * Wait one tick so the existing scanner has time
+            * to finish rendering its results.
+            */
+
+           setTimeout(
+             () => {
+
+               if (
+                 results.hidden === false
+               ) {
+
+                 completeScanProgress();
+
+               } else {
+
+                 failScanProgress();
+
+               }
+
+             },
+             100
+           );
+
+         }
+
+       },
+       150
+     );
+
+
+   /*
+    * Safety timeout.
+    *
+    * If something unexpected happens and the existing
+    * scanner never re-enables the button, this watcher
+    * must not run forever.
+    */
+
+   setTimeout(
+     () => {
+
+       clearInterval(
+         progressWatcher
+       );
+
+     },
+     10 * 60 * 1000
+   );
+
+ }
+
+
+ function initScanProgress() {
+
+   if (!form || !scanProgress) {
+     return;
+   }
+
+
+   /*
+    * Capture phase runs before the existing submit listener.
+    *
+    * Therefore we can start the progress UI without replacing
+    * or editing the existing scan function.
+    */
+
+   form.addEventListener(
+     "submit",
+     () => {
+
+       const url =
+         urlInput.value.trim();
+
+       if (!url) {
+         return;
+       }
+
+       startScanProgress(
+         url
+       );
+
+       watchExistingScanRequest();
+
+     },
+     true
+   );
+
+ }
+
+
+ initScanProgress();
 
   if (downloadReportButton) {
 

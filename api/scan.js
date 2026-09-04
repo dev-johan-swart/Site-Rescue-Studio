@@ -689,123 +689,7 @@ function analyzeStructuredData(html) {
  * --------------------------------------------------------
  */
 
-function scorePageCandidate(url, anchorText = "") {
-  const path =
-    getPathname(url).toLowerCase();
-
-  const text =
-    cleanText(anchorText).toLowerCase();
-
-  const combined =
-    `${path} ${text}`;
-
-  let score = 0;
-
-  const strongSignals = [
-    {
-      pattern:
-        /\bcontact(?:-us)?\b/,
-      score: 100
-    },
-    {
-      pattern:
-        /\bquote\b|\bget-a-quote\b|\brequest-a-quote\b/,
-      score: 95
-    },
-    {
-      pattern:
-        /\bbook(?:ing)?\b|\bappointment\b|\bschedule\b/,
-      score: 90
-    },
-    {
-      pattern:
-        /\blocation\b|\bdirections\b/,
-      score: 85
-    },
-    {
-      pattern:
-        /\bservices?\b/,
-      score: 75
-    },
-    {
-      pattern:
-        /\babout\b|\bwho-we-are\b/,
-      score: 70
-    },
-    {
-      pattern:
-        /\bpricing\b|\bprices\b/,
-      score: 60
-    },
-    {
-      pattern:
-        /\bteam\b/,
-      score: 45
-    },
-    {
-      pattern:
-        /\bfaq\b/,
-      score: 35
-    }
-  ];
-
-  for (const signal of strongSignals) {
-    if (signal.pattern.test(combined)) {
-      score =
-        Math.max(
-          score,
-          signal.score
-        );
-    }
-  }
-
-  const lowPrioritySignals = [
-    /\/privacy/i,
-    /\/terms/i,
-    /\/login/i,
-    /\/signin/i,
-    /\/register/i,
-    /\/checkout/i,
-    /\/cart/i,
-    /\/account/i,
-    /\/feed/i,
-    /\/tag\//i,
-    /\/category\//i,
-    /\/author\//i
-  ];
-
-  for (
-    const pattern of lowPrioritySignals
-  ) {
-    if (pattern.test(path)) {
-      score -= 100;
-    }
-  }
-
-  /*
-   * Navigation labels are useful signals.
-   */
-
-  if (
-    /\bcontact\b|\bcontact us\b/.test(text)
-  ) {
-    score += 30;
-  }
-
-  if (
-    /\bservices?\b/.test(text)
-  ) {
-    score += 20;
-  }
-
-  if (
-    /\babout\b/.test(text)
-  ) {
-    score += 15;
-  }
-
-  return score;
-}
+function scorePageCandidate( url, anchorText = "" ) { const path = getPathname(url).toLowerCase(); const text = cleanText(anchorText).toLowerCase(); const combined = `${path} ${text}`; let score = 0; /* * -------------------------------------------------- * STRONG BUSINESS PAGE SIGNALS * -------------------------------------------------- */ const strongSignals = [ { pattern: /\bcontact(?:-us)?\b/, score: 100 }, { pattern: /\bquote\b|\bget-a-quote\b|\brequest-a-quote\b/, score: 95 }, { pattern: /\bbook(?:ing)?\b|\bappointment\b|\bschedule\b/, score: 90 }, { pattern: /\blocation\b|\bdirections\b/, score: 85 }, { pattern: /\bservices?\b/, score: 75 }, { pattern: /\babout\b|\bwho-we-are\b/, score: 70 }, { pattern: /\bpricing\b|\bprices\b/, score: 60 }, { pattern: /\bteam\b/, score: 45 }, { pattern: /\bfaq\b/, score: 35 } ]; for ( const signal of strongSignals ) { if ( signal.pattern.test(combined) ) { score = Math.max( score, signal.score ); } } /* * -------------------------------------------------- * NAVIGATION LABEL SIGNALS * -------------------------------------------------- * * These give additional weight when the * visible navigation text confirms the * purpose of the page. */ if ( /\bcontact\b|\bcontact us\b/.test(text) ) { score += 30; } if ( /\bservices?\b/.test(text) ) { score += 20; } if ( /\babout\b/.test(text) ) { score += 15; } if ( /\bquote\b|\bget a quote\b/.test(text) ) { score += 25; } if ( /\bbook\b|\bappointment\b|\bschedule\b/.test(text) ) { score += 20; } if ( /\blocation\b|\bdirections\b/.test(text) ) { score += 20; } /* * -------------------------------------------------- * LOW-PRIORITY / NON-BUSINESS PAGES * -------------------------------------------------- * * These pages should normally not consume * crawler capacity. */ const lowPrioritySignals = [ /\/privacy(?:\.html)?$/i, /\/terms(?:\.html)?$/i, /\/login(?:\.html)?$/i, /\/signin(?:\.html)?$/i, /\/register(?:\.html)?$/i, /\/checkout(?:\.html)?$/i, /\/cart(?:\.html)?$/i, /\/account(?:\.html)?$/i, /\/feed(?:\.html)?$/i, /\/tag\//i, /\/category\//i, /\/author\//i ]; for ( const pattern of lowPrioritySignals ) { if ( pattern.test(path) ) { score -= 100; } } /* * -------------------------------------------------- * GENERIC INTERNAL PAGE * -------------------------------------------------- * * A real internal HTML page that does not * match a strong business signal still gets * a small baseline score. * * This is important because the crawler should * be able to inspect legitimate pages that use * unusual URL names. */ if ( score === 0 && path !== "/" && !lowPrioritySignals.some( pattern => pattern.test(path) ) ) { score = 10; } return score; }
 
 /*
  * --------------------------------------------------------
@@ -813,26 +697,22 @@ function scorePageCandidate(url, anchorText = "") {
  * --------------------------------------------------------
  */
 
+function extractAnchorElements(html) {
+  const regex =
+    /<a\b[^>]*>[\s\S]*?<\/a>/gi;
+
+  return html.match(regex) || [];
+}
+
 function discoverInternalPages(
   html,
   baseUrl
 ) {
   
   const links =
-    extractTags(
-      html,
-      "a"
-    );
-
-    console.log(
-      "DISCOVERY DEBUG — extracted links:",
-      links.length
-    );
-    
-    console.log(
-      "DISCOVERY DEBUG — first links:",
-      links.slice(0, 10)
-    );
+    extractAnchorElements(
+    html
+  );
 
   const candidates =
     new Map();
@@ -902,11 +782,7 @@ if (
   !trimmedHref &&
   javascriptDestination
 ) {
-  console.log(
-    "DISCOVERY DEBUG — onclick navigation:",
-    javascriptDestination
-  );
-
+  
   continue;
 }
 
@@ -923,13 +799,6 @@ if (
       normalizeUrl(
         trimmedHref,
         baseUrl
-      );
-
-      console.log(
-        "DISCOVERY DEBUG — href:",
-        trimmedHref,
-        "normalized:",
-        normalized
       );
 
     if (!normalized) {
@@ -1124,8 +993,8 @@ function analyzeBusinessSignals(
       pageText
     );
 
-  const hasClickableWhatsApp =
-    /<a\b[^>]*href\s*=\s*["'][^"']*(?:wa\.me|api\.whatsapp\.com|whatsapp:\/\/)[^"']*["']/i.test(
+    const hasClickableWhatsApp =
+    /<a\b[^>]*href\s*=\s*["'][^"']*(?:wa\.me|api\.whatsapp\.com|web\.whatsapp\.com|whatsapp:\/\/)[^"']*["']/i.test(
       html
     );
 
@@ -3824,7 +3693,124 @@ function buildRecommendation(check) {
         "Set appropriate width and height attributes or use CSS aspect-ratio.",
       service:
         "Performance optimisation"
-    }
+    },
+
+    "Text size": {
+  why:
+    "Very small text can make content harder to read, especially on mobile devices.",
+  action:
+    "Review small font sizes and use readable responsive typography that remains comfortable across screen sizes.",
+  service:
+    "Mobile optimisation"
+},
+
+"Touch target sizing": {
+  why:
+    "Small buttons and controls can be difficult to tap accurately on phones and other touch devices.",
+  action:
+    "Increase the size and spacing of interactive controls so they are easier to use on touch screens.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive typography": {
+  why:
+    "Fixed or non-responsive font sizing can make text less comfortable to read across different screen sizes.",
+  action:
+    "Use responsive typography with scalable units such as rem, em, or clamp() where appropriate.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive CSS": {
+  why:
+    "Without responsive CSS rules, layouts may not adapt well to different screen sizes.",
+  action:
+    "Add appropriate media queries or container queries to adapt the layout for smaller screens.",
+  service:
+    "Mobile optimisation"
+},
+
+"Flexible layout": {
+  why:
+    "Rigid layouts can make content harder to use on smaller screens.",
+  action:
+    "Use flexible layout techniques such as Flexbox or CSS Grid where appropriate.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive sizing": {
+  why:
+    "Fixed sizing can cause content to become cramped or overflow on smaller screens.",
+  action:
+    "Use flexible units such as percentages, rem, em, vw, or max-width where appropriate.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive images": {
+  why:
+    "Images that do not adapt to available space can contribute to horizontal scrolling or poor mobile presentation.",
+  action:
+    "Make images fluid and prevent them from exceeding their available container width.",
+  service:
+    "Mobile optimisation"
+},
+
+"Form control sizing": {
+  why:
+    "Oversized fixed-width form controls can force users to scroll horizontally on smaller screens.",
+  action:
+    "Use responsive widths for inputs, selects, textareas and buttons.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive tables": {
+  why:
+    "Wide tables can overflow the screen and make information difficult to use on mobile devices.",
+  action:
+    "Place wide tables inside a responsive scrolling container or use an alternative mobile-friendly layout.",
+  service:
+    "Mobile optimisation"
+},
+
+"Responsive embedded content": {
+  why:
+    "Fixed-size embedded content can extend beyond the available screen width.",
+  action:
+    "Make maps, videos, iframes and other embedded content responsive.",
+  service:
+    "Mobile optimisation"
+},
+
+"Mobile navigation": {
+  why:
+    "Navigation that does not adapt to smaller screens can make important pages difficult to reach.",
+  action:
+    "Provide a responsive mobile navigation pattern that remains easy to use on smaller screens.",
+  service:
+    "Mobile optimisation"
+},
+
+"Mobile-friendly input types": {
+  why:
+    "Using appropriate input types can make forms easier to complete on mobile devices.",
+  action:
+    "Use suitable input types such as email, tel, number, URL and search where appropriate.",
+  service:
+    "Mobile optimisation"
+},
+
+"Viewport zoom accessibility": {
+  why:
+    "Restricting browser zoom can make content harder to read and reduce accessibility for users who need magnification.",
+  action:
+    "Avoid unnecessarily restricting user zooming in the viewport configuration.",
+  service:
+    "Accessibility optimisation"
+},
   };
 
   const recommendation =
@@ -4070,21 +4056,6 @@ module.exports =
           "CRAWL DEBUG — finalUrl:",
           finalUrl
         );
-        
-        console.log(
-          "CRAWL DEBUG — homepage HTML length:",
-          html?.length
-        );
-        
-        console.log(
-          "CRAWL DEBUG — candidates:",
-          candidates
-        );
-        
-        console.log(
-          "CRAWL DEBUG — candidate count:",
-          candidates.length
-        );
 
         const pages =
         [
@@ -4166,38 +4137,62 @@ module.exports =
          * an entire website.
          */
 
+        console.log(
+          "CRAWL DEBUG — evaluating candidate:",
+          candidate
+        );
+        
+        
         if (
-          candidate.score < 20
+          candidate.score < 0
         ) {
+          console.log(
+            "CRAWL DEBUG — SKIPPED: low-priority page:",
+            candidate
+          );
           continue;
         }
 
+        
         scannedUrls.add(
           normalized
         );
-
+        
         try {
           const pageStarted =
             Date.now();
-
+        
+          console.log(
+            "CRAWL DEBUG — FETCHING candidate:",
+            normalized
+          );
+        
           const pageResponse =
             await fetchWithTimeout(
               normalized,
               {
                 redirect:
                   "follow",
-
+        
                 headers: {
                   "User-Agent":
                     USER_AGENT,
-
+        
                   Accept:
                     "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
                 }
               },
               12000
             );
-
+        
+          console.log(
+            "CRAWL DEBUG — response:",
+            normalized,
+            pageResponse.status,
+            pageResponse.ok,
+            pageResponse.headers.get("content-type")
+          );
+        
           const pageResponseTime =
             Date.now() -
             pageStarted;
@@ -4286,6 +4281,13 @@ module.exports =
             ...page
           });
 
+          console.log(
+            "CRAWL DEBUG — PAGE SCANNED SUCCESSFULLY:",
+            pageFinalUrl,
+            "pages.length:",
+            pages.length
+          );
+
           /*
            * Small delay keeps the crawler polite.
            */
@@ -4322,6 +4324,491 @@ module.exports =
        * WEBSITE BUSINESS EVIDENCE
        * --------------------------------------------------
        */
+
+      function drawBusinessEvidence(
+        doc,
+        businessEvidence
+      ) {
+      
+        businessEvidence =
+          businessEvidence || {};
+      
+      
+        sectionTitle(
+          doc,
+          "Business Evidence",
+          "Business contact and conversion signals detected across the website."
+        );
+      
+      
+        const categories = [
+          {
+            title: "Phone number",
+            key: "phone",
+            empty:
+              "No phone number was detected."
+          },
+      
+          {
+            title: "Email address",
+            key: "email",
+            empty:
+              "No email address was detected."
+          },
+      
+          {
+            title: "WhatsApp",
+            key: "whatsapp",
+            empty:
+              "No WhatsApp contact link was detected."
+          },
+      
+          {
+            title: "Contact form",
+            key: "form",
+            empty:
+              "No usable contact form was detected."
+          },
+      
+          {
+            title: "Business location",
+            key: "location",
+            empty:
+              "No business location evidence was detected."
+          },
+      
+          {
+            title: "Call to action",
+            key: "cta",
+            empty:
+              "No obvious call-to-action evidence was detected."
+          }
+        ];
+      
+      
+        categories.forEach(
+          category => {
+      
+            const entries =
+              Array.isArray(
+                businessEvidence[
+                  category.key
+                ]
+              )
+                ? businessEvidence[
+                    category.key
+                  ]
+                : [];
+      
+      
+            ensureSpace(
+              doc,
+              65
+            );
+      
+      
+            drawSubheading(
+              doc,
+              category.title
+            );
+      
+      
+            if (!entries.length) {
+      
+              drawEvidenceMessage(
+                doc,
+                category.empty,
+                false
+              );
+      
+              doc.moveDown(0.7);
+      
+              return;
+      
+            }
+      
+      
+            entries.forEach(
+              entry => {
+      
+                const evidence =
+                  formatBusinessEvidence(
+                    category.key,
+                    entry
+                  );
+      
+      
+                const height =
+                  getEvidenceHeight(
+                    doc,
+                    evidence
+                  );
+      
+      
+                ensureSpace(
+                  doc,
+                  height + 8
+                );
+      
+      
+                drawEvidenceCard(
+                  doc,
+                  evidence
+                );
+      
+              }
+            );
+      
+      
+            doc.moveDown(0.7);
+      
+          }
+        );
+      
+      }
+
+      /*
+ * ============================================================
+ * BUSINESS EVIDENCE HELPERS
+ * ============================================================
+ */
+
+function formatBusinessEvidence(
+  key,
+  entry
+ ) {
+
+  entry =
+    entry || {};
+
+
+  const url =
+    entry.url ||
+    "Unknown page";
+
+
+  let details = [];
+
+
+  if (
+    key === "phone"
+  ) {
+
+    details.push(
+      entry.clickable
+        ? "Clickable phone link detected."
+        : "Phone number detected."
+    );
+
+  }
+
+
+  if (
+    key === "email"
+  ) {
+
+    details.push(
+      entry.clickable
+        ? "Clickable email link detected."
+        : "Email address detected."
+    );
+
+  }
+
+
+  if (
+    key === "whatsapp"
+  ) {
+
+    details.push(
+      entry.clickable
+        ? "Clickable WhatsApp link detected."
+        : "WhatsApp reference detected."
+    );
+
+  }
+
+
+  if (
+    key === "form"
+  ) {
+
+    details.push(
+      entry.usable
+        ? "Usable contact form detected."
+        : "Contact form detected."
+    );
+
+
+    if (
+      Number.isFinite(
+        Number(entry.count)
+      )
+    ) {
+
+      details.push(
+        `Forms detected: ${entry.count}`
+      );
+
+    }
+
+  }
+
+
+  if (
+    key === "location"
+  ) {
+
+    if (
+      entry.addressElement
+    ) {
+
+      details.push(
+        "Address information detected."
+      );
+
+    }
+
+
+    if (
+      entry.mapLink
+    ) {
+
+      details.push(
+        "Map link detected."
+      );
+
+    }
+
+
+    if (
+      entry.mapEmbed
+    ) {
+
+      details.push(
+        "Embedded map detected."
+      );
+
+    }
+
+
+    if (!details.length) {
+
+      details.push(
+        "Location evidence detected."
+      );
+
+    }
+
+  }
+
+
+  if (
+    key === "cta"
+  ) {
+
+    details.push(
+      "Conversion-focused call-to-action detected."
+    );
+
+  }
+
+
+  return {
+    url,
+    details:
+      details.join(" ")
+  };
+
+}
+
+
+function getEvidenceHeight(
+  doc,
+  evidence
+) {
+
+  const details =
+    evidence.details ||
+    "";
+
+
+  const detailsHeight =
+    doc.heightOfString(
+      details,
+      {
+        width: 450,
+        font: "Helvetica",
+        fontSize: 9.5,
+        lineGap: 2
+      }
+    );
+
+
+  const urlHeight =
+    doc.heightOfString(
+      evidence.url,
+      {
+        width: 450,
+        font: "Helvetica",
+        fontSize: 8.5
+      }
+    );
+
+
+  return Math.max(
+    55,
+    28 +
+      detailsHeight +
+      urlHeight +
+      12
+  );
+
+}
+
+
+function drawEvidenceCard(
+  doc,
+  evidence
+) {
+
+  const startY =
+    doc.y;
+
+
+  const height =
+    getEvidenceHeight(
+      doc,
+      evidence
+    );
+
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      PAGE.width,
+      height,
+      7
+    )
+    .fillColor(BRAND.lighter)
+    .fill();
+
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      PAGE.width,
+      height,
+      7
+    )
+    .lineWidth(1)
+    .strokeColor(BRAND.border)
+    .stroke();
+
+
+  doc
+    .fillColor(BRAND.dark)
+    .font("Helvetica-Bold")
+    .fontSize(9.5)
+    .text(
+      evidence.details ||
+        "Business evidence detected.",
+      PAGE.left + 14,
+      startY + 12,
+      {
+        width: PAGE.width - 28
+      }
+    );
+
+
+  doc
+    .fillColor(BRAND.muted)
+    .font("Helvetica")
+    .fontSize(8.5)
+    .text(
+      `Found on: ${evidence.url}`,
+      PAGE.left + 14,
+      startY + 31,
+      {
+        width: PAGE.width - 28,
+        link: evidence.url
+      }
+    );
+
+
+  doc.y =
+    startY + height;
+
+}
+
+
+function drawEvidenceMessage(
+  doc,
+  message,
+  positive
+) {
+
+  const startY =
+    doc.y;
+
+
+  const height =
+    42;
+
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      PAGE.width,
+      height,
+      7
+    )
+    .fillColor(
+      positive
+        ? BRAND.greenLight
+        : BRAND.lighter
+    )
+    .fill();
+
+
+  doc
+    .roundedRect(
+      PAGE.left,
+      startY,
+      PAGE.width,
+      height,
+      7
+    )
+    .lineWidth(1)
+    .strokeColor(BRAND.border)
+    .stroke();
+
+
+  doc
+    .fillColor(
+      positive
+        ? BRAND.green
+        : BRAND.muted
+    )
+    .font("Helvetica")
+    .fontSize(9.5)
+    .text(
+      message,
+      PAGE.left + 14,
+      startY + 14,
+      {
+        width: PAGE.width - 28
+      }
+    );
+
+
+  doc.y =
+    startY + height;
+
+}
 
       const analyzedPages =
         pages.filter(
@@ -4407,19 +4894,7 @@ module.exports =
        */
 
       const mobileScore =
-        pageSpeed.success &&
-        typeof pageSpeed
-          .scores
-          .performance ===
-          "number"
-          ? Math.round(
-              homepage.mobileHtmlScore *
-                0.3 +
-                pageSpeed.scores
-                  .performance *
-                0.7
-            )
-          : homepage.mobileHtmlScore;
+        homepage.mobileHtmlScore;
 
       /*
        * --------------------------------------------------
