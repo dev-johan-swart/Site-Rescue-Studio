@@ -10,6 +10,12 @@ const MAX_CRAWL_PAGES = 8;
 const MAX_DISCOVERED_LINKS = 80;
 const MAX_LINKS_TO_TEST = 30;
 
+function debugTiming(label, startedAt) {
+  console.log(
+    `[V3 TIMING] ${label} — ${Date.now() - startedAt}ms`
+  );
+}
+
 function cleanText(value = "") {
   return String(value)
     .replace(/\s+/g, " ")
@@ -1171,18 +1177,29 @@ function analyzeBusinessSignals(
 async function testLinks(
   linkResults,
   maxLinks = MAX_LINKS_TO_TEST
- ) {
+) {
   const linksToTest =
-    linkResults.filter(
-      link =>
-        link.status === "pending"
-    );
+    linkResults
+      .filter(
+        link =>
+          link.status === "pending"
+      )
+      .slice(
+        0,
+        maxLinks
+      );
 
-  for (
-    const link of linksToTest.slice(
-      0,
-      maxLinks
-    )
+  /*
+   * Test several links at the same time.
+   *
+   * This keeps link coverage intact while
+   * preventing 30 requests from running
+   * completely sequentially.
+   */
+  const CONCURRENCY = 6;
+
+  async function testSingleLink(
+    link
   ) {
     try {
       /*
@@ -1196,8 +1213,10 @@ async function testLinks(
         await fetchWithTimeout(
           link.url,
           {
-            method: "HEAD",
-            redirect: "follow",
+            method:
+              "HEAD",
+            redirect:
+              "follow",
             headers: {
               "User-Agent":
                 USER_AGENT
@@ -1214,16 +1233,21 @@ async function testLinks(
        */
 
       if (
-        linkResponse.status === 403 ||
-        linkResponse.status === 405 ||
-        linkResponse.status === 501
+        linkResponse.status ===
+          403 ||
+        linkResponse.status ===
+          405 ||
+        linkResponse.status ===
+          501
       ) {
         linkResponse =
           await fetchWithTimeout(
             link.url,
             {
-              method: "GET",
-              redirect: "follow",
+              method:
+                "GET",
+              redirect:
+                "follow",
               headers: {
                 "User-Agent":
                   USER_AGENT
@@ -1232,9 +1256,11 @@ async function testLinks(
             8000
           );
 
-        link.testMethod = "GET";
+        link.testMethod =
+          "GET";
       } else {
-        link.testMethod = "HEAD";
+        link.testMethod =
+          "HEAD";
       }
 
       link.statusCode =
@@ -1255,8 +1281,11 @@ async function testLinks(
        * Successful destination.
        */
 
-      if (linkResponse.ok) {
-        link.status = "working";
+      if (
+        linkResponse.ok
+      ) {
+        link.status =
+          "working";
       }
 
       /*
@@ -1267,11 +1296,15 @@ async function testLinks(
        */
 
       else if (
-        linkResponse.status === 403 ||
-        linkResponse.status === 405 ||
-        linkResponse.status === 429
+        linkResponse.status ===
+          403 ||
+        linkResponse.status ===
+          405 ||
+        linkResponse.status ===
+          429
       ) {
-        link.status = "blocked";
+        link.status =
+          "blocked";
 
         link.note =
           "The destination did not allow automated verification. This does not necessarily mean the link is broken.";
@@ -1284,16 +1317,23 @@ async function testLinks(
        */
 
       else if (
-        link.type === "external" &&
+        link.type ===
+          "external" &&
         (
-          linkResponse.status === 400 ||
-          linkResponse.status === 401 ||
-          linkResponse.status === 406 ||
-          linkResponse.status === 408 ||
-          linkResponse.status >= 500
+          linkResponse.status ===
+            400 ||
+          linkResponse.status ===
+            401 ||
+          linkResponse.status ===
+            406 ||
+          linkResponse.status ===
+            408 ||
+          linkResponse.status >=
+            500
         )
       ) {
-        link.status = "blocked";
+        link.status =
+          "blocked";
 
         link.note =
           `The external service returned HTTP ${linkResponse.status} while automated verification was attempted.`;
@@ -1304,19 +1344,52 @@ async function testLinks(
        */
 
       else {
-        link.status = "broken";
+        link.status =
+          "broken";
 
         link.error =
           `HTTP ${linkResponse.status}`;
       }
 
-    } catch (error) {
-      link.status = "unreachable";
+    } catch (
+      error
+    ) {
+      link.status =
+        "unreachable";
 
       link.error =
         error.message ||
         "Request failed.";
     }
+  }
+
+  /*
+   * Process links in controlled batches.
+   *
+   * Six requests run concurrently,
+   * then the next six begin.
+   *
+   * This is much faster than testing every
+   * link sequentially while avoiding an
+   * uncontrolled burst of requests.
+   */
+
+  for (
+    let i = 0;
+    i < linksToTest.length;
+    i += CONCURRENCY
+  ) {
+    const batch =
+      linksToTest.slice(
+        i,
+        i + CONCURRENCY
+      );
+
+    await Promise.all(
+      batch.map(
+        testSingleLink
+      )
+    );
   }
 }
 
@@ -1332,6 +1405,14 @@ async function analyzePage(
   response,
   responseTime
  ) {
+  const analysisStart =
+  Date.now();
+
+console.log(
+  "[V3 PROFILE] analyzePage START:",
+  pageUrl
+);
+
   const titleMatches =
     extractTextBetween(
       html,
@@ -1437,6 +1518,12 @@ async function analyzePage(
       "og:description"
     );
 
+    console.log(
+      "[V3 PROFILE] Basic extraction:",
+      Date.now() - analysisStart,
+      "ms"
+    );
+
   const mixedContent =
     response.url?.startsWith(
       "https://"
@@ -1459,6 +1546,14 @@ async function analyzePage(
       imagesWithoutAlt++;
     }
   }
+
+  console.log(
+    "[V3 PROFILE] Image analysis:",
+    Date.now() - analysisStart,
+    "ms",
+    "images:",
+    images.length
+  );
 
   let emptyLinks = 0;
 
@@ -1518,15 +1613,24 @@ for (const link of links) {
     emptyLinks++;
   }
 
-  console.log(
-    "LINK DEBUG:",
-    {
-      href: trimmedHref,
-      ...accessibleName,
-      html: link
-    }
-  );
+  //console.log(
+  //  "LINK DEBUG:",
+  //  {
+  //    href: trimmedHref,
+  //    ...accessibleName,
+  //    html: link
+  //  }
+  //);
 }
+
+/* PROFILE — AFTER the entire link loop */
+console.log(
+  "[V3 PROFILE] Link analysis:",
+  Date.now() - analysisStart,
+  "ms",
+  "links:",
+  links.length
+);
 
   /*
    * ------------------------------------------------------
@@ -1690,6 +1794,12 @@ for (const link of links) {
           10,
           "low"
         )
+  );
+
+  console.log(
+    "[V3 PROFILE] SEO checks:",
+    Date.now() - analysisStart,
+    "ms"
   );
 
   /*
@@ -2503,220 +2613,6 @@ for (const link of links) {
     }
   }
 
-  /*
-   * HTTP link testing.
-   */
-
-  const linksToTest =
-    linkResults.filter(
-      link =>
-        link.status ===
-        "pending"
-    );
-
-  for (
-    const link of linksToTest.slice(
-      0,
-      MAX_LINKS_TO_TEST
-    )
-  ) {
-    try {
-      let linkResponse =
-        await fetchWithTimeout(
-          link.url,
-          {
-            method:
-              "HEAD",
-            redirect:
-              "follow",
-            headers: {
-              "User-Agent":
-                USER_AGENT
-            }
-          },
-          8000
-        );
-
-      if (
-        linkResponse.status ===
-          403 ||
-        linkResponse.status ===
-          405 ||
-        linkResponse.status ===
-          501
-      ) {
-        linkResponse =
-          await fetchWithTimeout(
-            link.url,
-            {
-              method:
-                "GET",
-              redirect:
-                "follow",
-              headers: {
-                "User-Agent":
-                  USER_AGENT
-              }
-            },
-            8000
-          );
-
-        link.testMethod =
-          "GET";
-      } else {
-        link.testMethod =
-          "HEAD";
-      }
-
-      link.statusCode =
-        linkResponse.status;
-
-      link.finalUrl =
-        linkResponse.url ||
-        link.url;
-
-      link.redirected =
-        Boolean(
-          linkResponse.url &&
-          linkResponse.url !==
-            link.url
-        );
-
-      if (
-        linkResponse.ok
-      ) {
-        link.status =
-          "working";
-      } else if (
-        linkResponse.status ===
-          403 ||
-        linkResponse.status ===
-          405 ||
-        linkResponse.status ===
-          429
-      ) {
-        link.status =
-          "blocked";
-
-        link.note =
-          "The destination did not allow automated verification. This does not necessarily mean the link is broken.";
-      } else if (
-        link.type ===
-          "external" &&
-        (
-          linkResponse.status ===
-            400 ||
-          linkResponse.status ===
-            401 ||
-          linkResponse.status ===
-            406 ||
-          linkResponse.status ===
-            408 ||
-          linkResponse.status >=
-            500
-        )
-      ) {
-        link.status =
-          "blocked";
-
-        link.note =
-          `The external service returned HTTP ${linkResponse.status} while automated verification was attempted.`;
-      } else {
-        link.status =
-          "broken";
-      }
-    } catch (error) {
-      link.status =
-        "unreachable";
-
-      link.error =
-        error.message ||
-        "Request failed.";
-    }
-  }
-
-  const linkHealth = {
-    total:
-      links.length,
-
-    tested:
-      linkResults.filter(
-        link =>
-          link.status ===
-            "working" ||
-          link.status ===
-            "broken" ||
-          link.status ===
-            "unreachable" ||
-          link.status ===
-            "blocked"
-      ).length,
-
-    working:
-      linkResults.filter(
-        link =>
-          link.status ===
-          "working"
-      ).length,
-
-    broken:
-      linkResults.filter(
-        link =>
-          link.status ===
-            "broken" &&
-          link.type !==
-            "anchor"
-      ).length,
-
-    placeholder:
-      linkResults.filter(
-        link =>
-          link.status ===
-          "placeholder"
-      ).length,
-
-    blocked:
-      linkResults.filter(
-        link =>
-          link.status ===
-          "blocked"
-      ).length,
-
-    unreachable:
-      linkResults.filter(
-        link =>
-          link.status ===
-          "unreachable"
-      ).length,
-
-    redirected:
-      linkResults.filter(
-        link =>
-          link.redirected
-      ).length,
-
-    internal:
-      linkResults.filter(
-        link =>
-          link.type ===
-          "internal"
-      ).length,
-
-    external:
-      linkResults.filter(
-        link =>
-          link.type ===
-          "external"
-      ).length,
-
-    anchors:
-      linkResults.filter(
-        link =>
-          link.type ===
-          "anchor"
-      ).length
-  };
-
   return {
     url:
       pageUrl,
@@ -2760,8 +2656,6 @@ for (const link of links) {
     mobileChecks,
 
     mobileHtmlScore,
-
-    linkHealth,
 
     linkResults,
 
@@ -3974,6 +3868,11 @@ module.exports =
           }
         );
 
+        debugTiming(
+          "Homepage fetch complete",
+          started
+        );
+
       const responseTime =
         Date.now() -
         started;
@@ -4029,17 +3928,118 @@ module.exports =
        * --------------------------------------------------
        */
 
-      const homepage =
-        await analyzePage(
-          html,
-          finalUrl,
-          response,
-          responseTime
-        );
+      const homepageAnalysisStarted =
+  Date.now();
 
-        await testLinks(
-          homepage.linkResults
-        );
+const homepage =
+  await analyzePage(
+    html,
+    finalUrl,
+    response,
+    responseTime
+  );
+
+  debugTiming(
+    "Homepage analysis complete",
+    homepageAnalysisStarted
+  );
+
+  const homepageLinkTestingStarted =
+  Date.now();
+
+console.log(
+  "[V3 TIMING] Starting homepage link testing —",
+  homepage.linkResults.length,
+  "links found"
+);
+
+const linkTestStarted =
+  Date.now();
+
+await testLinks(
+  homepage.linkResults
+);
+
+console.log(
+  "[V3 TIMING] Homepage link testing complete —",
+  Date.now() - linkTestStarted,
+  "ms"
+);
+
+const linkHealth = {
+
+  total:
+    homepage.linkResults.length,
+
+  tested:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "working" ||
+        link.status === "broken" ||
+        link.status === "unreachable" ||
+        link.status === "blocked"
+    ).length,
+
+  working:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "working"
+    ).length,
+
+  broken:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "broken" &&
+        link.type !== "anchor"
+    ).length,
+
+  placeholder:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "placeholder"
+    ).length,
+
+  blocked:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "blocked"
+    ).length,
+
+  unreachable:
+    homepage.linkResults.filter(
+      link =>
+        link.status === "unreachable"
+    ).length,
+
+  redirected:
+    homepage.linkResults.filter(
+      link =>
+        link.redirected
+    ).length,
+
+  internal:
+    homepage.linkResults.filter(
+      link =>
+        link.type === "internal"
+    ).length,
+
+  external:
+    homepage.linkResults.filter(
+      link =>
+        link.type === "external"
+    ).length,
+
+  anchors:
+    homepage.linkResults.filter(
+      link =>
+        link.type === "anchor"
+    ).length
+};
+
+debugTiming(
+  "Homepage link testing complete",
+  homepageLinkTestingStarted
+);
 
       /*
        * --------------------------------------------------
@@ -4047,11 +4047,19 @@ module.exports =
        * --------------------------------------------------
        */
 
+      const discoveryStarted =
+        Date.now();
+
       const candidates =
         discoverInternalPages(
           html,
           finalUrl
         );
+
+      debugTiming(
+        `Internal-page discovery complete — ${candidates.length} candidates`,
+        discoveryStarted
+      );
 
         console.log(
           "CRAWL DEBUG — finalUrl:",
@@ -4185,6 +4193,11 @@ module.exports =
               },
               12000
             );
+
+            debugTiming(
+              `Crawled page fetch complete — ${normalized}`,
+              pageStarted
+            );
         
           console.log(
             "CRAWL DEBUG — response:",
@@ -4253,6 +4266,11 @@ module.exports =
               pageFinalUrl,
               pageResponse,
               pageResponseTime
+            );
+
+            debugTiming(
+              `Crawled page analysis complete — ${pageFinalUrl}`,
+              pageStarted
             );
 
           pages.push({
@@ -4855,10 +4873,18 @@ function drawEvidenceMessage(
        * --------------------------------------------------
        */
 
+      const pageSpeedStarted =
+        Date.now();
+
       const pageSpeed =
         await runPageSpeed(
           finalUrl
         );
+
+      debugTiming(
+        "PageSpeed complete",
+        pageSpeedStarted
+      );
 
       const seoScore =
         pageSpeed.success
@@ -5099,6 +5125,73 @@ function drawEvidenceMessage(
           })
         );
 
+        const keyProblems =
+  issues
+    .map(issue =>
+      issue &&
+      (
+        issue.title ||
+        issue.name ||
+        "Website issue"
+      )
+    )
+    .filter(Boolean)
+    .join("; ");
+
+const potentialServices =
+  [
+    ...new Set(
+      recommendations
+        .map(
+          recommendation =>
+            recommendation &&
+            recommendation.service
+        )
+        .filter(Boolean)
+    )
+  ]
+  .join("; ");
+
+const severityRank = {
+  high: 3,
+  medium: 2,
+  low: 1,
+  info: 0
+};
+
+const highestSeverity =
+  issues.reduce(
+    (highest, issue) => {
+      const severity =
+        issue &&
+        issue.severity
+          ? issue.severity
+          : "info";
+
+      return (
+        (severityRank[severity] || 0) >
+        (severityRank[highest] || 0)
+          ? severity
+          : highest
+      );
+    },
+    "info"
+  );
+
+const priority =
+  highestSeverity === "high"
+    ? "High"
+    : highestSeverity === "medium"
+      ? "Medium"
+      : highestSeverity === "low"
+        ? "Low"
+        : "Low";
+
+const opportunity =
+  potentialServices
+    ? `Potential ${potentialServices.toLowerCase()} opportunity`
+    : "Website improvement opportunity identified";
+
       /*
        * --------------------------------------------------
        * SAVE PROSPECT
@@ -5110,6 +5203,9 @@ function drawEvidenceMessage(
 
       let prospectSaved = false;
 
+      const prospectSaveStarted =
+        Date.now();
+
       try {
         const prospectResult =
           await saveProspect({
@@ -5119,9 +5215,19 @@ function drawEvidenceMessage(
             url:
               targetUrl.href,
 
-            finalUrl,
+              finalUrl,
 
-            scores: {
+              businessEvidence,
+
+              keyProblems,
+
+              opportunity,
+
+              priority,
+
+              potentialServices,
+
+              scores: {
               overall,
               seo:
                 seoScore,
@@ -5152,11 +5258,21 @@ function drawEvidenceMessage(
         );
       }
 
+      debugTiming(
+        `Prospect save complete — saved=${prospectSaved}`,
+        prospectSaveStarted
+      );
+
       /*
        * --------------------------------------------------
        * RESPONSE
        * --------------------------------------------------
        */
+
+      debugTiming(
+        "Final response ready",
+        started
+      );
 
       return res.status(
         200
