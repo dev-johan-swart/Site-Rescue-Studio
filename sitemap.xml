@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Main business website -->
+  <url>
+    <loc>https://site-rescue-studio.vercel.app/</loc>
+  </url>
+
+  <!-- Free Website Health Scanner -->
+  <url>
+    <loc>https://site-rescue-studio.vercel.app/scanner.html</loc>
+  </url>
+
+  <!-- Privacy Policy -->
+  <url>
+    <loc>https://site-rescue-studio.vercel.app/privacy/privacy.html</loc>
+  </url>
+
+  <!-- Terms & Conditions -->
+  <url>
+    <loc>https://site-rescue-studio.vercel.app/terms/terms.html</loc>
+  </url>
+
+</urlset>

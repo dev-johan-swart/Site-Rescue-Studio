@@ -1,0 +1,18 @@
+# Site Rescue Studio
+# https://site-rescue-studio.vercel.app/
+#
+# Allow search engines to crawl the public website.
+# Private application/API paths are not intended as search landing pages.
+
+User-agent: *
+Allow: /
+
+# Application/API endpoints are not useful search-result pages.
+Disallow: /api/
+
+# Internal/local development and backup material should not be crawled.
+Disallow: /backup/
+Disallow: /scripts/
+
+# Tell crawlers where the canonical XML sitemap is located.
+Sitemap: https://site-rescue-studio.vercel.app/sitemap.xml
