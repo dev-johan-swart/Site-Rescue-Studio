@@ -514,6 +514,11 @@ document.addEventListener("DOMContentLoaded", () => {
       data.scores.performance
     );
 
+    setScore(
+      "securityScore",
+      data.scores.security
+    );
+
       const performanceElement =
         document.getElementById(
           "performanceScore"
@@ -683,15 +688,17 @@ document.addEventListener("DOMContentLoaded", () => {
       mobile: "Mobile",
       accessibility: "Accessibility",
       technical: "Technical",
-      business: "Business"
+      business: "Business",
+      security: "Security & Trust"
     };
-
+    
     const categoryOrder = [
       "seo",
       "mobile",
       "accessibility",
       "technical",
-      "business"
+      "business",
+      "security"
     ];
 
     categoryOrder.forEach(category => {

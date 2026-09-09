@@ -3866,3 +3866,228 @@ footer {
         translateY(-2px);
 }
 
+/* =========================================================
+QUICK FIX DESK
+========================================================= */
+
+.quick-fix-section {
+padding: 90px 20px;
+background: linear-gradient(
+135deg,
+rgba(255, 193, 7, 0.08),
+rgba(0, 0, 0, 0.18)
+);
+}
+
+.quick-fix-container {
+width: min(1120px, 100%);
+margin: 0 auto;
+display: grid;
+grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+gap: 50px;
+align-items: start;
+}
+
+.quick-fix-intro {
+padding-top: 10px;
+}
+
+.quick-fix-eyebrow {
+margin: 0 0 12px;
+font-size: 0.85rem;
+font-weight: 800;
+letter-spacing: 0.12em;
+text-transform: uppercase;
+}
+
+.quick-fix-intro h2 {
+margin: 0 0 20px;
+font-size: clamp(2rem, 4vw, 3.2rem);
+line-height: 1.05;
+}
+
+.quick-fix-lead {
+max-width: 680px;
+margin-bottom: 18px;
+font-size: 1.15rem;
+line-height: 1.65;
+}
+
+.quick-fix-intro > p:not(.quick-fix-eyebrow):not(.quick-fix-lead) {
+max-width: 680px;
+line-height: 1.7;
+}
+
+.quick-fix-highlight {
+display: flex;
+flex-direction: column;
+gap: 6px;
+margin: 28px 0;
+padding: 20px;
+border-radius: 14px;
+border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+.quick-fix-highlight strong {
+font-size: 1.25rem;
+}
+
+.quick-fix-highlight span {
+line-height: 1.5;
+opacity: 0.85;
+}
+
+.quick-fix-list {
+list-style: none;
+margin: 25px 0 0;
+padding: 0;
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 12px 20px;
+}
+
+.quick-fix-list li {
+line-height: 1.5;
+}
+
+.quick-fix-card {
+padding: 30px;
+border-radius: 20px;
+border: 1px solid rgba(255, 255, 255, 0.12);
+background: rgba(0, 0, 0, 0.18);
+box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
+}
+
+.quick-fix-card-header {
+margin-bottom: 24px;
+}
+
+.quick-fix-card-label {
+margin: 0 0 8px;
+font-size: 0.78rem;
+font-weight: 800;
+letter-spacing: 0.1em;
+text-transform: uppercase;
+}
+
+.quick-fix-card h3 {
+margin: 0 0 10px;
+font-size: 1.7rem;
+}
+
+.quick-fix-card-header p:last-child {
+margin: 0;
+line-height: 1.55;
+opacity: 0.85;
+}
+
+.quick-fix-form {
+display: grid;
+gap: 16px;
+}
+
+.quick-fix-contact-row {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 14px;
+}
+
+.quick-fix-field {
+display: grid;
+gap: 7px;
+}
+
+.quick-fix-field label {
+font-size: 0.9rem;
+font-weight: 700;
+}
+
+.quick-fix-field input,
+.quick-fix-field textarea {
+width: 100%;
+box-sizing: border-box;
+padding: 13px 14px;
+border: 1px solid rgba(255, 255, 255, 0.18);
+border-radius: 10px;
+background: rgba(255, 255, 255, 0.06);
+font: inherit;
+color: inherit;
+}
+
+.quick-fix-field textarea {
+min-height: 140px;
+resize: vertical;
+}
+
+.quick-fix-field input:focus,
+.quick-fix-field textarea:focus {
+outline: 2px solid currentColor;
+outline-offset: 2px;
+}
+
+.quick-fix-note {
+margin: 0;
+font-size: 0.82rem;
+line-height: 1.5;
+opacity: 0.75;
+}
+
+.quick-fix-submit {
+width: 100%;
+min-height: 50px;
+padding: 13px 18px;
+border: 0;
+border-radius: 10px;
+font: inherit;
+font-weight: 800;
+cursor: pointer;
+}
+
+.quick-fix-submit:focus-visible {
+outline: 3px solid currentColor;
+outline-offset: 3px;
+}
+
+.quick-fix-status {
+min-height: 1.4em;
+margin: 0;
+font-size: 0.9rem;
+line-height: 1.5;
+}
+
+.quick-fix-status.is-error {
+font-weight: 700;
+}
+
+.quick-fix-status.is-success {
+font-weight: 700;
+}
+
+@media (max-width: 800px) {
+.quick-fix-section {
+padding: 70px 16px;
+}
+
+.quick-fix-container {
+grid-template-columns: 1fr;
+gap: 35px;
+}
+
+.quick-fix-list {
+grid-template-columns: 1fr;
+}
+}
+
+@media (max-width: 560px) {
+.quick-fix-card {
+padding: 22px 18px;
+}
+
+.quick-fix-contact-row {
+grid-template-columns: 1fr;
+}
+
+.quick-fix-intro h2 {
+font-size: 2rem;
+}
+}

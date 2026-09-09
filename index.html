@@ -420,8 +420,7 @@
                     </h3>
 
                     <p>
-                        Get a quick overview of performance, SEO, mobile
-                        experience, accessibility and technical health.
+                        Get a quick overview of your website's performance, SEO, mobile experience, accessibility, technical health and important security configuration signals.
                     </p>
 
                     <div class="scanner-main-form">
@@ -442,6 +441,7 @@
                         <span>✓ Mobile</span>
                         <span>✓ Accessibility</span>
                         <span>✓ Technical Health</span>
+                        <span>✓ Security & Trust</span>
 
                     </div>
 
@@ -1032,6 +1032,146 @@
 
             </div>
 
+        </section>
+
+        <section class="quick-fix-section" id="quick-fix"> <div class="quick-fix-container">
+
+            <div class="quick-fix-intro">
+              <p class="quick-fix-eyebrow">⚡ QUICK FIX DESK</p>
+            
+              <h2>Got a small website problem?</h2>
+            
+              <p class="quick-fix-lead">
+                You don't always need a new website.
+                Sometimes you just need one thing fixed, updated or improved.
+              </p>
+            
+              <p>
+                Need a new image, updated contact details, a broken button fixed,
+                an old section refreshed, a form checked or a small website change?
+                Tell us what you need and we'll let you know what we can do.
+              </p>
+            
+              <div class="quick-fix-highlight">
+                <strong>Small website changes from R500</strong>
+                <span>Final price depends on the work required. No unnecessary rebuilds.</span>
+              </div>
+            
+              <ul class="quick-fix-list">
+                <li>✓ Image and content updates</li>
+                <li>✓ Contact detail changes</li>
+                <li>✓ Broken links, buttons and forms</li>
+                <li>✓ Small layout and design improvements</li>
+                <li>✓ Website refreshes and modernisation</li>
+                <li>✓ Technical and performance fixes</li>
+                <li>✓ Website health and security-risk checks</li>
+              </ul>
+            </div>
+            
+            <div class="quick-fix-card">
+            
+              <div class="quick-fix-card-header">
+                <p class="quick-fix-card-label">REQUEST A QUICK FIX</p>
+                <h3>Tell us what you need</h3>
+                <p>
+                  Give us a few details and we'll review your request and get back to you.
+                </p>
+              </div>
+            
+              <form id="quickFixForm" class="quick-fix-form">
+            
+                <div class="quick-fix-field">
+                  <label for="quickFixName">Your name *</label>
+                  <input
+                    type="text"
+                    id="quickFixName"
+                    name="name"
+                    autocomplete="name"
+                    required
+                    placeholder="Your name"
+                  >
+                </div>
+            
+                <div class="quick-fix-field">
+                  <label for="quickFixBusiness">Business name</label>
+                  <input
+                    type="text"
+                    id="quickFixBusiness"
+                    name="business"
+                    autocomplete="organization"
+                    placeholder="Your business name"
+                  >
+                </div>
+            
+                <div class="quick-fix-field">
+                  <label for="quickFixWebsite">Website *</label>
+                  <input
+                    type="url"
+                    id="quickFixWebsite"
+                    name="website"
+                    inputmode="url"
+                    placeholder="https://yourwebsite.co.za"
+                    required
+                  >
+                </div>
+            
+                <div class="quick-fix-contact-row">
+            
+                  <div class="quick-fix-field">
+                    <label for="quickFixEmail">Email</label>
+                    <input
+                      type="email"
+                      id="quickFixEmail"
+                      name="email"
+                      autocomplete="email"
+                      placeholder="you@example.com"
+                    >
+                  </div>
+            
+                  <div class="quick-fix-field">
+                    <label for="quickFixPhone">Phone / WhatsApp</label>
+                    <input
+                      type="tel"
+                      id="quickFixPhone"
+                      name="phone"
+                      autocomplete="tel"
+                      placeholder="+27..."
+                    >
+                  </div>
+            
+                </div>
+            
+                <div class="quick-fix-field">
+                  <label for="quickFixRequest">What would you like changed or fixed? *</label>
+                  <textarea
+                    id="quickFixRequest"
+                    name="request"
+                    rows="6"
+                    required
+                    placeholder="For example: Replace the three photos on our home page, update our phone number and fix the contact button."
+                  ></textarea>
+                </div>
+            
+                <p class="quick-fix-note">
+                  Email or phone is optional. Please provide at least one way for us to contact you.
+                </p>
+            
+                <button type="submit" class="quick-fix-submit">
+                  Send My Request
+                </button>
+            
+                <p
+                  id="quickFixStatus"
+                  class="quick-fix-status"
+                  role="status"
+                  aria-live="polite"
+                ></p>
+            
+              </form>
+            
+            </div>
+            
+            </div> 
         </section>
 
 
@@ -2132,6 +2272,98 @@ Sent from the Site Rescue Studio website.
             'Send Enquiry';
 
     }
+
+}
+
+/* -----------------------------------------------------
+   QUICK FIX DESK → WHATSAPP
+----------------------------------------------------- */
+
+const QUICK_FIX_WHATSAPP = "27783944289";
+
+const quickFixForm =
+    document.getElementById("quickFixForm");
+
+if (quickFixForm) {
+
+    quickFixForm.addEventListener("submit", function (event) {
+
+        event.preventDefault();
+
+        const name =
+            document.getElementById("quickFixName")?.value.trim() || "";
+
+        const business =
+            document.getElementById("quickFixBusiness")?.value.trim() || "";
+
+        const website =
+            document.getElementById("quickFixWebsite")?.value.trim() || "";
+
+        const email =
+            document.getElementById("quickFixEmail")?.value.trim() || "";
+
+        const phone =
+            document.getElementById("quickFixPhone")?.value.trim() || "";
+
+        const request =
+            document.getElementById("quickFixRequest")?.value.trim() || "";
+
+        const status =
+            document.getElementById("quickFixStatus");
+
+        if (!name || !business || !request) {
+
+            if (status) {
+                status.textContent =
+                    "Please enter your name, business name and what you need help with.";
+                status.classList.add("error");
+            }
+
+            return;
+        }
+
+        if (!email && !phone) {
+
+            if (status) {
+                status.textContent =
+                    "Please provide either an email address or phone number so we can contact you.";
+                status.classList.add("error");
+            }
+
+            return;
+        }
+
+        const message = [
+            "SITE RESCUE STUDIO — QUICK FIX DESK",
+            "",
+            `Name: ${name}`,
+            `Business: ${business}`,
+            website ? `Website: ${website}` : "",
+            email ? `Email: ${email}` : "",
+            phone ? `Phone: ${phone}` : "",
+            "",
+            "REQUEST:",
+            request
+        ]
+        .filter(Boolean)
+        .join("\n");
+
+        const whatsappUrl =
+            `https://wa.me/${QUICK_FIX_WHATSAPP}?text=${encodeURIComponent(message)}`;
+
+        if (status) {
+            status.classList.remove("error");
+            status.textContent =
+                "Opening WhatsApp with your request...";
+        }
+
+        window.open(
+            whatsappUrl,
+            "_blank",
+            "noopener,noreferrer"
+        );
+
+    });
 
 }
 

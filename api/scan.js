@@ -494,6 +494,538 @@ async function fetchWithTimeout(
 
 /*
  * --------------------------------------------------------
+ * SECURITY & TRUST ANALYSIS
+ * --------------------------------------------------------
+ */
+
+function analyzeSecurity(
+  html,
+  response,
+  targetUrl,
+  finalUrl
+) {
+
+  const headers = response.headers;
+
+  const protocol =
+      new URL(finalUrl).protocol;
+
+  const isHttps =
+      protocol === "https:";
+
+  const contentSecurityPolicy =
+      headers.get("content-security-policy");
+
+  const strictTransportSecurity =
+      headers.get("strict-transport-security");
+
+  const xContentTypeOptions =
+      headers.get("x-content-type-options");
+
+  const referrerPolicy =
+      headers.get("referrer-policy");
+
+  const permissionsPolicy =
+      headers.get("permissions-policy");
+
+  const frameOptions =
+      headers.get("x-frame-options");
+
+  const crossOriginOpenerPolicy =
+      headers.get("cross-origin-opener-policy");
+
+  const serverHeader =
+      headers.get("server");
+
+  const poweredByHeader =
+      headers.get("x-powered-by");
+
+  const insecureResourceMatches =
+      html.match(
+          /(?:src|href|action)\s*=\s*["']http:\/\//gi
+      ) || [];
+
+  const insecureFormMatches =
+      html.match(
+          /<form\b[^>]*action\s*=\s*["']http:\/\//gi
+      ) || [];
+
+  const metaRefreshHttp =
+      /<meta\b[^>]*http-equiv\s*=\s*["']refresh["'][^>]*http:\/\//i.test(
+          html
+      );
+
+  const checks = [];
+
+  /*
+   * HTTPS
+   */
+
+  checks.push(
+      isHttps
+          ? finding(
+              "HTTPS",
+              "The website is served over HTTPS.",
+              "pass",
+              15
+          )
+          : finding(
+              "HTTPS",
+              "The website is not currently being served over HTTPS.",
+              "fail",
+              15,
+              "high"
+          )
+  );
+
+  /*
+   * HTTP → HTTPS redirect
+   *
+   * Only meaningful when the supplied URL was HTTP.
+   */
+
+  let httpRedirectStatus = "not_applicable";
+  let httpRedirectMessage =
+      "The supplied website URL already uses HTTPS.";
+
+  try {
+
+      const suppliedUrl =
+          new URL(targetUrl);
+
+      if (
+          suppliedUrl.protocol ===
+          "http:"
+      ) {
+
+          if (
+              new URL(finalUrl).protocol ===
+              "https:"
+          ) {
+
+              httpRedirectStatus =
+                  "pass";
+
+              httpRedirectMessage =
+                  "The HTTP address redirects to HTTPS.";
+
+          } else {
+
+              httpRedirectStatus =
+                  "warning";
+
+              httpRedirectMessage =
+                  "The HTTP address did not finish on an HTTPS URL.";
+          }
+      }
+
+  } catch {}
+
+  if (
+      httpRedirectStatus ===
+      "pass"
+  ) {
+
+      checks.push(
+          finding(
+              "HTTP to HTTPS redirect",
+              httpRedirectMessage,
+              "pass",
+              8
+          )
+      );
+
+  } else if (
+      httpRedirectStatus ===
+      "warning"
+  ) {
+
+      checks.push(
+          finding(
+              "HTTP to HTTPS redirect",
+              httpRedirectMessage,
+              "warning",
+              8,
+              "medium"
+          )
+      );
+
+  }
+
+  /*
+   * HSTS
+   */
+
+  if (!isHttps) {
+
+      checks.push(
+          finding(
+              "HSTS",
+              "HSTS could not be meaningfully assessed because the final page is not HTTPS.",
+              "warning",
+              8,
+              "medium"
+          )
+      );
+
+  } else if (
+      strictTransportSecurity
+  ) {
+
+      checks.push(
+          finding(
+              "HSTS",
+              "Strict-Transport-Security is present.",
+              "pass",
+              8
+          )
+      );
+
+  } else {
+
+      checks.push(
+          finding(
+              "HSTS",
+              "No Strict-Transport-Security header was detected.",
+              "warning",
+              8,
+              "low"
+          )
+      );
+  }
+
+  /*
+   * Content Security Policy
+   */
+
+  checks.push(
+      contentSecurityPolicy
+          ? finding(
+              "Content Security Policy",
+              "A Content-Security-Policy header was detected.",
+              "pass",
+              8
+          )
+          : finding(
+              "Content Security Policy",
+              "No Content-Security-Policy header was detected. Consider reviewing whether a CSP can be safely introduced.",
+              "warning",
+              8,
+              "low"
+          )
+  );
+
+  /*
+   * X-Content-Type-Options
+   */
+
+  checks.push(
+      /nosniff/i.test(
+          xContentTypeOptions || ""
+      )
+          ? finding(
+              "X-Content-Type-Options",
+              "X-Content-Type-Options: nosniff is present.",
+              "pass",
+              6
+          )
+          : finding(
+              "X-Content-Type-Options",
+              "X-Content-Type-Options: nosniff was not detected.",
+              "warning",
+              6,
+              "low"
+          )
+  );
+
+  /*
+   * Referrer Policy
+   */
+
+  checks.push(
+      referrerPolicy
+          ? finding(
+              "Referrer Policy",
+              `A Referrer-Policy header was detected: ${referrerPolicy}.`,
+              "pass",
+              5
+          )
+          : finding(
+              "Referrer Policy",
+              "No Referrer-Policy header was detected.",
+              "warning",
+              5,
+              "low"
+          )
+  );
+
+  /*
+   * Permissions Policy
+   */
+
+  checks.push(
+      permissionsPolicy
+          ? finding(
+              "Permissions Policy",
+              "A Permissions-Policy header was detected.",
+              "pass",
+              5
+          )
+          : finding(
+              "Permissions Policy",
+              "No Permissions-Policy header was detected.",
+              "warning",
+              5,
+              "low"
+          )
+  );
+
+  /*
+   * Clickjacking protection
+   */
+
+  const hasFrameProtection =
+      Boolean(
+          frameOptions ||
+          (
+              contentSecurityPolicy &&
+              /frame-ancestors/i.test(
+                  contentSecurityPolicy
+              )
+          )
+      );
+
+  checks.push(
+      hasFrameProtection
+          ? finding(
+              "Clickjacking protection",
+              "Frame protection was detected through X-Frame-Options or CSP frame-ancestors.",
+              "pass",
+              6
+          )
+          : finding(
+              "Clickjacking protection",
+              "No X-Frame-Options or CSP frame-ancestors protection was detected.",
+              "warning",
+              6,
+              "low"
+          )
+  );
+
+  /*
+   * Cross-Origin Opener Policy
+   */
+
+  checks.push(
+      crossOriginOpenerPolicy
+          ? finding(
+              "Cross-Origin Opener Policy",
+              `A Cross-Origin-Opener-Policy header was detected: ${crossOriginOpenerPolicy}.`,
+              "pass",
+              4
+          )
+          : finding(
+              "Cross-Origin Opener Policy",
+              "No Cross-Origin-Opener-Policy header was detected.",
+              "warning",
+              4,
+              "low"
+          )
+  );
+
+  /*
+   * Mixed / insecure resources
+   */
+
+  if (
+      isHttps &&
+      insecureResourceMatches.length > 0
+  ) {
+
+      checks.push(
+          finding(
+              "Insecure resources",
+              `${insecureResourceMatches.length} HTTP resource reference(s) were detected on an HTTPS page.`,
+              "fail",
+              12,
+              "high"
+          )
+      );
+
+  } else {
+
+      checks.push(
+          finding(
+              "Insecure resources",
+              "No obvious HTTP resource references were detected in the page HTML.",
+              "pass",
+              12
+          )
+      );
+  }
+
+  /*
+   * Insecure form submission
+   */
+
+  if (
+      insecureFormMatches.length > 0
+  ) {
+
+      checks.push(
+          finding(
+              "Insecure form submission",
+              `${insecureFormMatches.length} form action(s) were detected using HTTP.`,
+              "fail",
+              10,
+              "high"
+          )
+      );
+
+  } else {
+
+      checks.push(
+          finding(
+              "Insecure form submission",
+              "No HTTP form submission endpoints were detected.",
+              "pass",
+              10
+          )
+      );
+  }
+
+  /*
+   * Meta refresh to HTTP
+   */
+
+  checks.push(
+      metaRefreshHttp
+          ? finding(
+              "Insecure redirect reference",
+              "A meta refresh referencing an HTTP destination was detected.",
+              "warning",
+              5,
+              "medium"
+          )
+          : finding(
+              "Insecure redirect reference",
+              "No obvious HTTP meta-refresh destination was detected.",
+              "pass",
+              5
+          )
+  );
+
+  /*
+   * Server information disclosure
+   *
+   * This is deliberately LOW priority.
+   */
+
+  if (
+      serverHeader ||
+      poweredByHeader
+  ) {
+
+      const disclosed = [];
+
+      if (serverHeader) {
+          disclosed.push(
+              `Server: ${serverHeader}`
+          );
+      }
+
+      if (poweredByHeader) {
+          disclosed.push(
+              `X-Powered-By: ${poweredByHeader}`
+          );
+      }
+
+      checks.push(
+          finding(
+              "Server information disclosure",
+              `Server technology information was exposed in response headers (${disclosed.join("; ")}).`,
+              "warning",
+              4,
+              "low"
+          )
+      );
+
+  } else {
+
+      checks.push(
+          finding(
+              "Server information disclosure",
+              "No Server or X-Powered-By disclosure was detected.",
+              "pass",
+              4
+          )
+      );
+  }
+
+  /*
+   * SECURITY SCORE
+   */
+
+  const securityScore =
+      calculateWeightedScore(
+          checks
+      );
+
+  return {
+      score:
+          securityScore,
+
+      checks,
+
+      headers: {
+          hsts:
+              Boolean(
+                  strictTransportSecurity
+              ),
+          csp:
+              Boolean(
+                  contentSecurityPolicy
+              ),
+          xContentTypeOptions:
+              Boolean(
+                  /nosniff/i.test(
+                      xContentTypeOptions || ""
+                  )
+              ),
+          referrerPolicy:
+              Boolean(
+                  referrerPolicy
+              ),
+          permissionsPolicy:
+              Boolean(
+                  permissionsPolicy
+              ),
+          frameProtection:
+              hasFrameProtection,
+          crossOriginOpenerPolicy:
+              Boolean(
+                  crossOriginOpenerPolicy
+              )
+      },
+
+      evidence: {
+          insecureResources:
+              insecureResourceMatches.length,
+
+          insecureForms:
+              insecureFormMatches.length,
+
+          serverHeader:
+              serverHeader || null,
+
+          poweredBy:
+              poweredByHeader || null
+      }
+  };
+}
+
+/*
+ * --------------------------------------------------------
  * STRUCTURED DATA
  * --------------------------------------------------------
  */
@@ -1546,6 +2078,14 @@ console.log(
       imagesWithoutAlt++;
     }
   }
+
+  const security =
+    analyzeSecurity(
+        html,
+        response,
+        pageUrl,
+        response.url || pageUrl
+    );
 
   console.log(
     "[V3 PROFILE] Image analysis:",
@@ -2653,6 +3193,8 @@ console.log(
 
     technicalChecks,
 
+    security: security,
+
     mobileChecks,
 
     mobileHtmlScore,
@@ -3508,6 +4050,114 @@ function buildRecommendation(check) {
       service:
         "Website security"
     },
+
+   "HTTP to HTTPS redirect": {
+     why:
+      "A consistent redirect from HTTP to HTTPS helps ensure visitors and search engines reach the secure version of the website.",
+    action:
+      "Configure the HTTP version of the website to redirect to the HTTPS version using a permanent redirect where appropriate.",
+    service:
+      "Website security"
+  },
+
+  "HSTS": {
+    why:
+      "HSTS tells compatible browsers to use HTTPS for future visits, strengthening HTTPS enforcement.",
+    action:
+      "Review the website's HTTPS configuration and consider adding a suitable Strict-Transport-Security header.",
+    service:
+      "Website security"
+  },
+
+  "Content Security Policy": {
+    why:
+      "A Content-Security-Policy can help control which resources a browser is allowed to load and reduce certain classes of browser-side attacks.",
+    action:
+      "Review the site's scripts, styles, images and third-party resources, then introduce a suitable Content-Security-Policy.",
+    service:
+      "Website security"
+  },
+
+  "X-Content-Type-Options": {
+    why:
+      "The nosniff response header helps prevent browsers from incorrectly interpreting certain resources as a different content type.",
+    action:
+      "Add the X-Content-Type-Options: nosniff response header.",
+    service:
+      "Website security"
+  },
+
+  "Referrer Policy": {
+    why:
+      "A Referrer-Policy controls how much referring-page information browsers send with requests.",
+    action:
+      "Add a suitable Referrer-Policy header based on the website's privacy and analytics requirements.",
+    service:
+      "Website security"
+  },
+
+  "Permissions Policy": {
+    why:
+      "A Permissions-Policy can restrict access to browser features such as camera, microphone and geolocation.",
+    action:
+      "Review the browser features the website actually needs and configure an appropriate Permissions-Policy.",
+    service:
+      "Website security"
+  },
+
+  "Clickjacking protection": {
+    why:
+      "Frame protection can help prevent a website from being embedded in an unexpected frame.",
+    action:
+      "Review whether the site should allow framing and configure X-Frame-Options or an appropriate CSP frame-ancestors policy.",
+    service:
+      "Website security"
+  },
+
+  "Cross-Origin Opener Policy": {
+    why:
+      "Cross-Origin-Opener-Policy can provide additional isolation between a website and other browsing contexts.",
+    action:
+      "Review the site's cross-origin requirements and consider an appropriate Cross-Origin-Opener-Policy header.",
+    service:
+      "Website security"
+  },
+
+  "Insecure resources": {
+    why:
+      "HTTP resources referenced by an HTTPS page can create security and browser compatibility concerns.",
+    action:
+      "Update HTTP resource references such as scripts, stylesheets, images and other assets to HTTPS.",
+    service:
+      "Website security"
+  },
+
+  "Insecure form submission": {
+    why:
+      "Submitting form data to an HTTP endpoint can expose information while it is being transmitted.",
+    action:
+      "Ensure forms submit to HTTPS endpoints and review any external form-processing services.",
+    service:
+      "Website security"
+  },
+
+  "Insecure redirect reference": {
+    why:
+      "HTTP redirect references can send visitors toward an insecure destination.",
+    action:
+      "Review the redirect reference and update the destination to HTTPS where appropriate.",
+    service:
+      "Website security"
+  },
+
+  "Server information disclosure": {
+    why:
+      "Detailed server technology information in response headers can unnecessarily reveal implementation details.",
+    action:
+      "Review response headers and minimise unnecessary Server or X-Powered-By technology disclosure.",
+    service:
+      "Website security"
+  },
 
     "Favicon": {
       why:
@@ -5003,6 +5653,7 @@ function drawEvidenceMessage(
         ...homepage.accessibilityChecks,
         ...homepage.mobileChecks,
         ...homepage.technicalChecks,
+        ...homepage.security.checks,
         ...businessChecks
       ];
 
@@ -5228,25 +5879,15 @@ const opportunity =
               potentialServices,
 
               scores: {
-              overall,
-              seo:
-                seoScore,
-
-              mobile:
-                mobileScore,
-
-              accessibility:
-                accessibilityScore,
-
-              technical:
-                technicalScore,
-
-              business:
-                businessScore,
-
-              performance:
-                performanceScore
-            }
+                overall,
+                seo: seoScore,
+                performance: performanceScore,
+                mobile: mobileScore,
+                accessibility: accessibilityScore,
+                technical: technicalScore,
+                business: businessScore,
+                security: homepage.security.score
+              },
           });
 
         prospectSaved =
@@ -5372,26 +6013,14 @@ const opportunity =
 
         scores: {
           overall,
-
-          seo:
-            seoScore,
-
-          performance:
-            performanceScore,
-
-          mobile:
-            mobileScore,
-
-          accessibility:
-            accessibilityScore,
-
-          technical:
-            technicalScore,
-
-          business:
-            businessScore
-        },
-
+          seo: seoScore,
+          performance: performanceScore,
+          mobile: mobileScore,
+          accessibility: accessibilityScore,
+          technical: technicalScore,
+          business: businessScore,
+          security: homepage.security.score
+      },
         /*
          * PAGESPEED
          */
@@ -5422,20 +6051,12 @@ const opportunity =
          */
 
         checks: {
-          seo:
-            homepage.seoChecks,
-
-          accessibility:
-            homepage.accessibilityChecks,
-
-          technical:
-            homepage.technicalChecks,
-
-          business:
-            businessChecks,
-
-          mobile:
-            homepage.mobileChecks
+          seo: homepage.seoChecks,
+          accessibility: homepage.accessibilityChecks,
+          technical: homepage.technicalChecks,
+          business: businessChecks,
+          mobile: homepage.mobileChecks,
+          security: homepage.security.checks
         },
 
         /*

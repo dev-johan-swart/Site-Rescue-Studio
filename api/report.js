@@ -218,6 +218,138 @@ const REPORT_RECOMMENDATION_MAPPINGS = {
       "Performance optimisation"
   },
 
+  "HTTP to HTTPS redirect": {
+    why:
+      "A consistent redirect from HTTP to HTTPS helps ensure visitors and search engines reach the secure version of the website.",
+
+    action:
+      "Configure the HTTP version of the website to redirect to the HTTPS version using a permanent redirect where appropriate.",
+
+    service:
+      "Website security"
+  },
+
+  "HSTS": {
+    why:
+      "HSTS tells compatible browsers to use HTTPS for future visits, strengthening HTTPS enforcement.",
+
+    action:
+      "Review the website's HTTPS configuration and consider adding a suitable Strict-Transport-Security header.",
+
+    service:
+      "Website security"
+  },
+
+  "Content Security Policy": {
+    why:
+      "A Content-Security-Policy can help control which resources a browser is allowed to load and reduce certain classes of browser-side attacks.",
+
+    action:
+      "Review the site's scripts, styles, images and third-party resources, then introduce a suitable Content-Security-Policy.",
+
+    service:
+      "Website security"
+  },
+
+  "X-Content-Type-Options": {
+    why:
+      "The nosniff response header helps prevent browsers from incorrectly interpreting certain resources as a different content type.",
+
+    action:
+      "Add the X-Content-Type-Options: nosniff response header.",
+
+    service:
+      "Website security"
+  },
+
+  "Referrer Policy": {
+    why:
+      "A Referrer-Policy controls how much referring-page information browsers send with requests.",
+
+    action:
+      "Add a suitable Referrer-Policy header based on the website's privacy and analytics requirements.",
+
+    service:
+      "Website security"
+  },
+
+  "Permissions Policy": {
+    why:
+      "A Permissions-Policy can restrict access to browser features such as camera, microphone and geolocation.",
+
+    action:
+      "Review the browser features the website actually needs and configure an appropriate Permissions-Policy.",
+
+    service:
+      "Website security"
+  },
+
+  "Clickjacking protection": {
+    why:
+      "Frame protection can help prevent a website from being embedded in an unexpected frame.",
+
+    action:
+      "Review whether the site should allow framing and configure X-Frame-Options or an appropriate CSP frame-ancestors policy.",
+
+    service:
+      "Website security"
+  },
+
+  "Cross-Origin Opener Policy": {
+    why:
+      "Cross-Origin-Opener-Policy can provide additional isolation between a website and other browsing contexts.",
+
+    action:
+      "Review the site's cross-origin requirements and consider an appropriate Cross-Origin-Opener-Policy header.",
+
+    service:
+      "Website security"
+  },
+
+  "Insecure resources": {
+    why:
+      "HTTP resources referenced by an HTTPS page can create security and browser compatibility concerns.",
+
+    action:
+      "Update HTTP resource references such as scripts, stylesheets, images and other assets to HTTPS.",
+
+    service:
+      "Website security"
+  },
+
+  "Insecure form submission": {
+    why:
+      "Submitting form data to an HTTP endpoint can expose information while it is being transmitted.",
+
+    action:
+      "Ensure forms submit to HTTPS endpoints and review any external form-processing services.",
+
+    service:
+      "Website security"
+  },
+
+  "Insecure redirect reference": {
+    why:
+      "HTTP redirect references can send visitors toward an insecure destination.",
+
+    action:
+      "Review the redirect reference and update the destination to HTTPS where appropriate.",
+
+    service:
+      "Website security"
+  },
+
+  "Server information disclosure": {
+    why:
+      "Detailed server technology information in response headers can unnecessarily reveal implementation details.",
+
+    action:
+      "Review response headers and minimise unnecessary Server or X-Powered-By technology disclosure.",
+
+    service:
+      "Website security"
+  },
+
   "Missing meta description": {
     why:
       "A missing or weak meta description can reduce the clarity of a page's search-result snippet.",
@@ -546,7 +678,7 @@ module.exports = async function handler(req, res) {
 function buildReportRecommendations(
   recommendations,
   issues
-) {
+ ) {
   const output = [];
 
   /*
@@ -656,7 +788,7 @@ function buildReportRecommendations(
 
 function findRecommendationMapping(
   issueTitle
-) {
+ ) {
   const title =
     String(
       issueTitle || ""
@@ -1006,7 +1138,7 @@ function drawOverviewPage(
   doc,
   scores,
   issues
-) {
+ ) {
   sectionTitle(
     doc,
     "Website Health Overview",
@@ -1061,6 +1193,10 @@ function drawOverviewPage(
     [
       "Technical",
       scores?.technical
+    ],
+    [
+      "Security & Trust",
+      scores?.security
     ]
   ];
 
@@ -1085,7 +1221,7 @@ function drawOverviewPage(
     .font("Helvetica")
     .fontSize(9)
     .text(
-      "The assessment combines technical website checks with SEO, mobile, accessibility, business and performance indicators. Scores are intended to highlight practical improvement opportunities rather than replace a full professional audit.",
+      "The assessment combines technical website checks with SEO, mobile, accessibility, business, performance and security & trust indicators. Scores are intended to highlight practical improvement opportunities rather than replace a full professional audit.",
       {
         width: PAGE.width,
         lineGap: 2
@@ -1104,7 +1240,7 @@ function drawOverviewPage(
 function drawScoreDashboard(
   doc,
   rows
-) {
+ ) {
   const boxWidth = 238;
   const boxHeight = 52;
   const gapX = 19;
@@ -1308,7 +1444,7 @@ function drawScoreCard(
 function drawAssessmentSummary(
   doc,
   issues
-) {
+ ) {
   const high =
     countSeverity(
       issues,
@@ -2125,7 +2261,7 @@ function drawRecommendationCard(
   doc,
   recommendation,
   number
-) {
+ ) {
   const item =
     recommendation || {};
 
@@ -2542,6 +2678,15 @@ function drawDetailedHealthChecks(
           checks.technical
         )
           ? checks.technical
+          : []
+    },
+    {
+      title: "Security & Trust",
+      checks:
+        Array.isArray(
+          checks.security
+        )
+          ? checks.security
           : []
     }
   ];
