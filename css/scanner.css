@@ -1239,3 +1239,128 @@ footer {
   font: inherit;
   font-weight: 600;
 }
+
+/* =========================================================
+   HEALTH REPORT REQUEST
+   ========================================================= */
+
+   .report-action {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-top: 32px;
+}
+
+.report-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    padding: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 18px;
+}
+
+.report-option-content {
+    flex: 1;
+}
+
+.report-option h3 {
+    margin: 8px 0 10px;
+}
+
+.report-option p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.report-option .primary-button,
+.report-option .secondary-button {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   HEALTH REPORT CONFIRMATION MODAL
+   ========================================================= */
+
+.report-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(8px);
+}
+
+.report-confirm-modal[hidden] {
+    display: none;
+}
+
+.report-confirm-box {
+    width: min(520px, 100%);
+
+    padding: 32px;
+
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 20px;
+
+    background: #111820;
+
+    box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.report-confirm-box h2 {
+    margin: 8px 0 20px;
+}
+
+.report-confirm-box p {
+    line-height: 1.65;
+}
+
+.report-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 28px;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    .report-option {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .report-option .primary-button,
+    .report-option .secondary-button {
+        width: 100%;
+        text-align: center;
+    }
+
+    .report-confirm-box {
+        padding: 24px;
+    }
+
+    .report-confirm-actions {
+        flex-direction: column-reverse;
+    }
+
+    .report-confirm-actions button {
+        width: 100%;
+    }
+
+}

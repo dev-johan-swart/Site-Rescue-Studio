@@ -1,5 +1,9 @@
 const { URL } = require("url");
-const { saveProspect } = require("../lib/prospectStore");
+const dns = require("dns").promises;
+const net = require("net");
+
+const { saveProspect } =
+  require("../lib/prospectStore");
 
 const USER_AGENT =
   "Site Rescue Studio Website Health Scanner/3.0";
@@ -9,6 +13,85 @@ const FETCH_TIMEOUT = 15000;
 const MAX_CRAWL_PAGES = 8;
 const MAX_DISCOVERED_LINKS = 80;
 const MAX_LINKS_TO_TEST = 30;
+
+const dns = require("dns").promises;
+const net = require("net");
+
+async function isPublicHostname(hostname) {
+
+  const host =
+      String(hostname || "")
+          .trim()
+          .toLowerCase();
+
+  if (!host) {
+      return false;
+  }
+
+  if (isBlockedHostname(host)) {
+      return false;
+  }
+
+  const addresses =
+      await dns.lookup(
+          host,
+          {
+              all: true,
+              verbatim: true
+          }
+      );
+
+  if (!addresses.length) {
+      return false;
+  }
+
+  return addresses.every(
+      address =>
+          !isPrivateOrReservedIp(
+              address.address
+          )
+  );
+}
+
+function isPrivateOrReservedIp(ip) {
+
+  const version =
+      net.isIP(ip);
+
+  if (version === 4) {
+
+      const parts =
+          ip.split(".").map(Number);
+
+      const a = parts[0];
+      const b = parts[1];
+
+      return (
+          a === 10 ||
+          (a === 172 && b >= 16 && b <= 31) ||
+          (a === 192 && b === 168) ||
+          a === 127 ||
+          (a === 169 && b === 254) ||
+          a === 0
+      );
+  }
+
+  if (version === 6) {
+
+      const normalized =
+          ip.toLowerCase();
+
+      return (
+          normalized === "::1" ||
+          normalized === "::" ||
+          normalized.startsWith("fc") ||
+          normalized.startsWith("fd") ||
+          normalized.startsWith("fe80:")
+      );
+  }
+
+  return true;
+}
 
 function debugTiming(label, startedAt) {
   console.log(
@@ -4491,6 +4574,115 @@ module.exports =
             "That website address cannot be scanned."
         });
       }
+
+      /*
+ * --------------------------------------------------------
+ * SSRF / PUBLIC HOST PROTECTION
+ *
+ * Prevent the scanner from making requests to
+ * private, local, loopback or reserved IP addresses.
+ * --------------------------------------------------------
+ */
+
+function isPrivateOrReservedIp(ip) {
+
+  const version =
+    net.isIP(ip);
+
+  if (version === 4) {
+
+    const parts =
+      ip
+        .split(".")
+        .map(Number);
+
+    if (parts.length !== 4) {
+      return true;
+    }
+
+    const a = parts[0];
+    const b = parts[1];
+
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && b >= 18 && b <= 19) ||
+      (a === 198 && b === 51 && parts[2] === 100) ||
+      (a === 203 && b === 0 && parts[2] === 113) ||
+      a >= 224
+    );
+  }
+
+  if (version === 6) {
+
+    const normalized =
+      ip.toLowerCase();
+
+    return (
+      normalized === "::" ||
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:") ||
+      normalized.startsWith("ff")
+    );
+  }
+
+  return true;
+}
+
+
+async function isPublicHostname(hostname) {
+
+  const host =
+    String(hostname || "")
+      .trim()
+      .toLowerCase();
+
+  if (!host) {
+    return false;
+  }
+
+  if (isBlockedHostname(host)) {
+    return false;
+  }
+
+  try {
+
+    const addresses =
+      await dns.lookup(
+        host,
+        {
+          all: true,
+          verbatim: true
+        }
+      );
+
+    if (
+      !Array.isArray(addresses) ||
+      addresses.length === 0
+    ) {
+      return false;
+    }
+
+    return addresses.every(
+      address =>
+        !isPrivateOrReservedIp(
+          address.address
+        )
+    );
+
+  } catch {
+
+    return false;
+  }
+}
 
       const started =
         Date.now();

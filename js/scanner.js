@@ -27,8 +27,34 @@ document.addEventListener("DOMContentLoaded", () => {
   const reportAction =
     document.getElementById("reportAction");
 
-  const downloadReportButton =
-    document.getElementById("downloadReportButton");
+  const downloadQuickReportButton =
+    document.getElementById("downloadQuickReportButton");
+
+  const downloadQuickReportText =
+    document.getElementById("downloadQuickReportText");
+
+  const downloadQuickReportSpinner =
+    document.getElementById("downloadQuickReportSpinner");
+
+  const requestHealthReportButton =
+    document.getElementById(
+        "requestHealthReportButton"
+    );
+
+  const healthReportConfirmModal =
+    document.getElementById(
+        "healthReportConfirmModal"
+    );
+
+  const confirmHealthReportButton =
+    document.getElementById(
+        "confirmHealthReportButton"
+    );
+
+  const cancelHealthReportButton =
+    document.getElementById(
+        "cancelHealthReportButton"
+    );
 
   const downloadReportText =
     document.getElementById("downloadReportText");
@@ -405,6 +431,260 @@ document.addEventListener("DOMContentLoaded", () => {
 
     urlInput.focus();
   });
+
+  async function downloadQuickReport() {
+
+    if (!latestScanData) {
+
+        showError(
+            "Please complete a website scan first."
+        );
+
+        return;
+    }
+
+    if (!downloadQuickReportButton) {
+        return;
+    }
+
+    downloadQuickReportButton.disabled = true;
+
+    if (downloadQuickReportText) {
+        downloadQuickReportText.hidden = true;
+    }
+
+    if (downloadQuickReportSpinner) {
+        downloadQuickReportSpinner.hidden = false;
+    }
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/quick-report",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body:
+                        JSON.stringify(
+                            latestScanData
+                        )
+                }
+            );
+
+        if (!response.ok) {
+
+            let message =
+                "Unable to generate the free report.";
+
+            try {
+
+                const errorData =
+                    await response.json();
+
+                if (errorData?.error) {
+                    message =
+                        errorData.error;
+                }
+
+            } catch {}
+
+            throw new Error(message);
+        }
+
+        const blob =
+            await response.blob();
+
+        const downloadUrl =
+            URL.createObjectURL(blob);
+
+        const link =
+            document.createElement("a");
+
+        link.href = downloadUrl;
+
+        link.download =
+            buildReportFilename(
+                latestScanData,
+                "website-check"
+            );
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        link.remove();
+
+        URL.revokeObjectURL(
+            downloadUrl
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Quick report error:",
+            error
+        );
+
+        showError(
+            error.message ||
+            "Unable to generate the free report."
+        );
+
+    } finally {
+
+        downloadQuickReportButton.disabled =
+            false;
+
+        if (downloadQuickReportText) {
+            downloadQuickReportText.hidden =
+                false;
+        }
+
+        if (downloadQuickReportSpinner) {
+            downloadQuickReportSpinner.hidden =
+                true;
+        }
+
+    }
+}
+
+function buildReportFilename(
+  scanData,
+  reportType
+) {
+
+  const source =
+      scanData?.finalUrl ||
+      scanData?.url ||
+      "website";
+
+  let hostname = "website";
+
+  try {
+
+      hostname =
+          new URL(source).hostname
+              .replace(/^www\./, "");
+
+  } catch {}
+
+  const slug =
+      hostname
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+  return `site-rescue-studio-${slug}-${reportType}.pdf`;
+}
+
+function openHealthReportConfirmation() {
+
+  if (!latestScanData) {
+
+      showError(
+          "Please complete a website scan first."
+      );
+
+      return;
+  }
+
+  if (!healthReportConfirmModal) {
+      return;
+  }
+
+  healthReportConfirmModal.hidden =
+      false;
+}
+
+function closeHealthReportConfirmation() {
+
+  if (!healthReportConfirmModal) {
+      return;
+  }
+
+  healthReportConfirmModal.hidden =
+      true;
+}
+
+function confirmHealthReportRequest() {
+
+  if (!latestScanData) {
+
+      closeHealthReportConfirmation();
+
+      showError(
+          "Please complete a website scan first."
+      );
+
+      return;
+  }
+
+  const website =
+      latestScanData.finalUrl ||
+      latestScanData.url ||
+      "";
+
+  const message = [
+      "SITE RESCUE STUDIO — WEBSITE HEALTH REPORT REQUEST",
+      "",
+      `Website: ${website}`,
+      "",
+      "I would like to request the R200 Website Health Report.",
+      "",
+      "I understand that payment of R200 is required before the completed report will be provided."
+  ].join("\n");
+
+  const whatsappUrl =
+      `https://wa.me/27783944289?text=${encodeURIComponent(message)}`;
+
+  closeHealthReportConfirmation();
+
+  window.open(
+      whatsappUrl,
+      "_blank",
+      "noopener,noreferrer"
+  );
+}
+
+if (downloadQuickReportButton) {
+
+  downloadQuickReportButton.addEventListener(
+      "click",
+      downloadQuickReport
+  );
+
+}
+
+if (requestHealthReportButton) {
+
+  requestHealthReportButton.addEventListener(
+      "click",
+      openHealthReportConfirmation
+  );
+
+}
+
+if (cancelHealthReportButton) {
+
+  cancelHealthReportButton.addEventListener(
+      "click",
+      closeHealthReportConfirmation
+  );
+
+}
+
+if (confirmHealthReportButton) {
+
+  confirmHealthReportButton.addEventListener(
+      "click",
+      confirmHealthReportRequest
+  );
+
+}
 
 
   function setLoading(loading) {
@@ -1922,14 +2202,5 @@ function showScanProgressFinalTimeout() {
 
 
  initScanProgress();
-
-  if (downloadReportButton) {
-
-    downloadReportButton.addEventListener(
-      "click",
-      downloadWebsiteReport
-    );
-
-  }
 
 });

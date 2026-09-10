@@ -485,36 +485,120 @@
       </section>
 
       <div
-        class="report-action"
-        id="reportAction"
-        hidden
-      >
+    class="report-action"
+    id="reportAction"
+    hidden
+>
+
+    <!-- FREE REPORT -->
+
+    <div class="report-option free-report-option">
+
+        <div class="report-option-content">
+
+            <div class="eyebrow">
+                FREE REPORT
+            </div>
+
+            <h3>
+                Website Quick Check Report
+            </h3>
+
+            <p>
+                Download a short summary of your website scan,
+                including your scores, key findings and
+                recommended next steps.
+            </p>
+
+        </div>
 
         <button
-          type="button"
-          id="downloadReportButton"
-          class="primary-button"
+            type="button"
+            id="downloadQuickReportButton"
+            class="primary-button"
         >
+            <span id="downloadQuickReportText">
+                Download Free Report
+            </span>
 
-          <span id="downloadReportText">
-            Download Website Rescue Report
-          </span>
-
-          <span
-            id="downloadReportSpinner"
-            hidden
-          >
-            Generating Report...
-          </span>
-
+            <span
+                id="downloadQuickReportSpinner"
+                hidden
+            >
+                Generating Report...
+            </span>
         </button>
 
-        <p class="report-note">
-          Get a professional summary of your website health,
-          findings and recommended improvements.
-        </p>
+    </div>
 
-      </div>
+
+    <!-- PAID HEALTH REPORT -->
+
+    <div class="report-option health-report-option">
+
+        <div class="report-option-content">
+
+            <div class="eyebrow">
+                R200 WEBSITE HEALTH REPORT
+            </div>
+
+            <h3>
+                Need the complete assessment?
+            </h3>
+
+            <p>
+                Request our detailed Website Health Report
+                with deeper findings, evidence, prioritised
+                recommendations and a clear action plan.
+            </p>
+
+        </div>
+
+        <button
+            type="button"
+            id="requestHealthReportButton"
+            class="secondary-button"
+        >
+            Request Health Report
+        </button>
+
+    </div>
+
+
+    <!-- SAMPLE -->
+
+    <div class="report-option sample-report-option">
+
+        <div class="report-option-content">
+
+            <div class="eyebrow">
+                SAMPLE
+            </div>
+
+            <h3>
+                See a Sample Health Report
+            </h3>
+
+            <p>
+                View an example of the detailed report
+                available for R200 before deciding whether
+                you would like one for your website.
+            </p>
+
+        </div>
+
+        <a
+            href="/sample-health-report.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="secondary-button"
+        >
+            View Sample Report
+        </a>
+
+    </div>
+
+</div>
 
 
       <section class="details-section">
@@ -588,6 +672,64 @@
     </p>
 
   </footer>
+
+  <div
+    id="healthReportConfirmModal"
+    class="report-confirm-modal"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="healthReportConfirmTitle"
+>
+
+    <div class="report-confirm-box">
+
+        <div class="eyebrow">
+            WEBSITE HEALTH REPORT
+        </div>
+
+        <h2 id="healthReportConfirmTitle">
+            Request the R200 Health Report?
+        </h2>
+
+        <p>
+            The detailed Website Health Report costs
+            <strong>R200</strong>.
+        </p>
+
+        <p>
+            Payment is required before the completed report
+            will be provided.
+        </p>
+
+        <p>
+            Click <strong>Confirm</strong> to continue and
+            send your request to Site Rescue Studio.
+        </p>
+
+        <div class="report-confirm-actions">
+
+            <button
+                type="button"
+                id="cancelHealthReportButton"
+                class="secondary-button"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="button"
+                id="confirmHealthReportButton"
+                class="primary-button"
+            >
+                Confirm & Request
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 
 
   <script src="js/scanner.js"></script>
