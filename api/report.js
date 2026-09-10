@@ -432,7 +432,8 @@ module.exports = async function handler(req, res) {
       counts = {},
       linkHealth = {},
       responseTime,
-      scannedAt
+      scannedAt,
+      _pdfPassword = ""
     } = data;
 
     if (!url) {
@@ -442,7 +443,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const doc = new PDFDocument({
+    const pdfOptions = {
       size: "A4",
       margins: {
         top: PAGE.top,
@@ -452,7 +453,12 @@ module.exports = async function handler(req, res) {
       },
       bufferPages: true,
       autoFirstPage: true
-    });
+    };
+
+    const doc =
+      new PDFDocument(
+        pdfOptions
+      );
 
     const chunks = [];
 
@@ -493,7 +499,8 @@ module.exports = async function handler(req, res) {
       doc,
       url,
       scores,
-      scannedAt
+      scannedAt,
+      data._sampleReport
     );
 
     /*
@@ -914,7 +921,8 @@ function drawCover(
   doc,
   url,
   scores,
-  scannedAt
+  scannedAt,
+  isSample = false
 ) {
   doc
     .save()
@@ -977,6 +985,48 @@ function drawCover(
         "SITE RESCUE STUDIO",
         {
           align: "center"
+        }
+      );
+  }
+
+  if (isSample) {
+    doc
+      .fillColor(
+        BRAND.orange
+      )
+      .font(
+        "Helvetica-Bold"
+      )
+      .fontSize(12)
+      .text(
+        "SAMPLE WEBSITE HEALTH REPORT",
+        PAGE.left,
+        145,
+        {
+          width:
+            PAGE.width,
+          align:
+            "center"
+        }
+      );
+
+    doc
+      .fillColor(
+        BRAND.light
+      )
+      .font(
+        "Helvetica"
+      )
+      .fontSize(9)
+      .text(
+        "Example / Demonstration Only",
+        PAGE.left,
+        160,
+        {
+          width:
+            PAGE.width,
+          align:
+            "center"
         }
       );
   }
@@ -1577,7 +1627,7 @@ function drawAssessmentSummary(
 function drawPerformancePage(
   doc,
   pageSpeed
-) {
+ ) {
   sectionTitle(
     doc,
     "Google Performance Snapshot",
@@ -1587,19 +1637,19 @@ function drawPerformancePage(
   const performanceRows = [
     [
       "Performance",
-      pageSpeed?.scores?.performance
+      pageSpeed?.performance
     ],
     [
       "Accessibility",
-      pageSpeed?.scores?.accessibility
+      pageSpeed?.accessibility
     ],
     [
       "Best Practices",
-      pageSpeed?.scores?.bestPractices
+      pageSpeed?.bestPractices
     ],
     [
       "SEO",
-      pageSpeed?.scores?.seo
+      pageSpeed?.seo
     ]
   ];
 

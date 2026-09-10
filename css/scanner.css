@@ -1364,3 +1364,49 @@ footer {
     }
 
 }
+
+/* =========================================================
+   ADMIN HEALTH REPORT
+   ========================================================= */
+
+.admin-report-option {
+    border-color:
+        rgba(57, 217, 255, 0.18);
+}
+
+.admin-report-label {
+    display: block;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.admin-report-password {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 14px;
+    border:
+        1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background:
+        rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font: inherit;
+    outline: none;
+}
+
+.admin-report-password:focus {
+    border-color:
+        var(--accent);
+    box-shadow:
+        0 0 0 3px
+        rgba(57, 217, 255, 0.12);
+}
+
+.admin-report-error {
+    margin: 12px 0 0;
+    color:
+        var(--danger);
+    font-weight: 600;
+    line-height: 1.5;
+}

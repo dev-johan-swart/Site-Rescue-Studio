@@ -56,11 +56,40 @@ document.addEventListener("DOMContentLoaded", () => {
         "cancelHealthReportButton"
     );
 
-  const downloadReportText =
-    document.getElementById("downloadReportText");
+    const adminReportSection =
+    document.getElementById(
+      "adminReportSection"
+    );
 
-  const downloadReportSpinner =
-    document.getElementById("downloadReportSpinner");
+    const adminHealthReportButton =
+    document.getElementById(
+      "adminHealthReportButton"
+    );
+
+    const adminHealthReportModal =
+    document.getElementById(
+      "adminHealthReportModal"
+    );
+
+    const adminHealthReportPassword =
+    document.getElementById(
+      "adminHealthReportPassword"
+    );
+
+    const adminHealthReportError =
+    document.getElementById(
+      "adminHealthReportError"
+    );
+
+    const confirmAdminHealthReportButton =
+    document.getElementById(
+      "confirmAdminHealthReportButton"
+    );
+
+    const cancelAdminHealthReportButton =
+    document.getElementById(
+      "cancelAdminHealthReportButton"
+    );
 
   let latestScanData = null;
 
@@ -181,6 +210,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     hideError();
 
+    if (adminReportSection) {
+      adminReportSection.hidden = true;
+    }
+
     const url =
       urlInput.value.trim();
 
@@ -249,6 +282,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       latestScanData = data;
 
+      if (adminReportSection) {
+        adminReportSection.hidden = false;
+      }
+
       console.log(
         "FULL SCAN DATA:",
         data
@@ -289,141 +326,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   });
 
-  async function downloadWebsiteReport() {
-
-    if (!latestScanData) {
-
-      showError(
-        "Please complete a website scan first."
-      );
-
-      return;
-    }
-
-
-    downloadReportButton.disabled = true;
-
-    downloadReportText.hidden = true;
-
-    downloadReportSpinner.hidden = false;
-
-
-    try {
-
-      const response =
-        await fetch("/api/report", {
-
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json"
-          },
-
-          body:
-            JSON.stringify(
-              latestScanData
-            )
-
-        });
-
-
-      if (!response.ok) {
-
-        let message =
-          "We could not generate the report.";
-
-        try {
-
-          const errorData =
-            await response.json();
-
-          message =
-            errorData.error ||
-            message;
-
-        } catch {
-
-          // Ignore JSON parsing errors.
-
-        }
-
-        throw new Error(message);
-
-      }
-
-
-      const blob =
-        await response.blob();
-
-
-      if (!blob.size) {
-
-        throw new Error(
-          "The generated report was empty."
-        );
-
-      }
-
-
-      const downloadUrl =
-        URL.createObjectURL(blob);
-
-
-      const link =
-        document.createElement("a");
-
-
-      link.href =
-        downloadUrl;
-
-
-      link.download =
-        "website-rescue-report.pdf";
-
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-
-      URL.revokeObjectURL(
-        downloadUrl
-      );
-
-
-    } catch (error) {
-
-      console.error(
-        "Report download error:",
-        error
-      );
-
-
-      showError(
-        error.message ||
-        "We could not generate your Website Rescue Report."
-      );
-
-
-    } finally {
-
-      downloadReportButton.disabled =
-        false;
-
-      downloadReportText.hidden =
-        false;
-
-      downloadReportSpinner.hidden =
-        true;
-
-    }
-
-  }
-
 
   newScanButton.addEventListener("click", () => {
+    if (adminReportSection) {
+      adminReportSection.hidden = true;
+    }
+
     results.hidden = true;
     hideError();
 
@@ -682,6 +590,300 @@ if (confirmHealthReportButton) {
   confirmHealthReportButton.addEventListener(
       "click",
       confirmHealthReportRequest
+  );
+
+}
+
+function openAdminHealthReportModal() {
+
+  if (!latestScanData) {
+
+    showError(
+      "Please complete a website scan first."
+    );
+
+    return;
+  }
+
+  if (!adminHealthReportModal) {
+    return;
+  }
+
+  if (
+    adminHealthReportPassword
+  ) {
+    adminHealthReportPassword.value =
+      "";
+  }
+
+  if (
+    adminHealthReportError
+  ) {
+    adminHealthReportError.hidden =
+      true;
+
+    adminHealthReportError.textContent =
+      "";
+  }
+
+  adminHealthReportModal.hidden =
+    false;
+
+  if (
+    adminHealthReportPassword
+  ) {
+    setTimeout(
+      () =>
+        adminHealthReportPassword.focus(),
+      50
+    );
+  }
+}
+
+
+function closeAdminHealthReportModal() {
+
+  if (
+    adminHealthReportModal
+  ) {
+    adminHealthReportModal.hidden =
+      true;
+  }
+}
+
+
+function showAdminHealthReportError(
+  message
+) {
+
+  if (
+    !adminHealthReportError
+  ) {
+    return;
+  }
+
+  adminHealthReportError.textContent =
+    message;
+
+  adminHealthReportError.hidden =
+    false;
+}
+
+
+async function downloadAdminHealthReport() {
+
+  if (!latestScanData) {
+
+    closeAdminHealthReportModal();
+
+    showError(
+      "Please complete a website scan first."
+    );
+
+    return;
+  }
+
+  const password =
+    String(
+      adminHealthReportPassword?.value ||
+      ""
+    );
+
+  if (!password) {
+
+    showAdminHealthReportError(
+      "Please enter your admin password."
+    );
+
+    return;
+  }
+
+  if (
+    confirmAdminHealthReportButton
+  ) {
+    confirmAdminHealthReportButton.disabled =
+      true;
+
+    confirmAdminHealthReportButton.textContent =
+      "Generating...";
+  }
+
+  if (
+    adminHealthReportError
+  ) {
+    adminHealthReportError.hidden =
+      true;
+  }
+
+  try {
+
+    const response =
+      await fetch(
+        "/api/health-report",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              ...latestScanData,
+              password
+            })
+        }
+      );
+
+    if (!response.ok) {
+
+      let message =
+        "Unable to generate the protected health report.";
+
+      try {
+
+        const errorData =
+          await response.json();
+
+        if (
+          errorData?.error
+        ) {
+          message =
+            errorData.error;
+        }
+
+      } catch {}
+
+      throw new Error(
+        message
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    if (
+      !blob.size
+    ) {
+      throw new Error(
+        "The generated health report was empty."
+      );
+    }
+
+    const downloadUrl =
+      URL.createObjectURL(
+        blob
+      );
+
+    const link =
+      document.createElement(
+        "a"
+      );
+
+    link.href =
+      downloadUrl;
+
+    link.download =
+      buildReportFilename(
+        latestScanData,
+        "health-report"
+      );
+
+    document.body.appendChild(
+      link
+    );
+
+    link.click();
+
+    link.remove();
+
+    URL.revokeObjectURL(
+      downloadUrl
+    );
+
+    closeAdminHealthReportModal();
+
+  } catch (error) {
+
+    console.error(
+      "Admin health report error:",
+      error
+    );
+
+    showAdminHealthReportError(
+      error.message ||
+      "Unable to generate the health report."
+    );
+
+  } finally {
+
+    if (
+      confirmAdminHealthReportButton
+    ) {
+      confirmAdminHealthReportButton.disabled =
+        false;
+
+      confirmAdminHealthReportButton.textContent =
+        "Generate Health Report";
+    }
+  }
+}
+
+if (
+  adminHealthReportButton
+) {
+
+  adminHealthReportButton.addEventListener(
+    "click",
+    openAdminHealthReportModal
+  );
+
+}
+
+
+if (
+  cancelAdminHealthReportButton
+) {
+
+  cancelAdminHealthReportButton.addEventListener(
+    "click",
+    closeAdminHealthReportModal
+  );
+
+}
+
+
+if (
+  confirmAdminHealthReportButton
+) {
+
+  confirmAdminHealthReportButton.addEventListener(
+    "click",
+    downloadAdminHealthReport
+  );
+
+}
+
+
+if (
+  adminHealthReportPassword
+) {
+
+  adminHealthReportPassword.addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key === "Enter"
+      ) {
+
+        event.preventDefault();
+
+        downloadAdminHealthReport();
+      }
+
+    }
   );
 
 }
@@ -1633,39 +1835,30 @@ function showScanProgressFinalTimeout() {
     return;
   }
 
-
   scanProgress.classList.remove(
     "complete"
   );
 
-
   if (scanProgressTitle) {
 
     scanProgressTitle.textContent =
-      "The scan could not be completed in time.";
+      "The scan is still running.";
 
   }
-
 
   if (scanProgressStatus) {
 
     scanProgressStatus.textContent =
-      "The website is taking too long to analyse. Please try the scan again.";
+      "The scan is still running. Please keep this page open while we finish processing the website.";
 
   }
-
 
   if (scanProgressPercent) {
 
     scanProgressPercent.textContent =
-      "Scan paused";
+      "Still working…";
 
   }
-
-
-  /*
-   * Keep the progress bar at its current position.
-   */
 
   if (scanProgressFill) {
 
@@ -1673,88 +1866,6 @@ function showScanProgressFinalTimeout() {
       `${scanProgressValue}%`;
 
   }
-
-
-  /*
-   * Create the recovery controls once.
-   */
-
-  let timeoutActions =
-    document.getElementById(
-      "scanProgressTimeoutActions"
-    );
-
-
-  if (!timeoutActions) {
-
-    timeoutActions =
-      document.createElement(
-        "div"
-      );
-
-    timeoutActions.id =
-      "scanProgressTimeoutActions";
-
-    timeoutActions.className =
-      "scan-progress-timeout-actions";
-
-
-    const message =
-      document.createElement(
-        "p"
-      );
-
-    message.className =
-      "scan-progress-timeout-message";
-
-    message.textContent =
-      "The scan could not be completed within the available time. Please try again.";
-
-
-    timeoutActions.appendChild(
-      message
-    );
-
-
-    const retryButton =
-      document.createElement(
-        "button"
-      );
-
-    retryButton.type =
-      "button";
-
-    retryButton.className =
-      "scan-progress-retry";
-
-    retryButton.textContent =
-      "Try Again";
-
-
-    retryButton.addEventListener(
-      "click",
-      () => {
-
-        window.location.reload();
-
-      }
-    );
-
-
-    timeoutActions.appendChild(
-      retryButton
-    );
-
-
-    scanProgress.appendChild(
-      timeoutActions
-    );
-
-  }
-
-
-  timeoutActions.hidden =
-    false;
 
 }
 
