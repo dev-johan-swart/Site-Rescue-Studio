@@ -1637,19 +1637,23 @@ function drawPerformancePage(
   const performanceRows = [
     [
       "Performance",
-      pageSpeed?.performance
+      pageSpeed?.performance ??
+        pageSpeed?.scores?.performance
     ],
     [
       "Accessibility",
-      pageSpeed?.accessibility
+      pageSpeed?.accessibility ??
+        pageSpeed?.scores?.accessibility
     ],
     [
       "Best Practices",
-      pageSpeed?.bestPractices
+      pageSpeed?.bestPractices ??
+        pageSpeed?.scores?.bestPractices
     ],
     [
       "SEO",
-      pageSpeed?.seo
+      pageSpeed?.seo ??
+        pageSpeed?.scores?.seo
     ]
   ];
 

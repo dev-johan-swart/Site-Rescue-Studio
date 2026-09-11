@@ -661,30 +661,31 @@
 
     </section>
 
-      <!-- ADMIN / PRIVATE HEALTH REPORT -->
-      <div
-          class="report-option admin-report-option"
-          id="adminReportSection"
-          hidden
-        >
+      <!-- ADMIN / PRIVATE TOOLS -->
+<div
+    class="report-option admin-report-option"
+    id="adminReportSection"
+    hidden
+>
 
-          <div class="report-option-content">
+    <div class="report-option-content">
 
-            <div class="eyebrow">
-                ADMIN
-            </div>
-
-            <h3>
-                Download Protected Health Report
-            </h3>
-
-            <p>
-                Private Site Rescue Studio access for generating
-                the complete health report after payment has been
-                arranged.
-            </p>
-
+        <div class="eyebrow">
+            ADMIN
         </div>
+
+        <h3>
+            Site Rescue Studio Admin
+        </h3>
+
+        <p>
+            Private tools for reviewing this website's
+            detailed health report and scan history.
+        </p>
+
+    </div>
+
+    <div class="admin-report-actions">
 
         <button
             type="button"
@@ -693,6 +694,18 @@
         >
             Download Health Report
         </button>
+
+        <button
+            type="button"
+            id="adminScanHistoryButton"
+            class="secondary-button"
+        >
+            View Scan History
+        </button>
+
+    </div>
+
+</div>
 
   </div>
 
@@ -832,6 +845,88 @@
         </div>
 
     </div>
+</div>
+
+<div
+    id="scanHistoryModal"
+    class="report-confirm-modal"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="scanHistoryTitle"
+>
+
+    <div class="report-confirm-box scan-history-modal-box">
+
+        <div class="eyebrow">
+            SITE RESCUE STUDIO ADMIN
+        </div>
+
+        <h2 id="scanHistoryTitle">
+            Scan History
+        </h2>
+
+        <p id="scanHistoryWebsite">
+            Website scan history.
+        </p>
+
+        <label
+            for="scanHistoryPassword"
+            class="admin-report-label"
+        >
+            Admin password
+        </label>
+
+        <input
+            type="password"
+            id="scanHistoryPassword"
+            class="admin-report-password"
+            autocomplete="current-password"
+            placeholder="Enter admin password"
+        >
+
+        <p
+            id="scanHistoryError"
+            class="admin-report-error"
+            hidden
+        ></p>
+
+        <div
+            id="scanHistoryLoading"
+            class="scan-history-loading"
+            hidden
+        >
+            Loading scan history...
+        </div>
+
+        <div
+            id="scanHistoryResults"
+            class="scan-history-results"
+            hidden
+        ></div>
+
+        <div class="report-confirm-actions">
+
+            <button
+                type="button"
+                id="cancelScanHistoryButton"
+                class="secondary-button"
+            >
+                Close
+            </button>
+
+            <button
+                type="button"
+                id="loadScanHistoryButton"
+                class="primary-button"
+            >
+                View History
+            </button>
+
+        </div>
+
+    </div>
+
 </div>
 
 

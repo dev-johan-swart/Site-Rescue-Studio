@@ -91,6 +91,51 @@ document.addEventListener("DOMContentLoaded", () => {
       "cancelAdminHealthReportButton"
     );
 
+    const adminScanHistoryButton =
+  document.getElementById(
+    "adminScanHistoryButton"
+  );
+
+const scanHistoryModal =
+  document.getElementById(
+    "scanHistoryModal"
+  );
+
+const scanHistoryPassword =
+  document.getElementById(
+    "scanHistoryPassword"
+  );
+
+const scanHistoryWebsite =
+  document.getElementById(
+    "scanHistoryWebsite"
+  );
+
+const scanHistoryError =
+  document.getElementById(
+    "scanHistoryError"
+  );
+
+const scanHistoryLoading =
+  document.getElementById(
+    "scanHistoryLoading"
+  );
+
+const scanHistoryResults =
+  document.getElementById(
+    "scanHistoryResults"
+  );
+
+const loadScanHistoryButton =
+  document.getElementById(
+    "loadScanHistoryButton"
+  );
+
+const cancelScanHistoryButton =
+  document.getElementById(
+    "cancelScanHistoryButton"
+  );
+
   let latestScanData = null;
 
 
@@ -830,47 +875,85 @@ async function downloadAdminHealthReport() {
   }
 }
 
-if (
-  adminHealthReportButton
-) {
-
+if (adminHealthReportButton) {
   adminHealthReportButton.addEventListener(
     "click",
     openAdminHealthReportModal
   );
-
 }
 
-
-if (
-  cancelAdminHealthReportButton
-) {
-
+if (cancelAdminHealthReportButton) {
   cancelAdminHealthReportButton.addEventListener(
     "click",
     closeAdminHealthReportModal
   );
-
 }
 
-
-if (
-  confirmAdminHealthReportButton
-) {
-
+if (confirmAdminHealthReportButton) {
   confirmAdminHealthReportButton.addEventListener(
     "click",
     downloadAdminHealthReport
+  );
+}
+
+if (adminHealthReportPassword) {
+  adminHealthReportPassword.addEventListener(
+    "keydown",
+    event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        downloadAdminHealthReport();
+      }
+    }
+  );
+}
+
+
+/* =========================================================
+   SCAN HISTORY EVENT LISTENERS
+   ========================================================= */
+
+if (
+  adminScanHistoryButton
+) {
+
+  adminScanHistoryButton.addEventListener(
+    "click",
+    openScanHistoryModal
   );
 
 }
 
 
 if (
-  adminHealthReportPassword
+  cancelScanHistoryButton
 ) {
 
-  adminHealthReportPassword.addEventListener(
+  cancelScanHistoryButton.addEventListener(
+    "click",
+    closeScanHistoryModal
+  );
+
+}
+
+
+if (
+  loadScanHistoryButton
+) {
+
+  loadScanHistoryButton.addEventListener(
+    "click",
+    loadScanHistory
+  );
+
+}
+
+
+if (
+  scanHistoryPassword
+) {
+
+  scanHistoryPassword.addEventListener(
     "keydown",
     event => {
 
@@ -880,11 +963,598 @@ if (
 
         event.preventDefault();
 
-        downloadAdminHealthReport();
+        loadScanHistory();
+
       }
 
     }
   );
+
+}
+
+function openScanHistoryModal() {
+
+  if (!latestScanData) {
+
+    showError(
+      "Please complete a website scan first."
+    );
+
+    return;
+  }
+
+  if (!scanHistoryModal) {
+    return;
+  }
+
+  const website =
+    latestScanData.finalUrl ||
+    latestScanData.url ||
+    "";
+
+  if (scanHistoryWebsite) {
+
+    scanHistoryWebsite.textContent =
+      `Viewing scan history for ${website}`;
+
+  }
+
+  if (scanHistoryPassword) {
+
+    scanHistoryPassword.value =
+      "";
+
+  }
+
+  if (scanHistoryError) {
+
+    scanHistoryError.hidden =
+      true;
+
+    scanHistoryError.textContent =
+      "";
+
+  }
+
+  if (scanHistoryLoading) {
+
+    scanHistoryLoading.hidden =
+      true;
+
+  }
+
+  if (scanHistoryResults) {
+
+    scanHistoryResults.hidden =
+      true;
+
+    scanHistoryResults.innerHTML =
+      "";
+
+  }
+
+  scanHistoryModal.hidden =
+    false;
+
+  if (scanHistoryPassword) {
+
+    setTimeout(
+      () =>
+        scanHistoryPassword.focus(),
+      50
+    );
+
+  }
+
+}
+
+
+function closeScanHistoryModal() {
+
+  if (scanHistoryModal) {
+
+    scanHistoryModal.hidden =
+      true;
+
+  }
+
+}
+
+
+function showScanHistoryError(
+  message
+) {
+
+  if (!scanHistoryError) {
+    return;
+  }
+
+  scanHistoryError.textContent =
+    message;
+
+  scanHistoryError.hidden =
+    false;
+
+}
+
+
+function formatHistoryDate(
+  value
+) {
+
+  if (!value) {
+    return "Unknown date";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return String(value);
+  }
+
+  return date.toLocaleString(
+    undefined,
+    {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }
+  );
+
+}
+
+
+function formatHistoryScore(
+  value
+) {
+
+  return (
+    value === null ||
+    value === undefined
+  )
+    ? "—"
+    : `${value}/100`;
+
+}
+
+
+function getHistoryDelta(
+  current,
+  previous
+) {
+
+  if (
+    current === null ||
+    current === undefined ||
+    previous === null ||
+    previous === undefined
+  ) {
+
+    return "";
+
+  }
+
+  const delta =
+    Number(current) -
+    Number(previous);
+
+  if (delta === 0) {
+    return "No change";
+  }
+
+  return delta > 0
+    ? `+${delta}`
+    : `${delta}`;
+
+}
+
+
+function getHistoryDeltaClass(
+  current,
+  previous
+) {
+
+  if (
+    current === null ||
+    current === undefined ||
+    previous === null ||
+    previous === undefined
+  ) {
+
+    return "";
+
+  }
+
+  const delta =
+    Number(current) -
+    Number(previous);
+
+  if (delta > 0) {
+    return "positive";
+  }
+
+  if (delta < 0) {
+    return "negative";
+  }
+
+  return "neutral";
+
+}
+
+
+function renderScanHistory(
+  history
+) {
+
+  if (!scanHistoryResults) {
+    return;
+  }
+
+  if (
+    !Array.isArray(history) ||
+    history.length === 0
+  ) {
+
+    scanHistoryResults.innerHTML = `
+      <div class="scan-history-empty">
+        <strong>No previous scan history found.</strong>
+        <p>
+          This scan is the first recorded scan for this website.
+        </p>
+      </div>
+    `;
+
+    scanHistoryResults.hidden =
+      false;
+
+    return;
+
+  }
+
+  const rows =
+    history
+      .map(
+        (
+          scan,
+          index
+        ) => {
+
+          const previous =
+            history[index - 1] ||
+            null;
+
+          const overallDelta =
+            getHistoryDelta(
+              scan.overall_score,
+              previous?.overall_score
+            );
+
+          const overallDeltaClass =
+            getHistoryDeltaClass(
+              scan.overall_score,
+              previous?.overall_score
+            );
+
+          return `
+            <article class="scan-history-entry">
+
+              <div class="scan-history-entry-header">
+
+                <div>
+                  <div class="scan-history-date">
+                    ${escapeHtml(
+                      formatHistoryDate(
+                        scan.scanned_at
+                      )
+                    )}
+                  </div>
+
+                  <div class="scan-history-version">
+                    Scanner ${escapeHtml(
+                      scan.scanner_version ||
+                      "3.0"
+                    )}
+                  </div>
+                </div>
+
+                <div class="scan-history-overall">
+
+                  <span>
+                    Overall
+                  </span>
+
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.overall_score
+                      )
+                    )}
+                  </strong>
+
+                  ${
+                    overallDelta
+                      ? `
+                        <small
+                          class="scan-history-delta ${overallDeltaClass}"
+                        >
+                          ${escapeHtml(
+                            overallDelta
+                          )}
+                        </small>
+                      `
+                      : ""
+                  }
+
+                </div>
+
+              </div>
+
+              <div class="scan-history-scores">
+
+                <div>
+                  <span>SEO</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.seo_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Mobile</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.mobile_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Accessibility</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.accessibility_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Technical</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.technical_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Business</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.business_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Performance</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.performance_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Security</span>
+                  <strong>
+                    ${escapeHtml(
+                      formatHistoryScore(
+                        scan.security_score
+                      )
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+            </article>
+          `;
+
+        }
+      )
+      .join("");
+
+  scanHistoryResults.innerHTML =
+    `
+      <div class="scan-history-summary">
+        <strong>
+          ${history.length}
+          recorded scan${history.length === 1 ? "" : "s"}
+        </strong>
+
+        <span>
+          Oldest to newest
+        </span>
+      </div>
+
+      <div class="scan-history-list">
+        ${rows}
+      </div>
+    `;
+
+  scanHistoryResults.hidden =
+    false;
+
+}
+
+
+async function loadScanHistory() {
+
+  if (!latestScanData) {
+
+    closeScanHistoryModal();
+
+    showError(
+      "Please complete a website scan first."
+    );
+
+    return;
+
+  }
+
+  const password =
+    String(
+      scanHistoryPassword?.value ||
+      ""
+    );
+
+  if (!password) {
+
+    showScanHistoryError(
+      "Please enter your admin password."
+    );
+
+    return;
+
+  }
+
+  const website =
+    latestScanData.finalUrl ||
+    latestScanData.url ||
+    "";
+
+  if (loadScanHistoryButton) {
+
+    loadScanHistoryButton.disabled =
+      true;
+
+    loadScanHistoryButton.textContent =
+      "Loading...";
+
+  }
+
+  if (scanHistoryError) {
+
+    scanHistoryError.hidden =
+      true;
+
+  }
+
+  if (scanHistoryResults) {
+
+    scanHistoryResults.hidden =
+      true;
+
+  }
+
+  if (scanHistoryLoading) {
+
+    scanHistoryLoading.hidden =
+      false;
+
+  }
+
+  try {
+
+    const response =
+      await fetch(
+        "/api/scan-history",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              website,
+              password
+            })
+        }
+      );
+
+    let data = null;
+
+    try {
+
+      data =
+        await response.json();
+
+    } catch {
+
+      throw new Error(
+        `Scan history server error (${response.status}).`
+      );
+
+    }
+
+    if (
+      !response.ok ||
+      !data.success
+    ) {
+
+      throw new Error(
+        data.error ||
+        "Unable to load scan history."
+      );
+
+    }
+
+    renderScanHistory(
+      data.history
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Scan history error:",
+      error
+    );
+
+    showScanHistoryError(
+      error.message ||
+      "Unable to load scan history."
+    );
+
+  } finally {
+
+    if (scanHistoryLoading) {
+
+      scanHistoryLoading.hidden =
+        true;
+
+    }
+
+    if (loadScanHistoryButton) {
+
+      loadScanHistoryButton.disabled =
+        false;
+
+      loadScanHistoryButton.textContent =
+        "View History";
+
+    }
+
+  }
 
 }
 
