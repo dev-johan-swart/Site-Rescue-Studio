@@ -327,20 +327,157 @@ const cancelScanHistoryButton =
 
       latestScanData = data;
 
-      if (adminReportSection) {
-        adminReportSection.hidden = false;
+if (adminReportSection) {
+  adminReportSection.hidden = false;
+}
+
+console.log(
+  "FULL SERVER SCAN DATA:",
+  data
+);
+
+/*
+ * --------------------------------------------------------
+ * BROWSER-RENDERED INSPECTION
+ * --------------------------------------------------------
+ *
+ * This is deliberately a separate request.
+ * If browser inspection is unavailable, the normal
+ * server-side scan remains valid.
+ */
+
+try {
+
+  const browserResponse =
+    await fetch(
+      "/api/browser-inspection",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            url:
+              data.finalUrl ||
+              data.url
+          })
       }
+    );
 
-      console.log(
-        "FULL SCAN DATA:",
-        data
+  const browserText =
+    await browserResponse.text();
+
+  let browserData;
+
+  try {
+
+    browserData =
+      JSON.parse(
+        browserText
       );
 
-      renderResults(data);
+  } catch {
 
-      renderRecommendations(
-        data.recommendations
-      );
+    browserData = {
+      success: false,
+      browserInspection: {
+        attempted: true,
+        available: false,
+        unavailableReason:
+          "Browser inspection returned an invalid response."
+      }
+    };
+
+  }
+
+  if (
+    browserData &&
+    browserData.inspection
+  ) {
+
+    latestScanData =
+      {
+        ...data,
+        browserInspection:
+          {
+            ...browserData.inspection,
+            findings:
+              browserData.findings || []
+          }
+      };
+
+    renderBrowserInspection(
+      latestScanData.browserInspection
+    );
+
+  } else {
+
+    latestScanData =
+      {
+        ...data,
+        browserInspection: {
+          attempted: true,
+          available: false,
+          unavailableReason:
+            "Browser inspection was unavailable."
+        }
+      };
+
+  }
+
+} catch (browserError) {
+
+  console.warn(
+    "Browser inspection unavailable:",
+    browserError
+  );
+
+  latestScanData =
+    {
+      ...data,
+      browserInspection: {
+        attempted: true,
+        available: false,
+        unavailableReason:
+          "Browser inspection could not be completed."
+      }
+    };
+
+}
+
+console.log(
+  "FULL SCAN DATA:",
+  latestScanData
+);
+
+console.log(
+  "SCORE COMPARISON:",
+  {
+    serverOverall:
+      data?.scores?.overall,
+
+    latestOverall:
+      latestScanData?.scores?.overall,
+
+    serverScores:
+      data?.scores,
+
+    latestScores:
+      latestScanData?.scores
+  }
+);
+
+renderResults(
+  latestScanData
+);
+
+renderRecommendations(
+  latestScanData.recommendations
+);
 
       if (reportAction) {
         reportAction.hidden = false;
@@ -1843,7 +1980,7 @@ async function loadScanHistory() {
       business: "Business",
       security: "Security & Trust"
     };
-    
+
     const categoryOrder = [
       "seo",
       "mobile",
@@ -1961,6 +2098,156 @@ async function loadScanHistory() {
     }
 
     return "fail";
+  }
+
+  function renderBrowserInspection(
+    browserInspection
+  ) {
+    const section =
+      document.getElementById(
+        "browserInspectionSection"
+      );
+
+    const content =
+      document.getElementById(
+        "browserInspectionContent"
+      );
+
+    if (
+      !section ||
+      !content
+    ) {
+      return;
+    }
+
+    if (
+      !browserInspection?.attempted
+    ) {
+      section.hidden = true;
+      content.innerHTML = "";
+      return;
+    }
+
+    if (
+      !browserInspection?.available
+    ) {
+
+      section.hidden = false;
+
+      content.innerHTML = `
+        <p>
+          Browser-rendered inspection was attempted
+          but was not fully available for this scan.
+        </p>
+      `;
+
+      return;
+    }
+
+    const consoleErrors =
+      Array.isArray(
+        browserInspection.consoleErrors
+      )
+        ? browserInspection.consoleErrors
+        : [];
+
+    const failedResources =
+      Array.isArray(
+        browserInspection.failedResources
+      )
+        ? browserInspection.failedResources
+        : [];
+
+    const findings =
+      Array.isArray(
+        browserInspection.findings
+      )
+        ? browserInspection.findings
+        : [];
+
+    const durationMs =
+      Number(
+        browserInspection.durationMs
+      );
+
+    const duration =
+      Number.isFinite(durationMs)
+        ? `${(
+            durationMs / 1000
+          ).toFixed(1)} seconds`
+        : "Not available";
+
+    const sameOriginFailures =
+      failedResources.filter(
+        (failure) =>
+          failure?.classification ===
+          "same-origin" &&
+          failure?.status
+      );
+
+    content.innerHTML = `
+      <div class="browser-inspection-summary">
+
+        <div>
+          <strong>Inspection duration</strong>
+          <span>${escapeHtml(duration)}</span>
+        </div>
+
+        <div>
+          <strong>Console errors</strong>
+          <span>${consoleErrors.length}</span>
+        </div>
+
+        <div>
+          <strong>Browser findings</strong>
+          <span>${findings.length}</span>
+        </div>
+
+        <div>
+          <strong>Confirmed same-origin failures</strong>
+          <span>${sameOriginFailures.length}</span>
+        </div>
+
+      </div>
+
+      ${
+        findings.length > 0
+          ? `
+            <div class="browser-inspection-findings">
+              ${findings
+                .slice(0, 5)
+                .map(
+                  (finding) => `
+                    <article>
+                      <strong>
+                        ${escapeHtml(
+                          finding.title ||
+                          "Browser finding"
+                        )}
+                      </strong>
+
+                      <p>
+                        ${escapeHtml(
+                          finding.description ||
+                          ""
+                        )}
+                      </p>
+                    </article>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : `
+            <p>
+              No browser-specific findings requiring
+              attention were identified.
+            </p>
+          `
+      }
+    `;
+
+    section.hidden = false;
   }
 
 

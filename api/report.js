@@ -412,13 +412,18 @@ module.exports = async function handler(req, res) {
 
   try {
     const data = req.body;
-
     if (!data || typeof data !== "object") {
       return res.status(400).json({
         success: false,
         error: "No report data was provided."
       });
     }
+
+    const browserInspection =
+      data.browserInspection || {
+        attempted: false,
+        available: false
+      };
 
     const {
       url,
@@ -590,6 +595,25 @@ module.exports = async function handler(req, res) {
       doc,
       businessEvidence
     );
+
+    /*
+     * ----------------------------------------------------------
+     * BROWSER-RENDERED INSPECTION
+     * ----------------------------------------------------------
+     */
+
+    if (
+      browserInspection.attempted
+    ) {
+
+      addReportPage(doc);
+
+      drawBrowserInspectionPage(
+        doc,
+        browserInspection
+      );
+
+    }
 
     /*
      * ----------------------------------------------------------
@@ -1744,6 +1768,503 @@ function drawPerformancePage(
     "Performance results can vary depending on device, network conditions, server location and testing conditions. The results shown here should be used as a practical indication of areas that may benefit from optimisation."
   );
 }
+
+/*
+ * ============================================================
+ * BROWSER INSPECTION PAGE
+ * ============================================================
+ */
+
+function drawBrowserInspectionPage(
+  doc,
+  browserInspection
+) {
+  sectionTitle(
+    doc,
+    "Browser-Rendered Inspection",
+    "Additional checks performed using a real browser to identify issues that may not be visible from the raw HTML response alone."
+  );
+
+  const status =
+    browserInspection?.available
+      ? "Browser inspection completed"
+      : "Browser inspection was attempted but was not fully available";
+
+  drawInfoBox(
+    doc,
+    "Inspection status",
+    status
+  );
+
+  const consoleErrors =
+    Array.isArray(
+      browserInspection?.consoleErrors
+    )
+      ? browserInspection.consoleErrors
+      : [];
+
+  const failedResources =
+    Array.isArray(
+      browserInspection?.failedResources
+    )
+      ? browserInspection.failedResources
+      : [];
+
+  const findings =
+    Array.isArray(
+      browserInspection?.findings
+    )
+      ? browserInspection.findings
+      : [];
+
+  const renderedForms =
+    Array.isArray(
+      browserInspection?.renderedForms
+    )
+      ? browserInspection.renderedForms
+      : [];
+
+  const renderedButtons =
+    Array.isArray(
+      browserInspection?.renderedButtons
+    )
+      ? browserInspection.renderedButtons
+      : [];
+
+  const renderedHeadings =
+    Array.isArray(
+      browserInspection?.renderedHeadings
+    )
+      ? browserInspection.renderedHeadings
+      : [];
+
+  const renderedContactLinks =
+    Array.isArray(
+      browserInspection?.renderedContactLinks
+    )
+      ? browserInspection.renderedContactLinks
+      : [];
+
+  const overflow =
+    browserInspection?.horizontalOverflow;
+
+  const durationMs =
+    Number(
+      browserInspection?.durationMs
+    );
+
+  const durationText =
+    Number.isFinite(
+      durationMs
+    )
+      ? `${(
+          durationMs / 1000
+        ).toFixed(1)} seconds`
+      : "Not available";
+
+  /*
+   * ----------------------------------------------------------
+   * SUMMARY
+   * ----------------------------------------------------------
+   */
+
+  const summaryRows = [
+    [
+      "Inspection duration",
+      durationText
+    ],
+    [
+      "Console errors",
+      String(
+        consoleErrors.length
+      )
+    ],
+    [
+      "Failed browser requests",
+      String(
+        failedResources.length
+      )
+    ],
+    [
+      "Browser findings",
+      String(
+        findings.length
+      )
+    ],
+    [
+      "Rendered forms",
+      String(
+        renderedForms.length
+      )
+    ],
+    [
+      "Rendered buttons",
+      String(
+        renderedButtons.length
+      )
+    ],
+    [
+      "Rendered contact links",
+      String(
+        renderedContactLinks.length
+      )
+    ],
+    [
+      "Rendered headings",
+      String(
+        renderedHeadings.length
+      )
+    ],
+    [
+      "Horizontal overflow",
+      overflow
+        ? "Detected"
+        : "Not detected"
+    ]
+  ];
+
+  summaryRows.forEach(
+    ([name, value]) => {
+      const rowHeight =
+        getKeyValueRowHeight(
+          doc,
+          value
+        );
+
+      ensureSpace(
+        doc,
+        rowHeight + 4
+      );
+
+      drawKeyValueRow(
+        doc,
+        name,
+        value
+      );
+    }
+  );
+
+  /*
+   * ----------------------------------------------------------
+   * BROWSER FINDINGS
+   * ----------------------------------------------------------
+   */
+
+  if (
+    findings.length > 0
+  ) {
+
+    doc.moveDown(1);
+
+    doc
+      .fillColor(
+        BRAND.dark
+      )
+      .font(
+        "Helvetica-Bold"
+      )
+      .fontSize(15)
+      .text(
+        "Browser findings"
+      );
+
+    doc.moveDown(0.6);
+
+    findings
+      .slice(0, 8)
+      .forEach(
+        (finding) => {
+
+          const title =
+            finding?.title ||
+            "Browser finding";
+
+          const severity =
+            finding?.severity
+              ? `Severity: ${finding.severity}`
+              : "";
+
+          const status =
+            finding?.status
+              ? `Status: ${finding.status}`
+              : "";
+
+          const description =
+            finding?.description ||
+            "No additional description was provided.";
+
+          const details = [
+            severity,
+            status,
+            description
+          ]
+            .filter(
+              Boolean
+            )
+            .join("\n");
+
+          const rowHeight =
+            getKeyValueRowHeight(
+              doc,
+              details
+            );
+
+          ensureSpace(
+            doc,
+            rowHeight + 10
+          );
+
+          drawKeyValueRow(
+            doc,
+            title,
+            details
+          );
+        }
+      );
+
+  } else {
+
+    doc.moveDown(1);
+
+    drawInfoBox(
+      doc,
+      "Browser findings",
+      "No browser-specific findings requiring attention were identified during the inspection."
+    );
+
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * CONFIRMED SAME-ORIGIN RESOURCE FAILURES
+   * ----------------------------------------------------------
+   */
+
+  const sameOriginFailures = [];
+
+const sameOriginFailureUrls =
+  new Set();
+
+failedResources.forEach(
+  (failure) => {
+
+    if (
+      failure?.classification !==
+      "same-origin"
+    ) {
+      return;
+    }
+
+    const url =
+      failure?.url ||
+      "";
+
+    if (!url) {
+      return;
+    }
+
+    /*
+     * Prefer a real HTTP status over
+     * a later ERR_ABORTED record for
+     * the same resource.
+     */
+    if (
+      failure?.status
+    ) {
+
+      sameOriginFailureUrls.add(
+        url
+      );
+
+      sameOriginFailures.push(
+        failure
+      );
+
+      return;
+    }
+
+    if (
+      sameOriginFailureUrls.has(
+        url
+      )
+    ) {
+      return;
+    }
+
+    sameOriginFailures.push(
+      failure
+    );
+
+  }
+);
+
+  if (
+    sameOriginFailures.length > 0
+  ) {
+
+    doc.moveDown(1);
+
+    doc
+      .fillColor(
+        BRAND.dark
+      )
+      .font(
+        "Helvetica-Bold"
+      )
+      .fontSize(15)
+      .text(
+        "Confirmed same-origin resource failures"
+      );
+
+    doc.moveDown(0.6);
+
+    sameOriginFailures
+      .slice(0, 8)
+      .forEach(
+        (failure) => {
+
+          const url =
+            failure?.url ||
+            "Unknown resource";
+
+          const status =
+            failure?.status
+              ? `HTTP ${failure.status}`
+              : "Request failed";
+
+          const type =
+            failure?.resourceType
+              ? ` (${failure.resourceType})`
+              : "";
+
+          const text =
+            `${status}${type}\n${url}`;
+
+          const rowHeight =
+            getKeyValueRowHeight(
+              doc,
+              text
+            );
+
+          ensureSpace(
+            doc,
+            rowHeight + 6
+          );
+
+          drawKeyValueRow(
+            doc,
+            "Resource",
+            text
+          );
+
+        }
+      );
+
+  } else {
+
+    doc.moveDown(1);
+
+    drawInfoBox(
+      doc,
+      "Browser resource check",
+      "No confirmed same-origin browser resource failures were detected during the inspection."
+    );
+
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * CONSOLE ERRORS
+   * ----------------------------------------------------------
+   */
+
+  if (
+    consoleErrors.length > 0
+  ) {
+
+    doc.moveDown(1);
+
+    doc
+      .fillColor(
+        BRAND.dark
+      )
+      .font(
+        "Helvetica-Bold"
+      )
+      .fontSize(15)
+      .text(
+        "Browser console errors"
+      );
+
+    doc.moveDown(0.6);
+
+    consoleErrors
+      .slice(0, 5)
+      .forEach(
+        (error) => {
+
+          const text =
+            String(
+              error
+            );
+
+          const rowHeight =
+            getKeyValueRowHeight(
+              doc,
+              text
+            );
+
+          ensureSpace(
+            doc,
+            rowHeight + 6
+          );
+
+          drawKeyValueRow(
+            doc,
+            "Console error",
+            text
+          );
+
+        }
+      );
+
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * HORIZONTAL OVERFLOW
+   * ----------------------------------------------------------
+   */
+
+  if (
+    overflow
+  ) {
+
+    doc.moveDown(1);
+
+    drawInfoBox(
+      doc,
+      "Horizontal overflow warning",
+      "The rendered page was wider than the browser viewport. This can indicate content that may require horizontal scrolling on smaller screens and should be checked on the live website."
+    );
+
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * INTERPRETATION
+   * ----------------------------------------------------------
+   */
+
+  doc.moveDown(1);
+
+  drawInfoBox(
+    doc,
+    "How to interpret these results",
+    "Browser inspection provides additional evidence about what happens after a website is rendered. A failed resource or browser console warning does not automatically mean that visitors can see a broken element. The affected resource and surrounding page should be reviewed before making a final diagnosis."
+  );
+}
+
 
 /*
  * ============================================================

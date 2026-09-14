@@ -391,6 +391,7 @@ function finding(
   };
 }
 
+
 function calculateWeightedScore(checks) {
   if (!Array.isArray(checks) || !checks.length) {
     return 0;
@@ -6034,7 +6035,7 @@ const opportunity =
         const prospectResult =
           await saveProspect({
             scannerVersion:
-              "3.0",
+              "3.1",
 
             url:
               targetUrl.href,
@@ -6097,7 +6098,7 @@ const opportunity =
         prospectSaved,
 
         scannerVersion:
-          "3.0",
+          "3.1",
 
         scannedAt:
           new Date().toISOString(),
