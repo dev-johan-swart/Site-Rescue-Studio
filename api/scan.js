@@ -573,6 +573,102 @@ async function fetchWithTimeout(
   }
 }
 
+function detectPageAccessIssue(
+  html,
+  response
+) {
+  const status =
+    Number(response?.status || 0);
+
+  const body =
+    String(html || "").toLowerCase();
+
+  /*
+   * HTTP statuses that mean the scanner did not
+   * receive normal page content.
+   *
+   * These are access/server limitations, not
+   * automatic evidence that the customer's
+   * website content is missing.
+   */
+  const limitedStatuses =
+    new Set([
+      401,
+      403,
+      429,
+      500,
+      502,
+      503,
+      504
+    ]);
+
+  const statusLimited =
+    limitedStatuses.has(status);
+
+  /*
+   * Only use strong challenge indicators.
+   *
+   * We deliberately avoid generic phrases such as
+   * "security check" because those can legitimately
+   * appear in normal website content.
+   */
+  const challengePatterns = [
+    /just a moment/i,
+    /cf-chl-/i,
+    /__cf_chl_/i,
+    /challenge-platform/i,
+    /checking your browser/i,
+    /verify you are human/i,
+    /verifying you are human/i
+  ];
+
+  const challengeDetected =
+    challengePatterns.some(
+      pattern =>
+        pattern.test(body)
+    );
+
+  if (
+    statusLimited ||
+    challengeDetected
+  ) {
+    let reason =
+      "";
+
+    if (statusLimited) {
+      reason =
+        `The page returned HTTP ${status}.`;
+    } else {
+      reason =
+        "The returned page appears to be an automated-access or security challenge.";
+    }
+
+    return {
+      limited:
+        true,
+
+      status,
+
+      challengeDetected,
+
+      reason
+    };
+  }
+
+  return {
+    limited:
+      false,
+
+    status,
+
+    challengeDetected:
+      false,
+
+    reason:
+      ""
+  };
+}
+
 /*
  * --------------------------------------------------------
  * SECURITY & TRUST ANALYSIS
@@ -4747,12 +4843,38 @@ module.exports =
       } catch {}
 
       /*
-       * --------------------------------------------------
-       * ANALYSE HOMEPAGE
-       * --------------------------------------------------
-       */
+ * --------------------------------------------------
+ * VALIDATE HOMEPAGE ACCESS
+ * --------------------------------------------------
+ */
 
-      const homepageAnalysisStarted =
+const pageAccess =
+  detectPageAccessIssue(
+    html,
+    response
+  );
+
+console.log(
+  "[V3 ACCESS]",
+  {
+    status:
+      response.status,
+    limited:
+      pageAccess.limited,
+    challengeDetected:
+      pageAccess.challengeDetected,
+    reason:
+      pageAccess.reason
+  }
+);
+
+/*
+ * --------------------------------------------------
+ * ANALYSE HOMEPAGE
+ * --------------------------------------------------
+ */
+
+const homepageAnalysisStarted =
   Date.now();
 
 const homepage =
@@ -4763,107 +4885,176 @@ const homepage =
     responseTime
   );
 
-  debugTiming(
-    "Homepage analysis complete",
-    homepageAnalysisStarted
-  );
-
-  const homepageLinkTestingStarted =
-  Date.now();
-
-console.log(
-  "[V3 TIMING] Starting homepage link testing —",
-  homepage.linkResults.length,
-  "links found"
+debugTiming(
+  "Homepage analysis complete",
+  homepageAnalysisStarted
 );
 
-const linkTestStarted =
-  Date.now();
+/*
+ * If the scanner received a blocked/challenge page,
+ * do not treat content-dependent findings as confirmed
+ * website findings.
+ *
+ * The response itself is still retained for diagnostics,
+ * but the normal page-content analysis is not trusted.
+ */
+if (
+  pageAccess.limited
+) {
+  homepage.accessLimited =
+    true;
 
-await testLinks(
-  homepage.linkResults
-);
+  homepage.accessIssue =
+    pageAccess.reason;
 
-console.log(
-  "[V3 TIMING] Homepage link testing complete —",
-  Date.now() - linkTestStarted,
-  "ms"
-);
+  homepage.challengeDetected =
+    pageAccess.challengeDetected;
 
-const linkHealth = {
+  homepage.contentAnalysisTrusted =
+    false;
+} else {
+  homepage.accessLimited =
+    false;
 
+  homepage.accessIssue =
+    "";
+
+  homepage.challengeDetected =
+    false;
+
+  homepage.contentAnalysisTrusted =
+    true;
+}
+
+  let linkHealth = {
   total:
-    homepage.linkResults.length,
-
+    0,
   tested:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "working" ||
-        link.status === "broken" ||
-        link.status === "unreachable" ||
-        link.status === "blocked"
-    ).length,
-
+    0,
   working:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "working"
-    ).length,
-
+    0,
   broken:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "broken" &&
-        link.type !== "anchor"
-    ).length,
-
+    0,
   placeholder:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "placeholder"
-    ).length,
-
+    0,
   blocked:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "blocked"
-    ).length,
-
+    0,
   unreachable:
-    homepage.linkResults.filter(
-      link =>
-        link.status === "unreachable"
-    ).length,
-
+    0,
   redirected:
-    homepage.linkResults.filter(
-      link =>
-        link.redirected
-    ).length,
-
+    0,
   internal:
-    homepage.linkResults.filter(
-      link =>
-        link.type === "internal"
-    ).length,
-
+    0,
   external:
-    homepage.linkResults.filter(
-      link =>
-        link.type === "external"
-    ).length,
-
+    0,
   anchors:
-    homepage.linkResults.filter(
-      link =>
-        link.type === "anchor"
-    ).length
+    0
 };
 
-debugTiming(
-  "Homepage link testing complete",
-  homepageLinkTestingStarted
-);
+if (
+  !pageAccess.limited
+) {
+  const homepageLinkTestingStarted =
+    Date.now();
+
+  console.log(
+    "[V3 TIMING] Starting homepage link testing —",
+    homepage.linkResults.length,
+    "links found"
+  );
+
+  const linkTestStarted =
+    Date.now();
+
+  await testLinks(
+    homepage.linkResults
+  );
+
+  console.log(
+    "[V3 TIMING] Homepage link testing complete —",
+    Date.now() -
+      linkTestStarted,
+    "ms"
+  );
+
+  linkHealth = {
+    total:
+      homepage.linkResults.length,
+
+    tested:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "working" ||
+          link.status === "broken" ||
+          link.status === "unreachable" ||
+          link.status === "blocked"
+      ).length,
+
+    working:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "working"
+      ).length,
+
+    broken:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "broken" &&
+          link.type !== "anchor"
+      ).length,
+
+    placeholder:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "placeholder"
+      ).length,
+
+    blocked:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "blocked"
+      ).length,
+
+    unreachable:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "unreachable"
+      ).length,
+
+    redirected:
+      homepage.linkResults.filter(
+        link =>
+          link.redirected
+      ).length,
+
+    internal:
+      homepage.linkResults.filter(
+        link =>
+          link.type === "internal"
+      ).length,
+
+    external:
+      homepage.linkResults.filter(
+        link =>
+          link.type === "external"
+      ).length,
+
+    anchors:
+      homepage.linkResults.filter(
+        link =>
+          link.type === "anchor"
+      ).length
+  };
+
+  debugTiming(
+    "Homepage link testing complete",
+    homepageLinkTestingStarted
+  );
+} else {
+  console.log(
+    "[V3 ACCESS] Homepage link testing skipped because page access is limited."
+  );
+}
 
       /*
        * --------------------------------------------------
@@ -4874,11 +5065,13 @@ debugTiming(
       const discoveryStarted =
         Date.now();
 
-      const candidates =
-        discoverInternalPages(
-          html,
-          finalUrl
-        );
+        const candidates =
+        pageAccess.limited
+          ? []
+          : discoverInternalPages(
+              html,
+              finalUrl
+            );
 
       debugTiming(
         `Internal-page discovery complete — ${candidates.length} candidates`,
@@ -4891,28 +5084,34 @@ debugTiming(
         );
 
         const pages =
-        [
-          {
-            url:
-              finalUrl,
-      
-            path:
-              getPathname(
-                finalUrl
-              ),
-      
-            type:
-              "homepage",
-      
-            score:
-              Infinity,
-      
-            scanned:
-              true,
-      
-            ...homepage
-          }
-        ];
+[
+  {
+    url:
+      finalUrl,
+
+    path:
+      getPathname(
+        finalUrl
+      ),
+
+    type:
+      "homepage",
+
+    score:
+      Infinity,
+
+    scanned:
+      !pageAccess.limited,
+
+    accessLimited:
+      pageAccess.limited,
+
+    accessIssue:
+      pageAccess.reason,
+
+    ...homepage
+  }
+];
 
       const scannedUrls =
         new Set([
@@ -5068,6 +5267,52 @@ debugTiming(
           if (
             !pageHtml
           ) {
+            continue;
+          }
+
+          const pageAccess =
+            detectPageAccessIssue(
+              pageHtml,
+              pageResponse
+          );
+
+          if (
+            pageAccess.limited
+          ) {
+            console.log(
+              "[V3 ACCESS] Crawled page access limited:",
+              normalized,
+              pageAccess.reason
+            );
+
+            pages.push({
+              url:
+                normalized,
+
+              path:
+                getPathname(
+                  normalized
+                ),
+
+              type:
+                "internal",
+
+              score:
+                candidate.score,
+
+              scanned:
+                false,
+
+              accessLimited:
+                true,
+
+              accessIssue:
+                pageAccess.reason,
+
+              challengeDetected:
+                pageAccess.challengeDetected
+            });
+
             continue;
           }
 
@@ -6035,7 +6280,7 @@ const opportunity =
         const prospectResult =
           await saveProspect({
             scannerVersion:
-              "3.1",
+             "3.2",
 
             url:
               targetUrl.href,
@@ -6098,7 +6343,7 @@ const opportunity =
         prospectSaved,
 
         scannerVersion:
-          "3.1",
+         "3.2",
 
         scannedAt:
           new Date().toISOString(),
@@ -6112,6 +6357,20 @@ const opportunity =
 
         statusCode:
           response.status,
+
+          pageAccess: {
+            limited:
+              pageAccess.limited,
+
+            status:
+              pageAccess.status,
+
+            challengeDetected:
+              pageAccess.challengeDetected,
+
+            reason:
+              pageAccess.reason
+          },
 
         /*
          * CRAWL INFORMATION
