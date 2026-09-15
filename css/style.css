@@ -4091,3 +4091,27 @@ grid-template-columns: 1fr;
 font-size: 2rem;
 }
 }
+
+/* =========================================================
+   RESPONSIVE CONTENT SAFEGUARDS
+      ========================================================= */
+
+img,
+svg,
+video,
+iframe {
+    max-width: 100%;
+}
+
+body {
+    overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+p,
+a,
+button {
+    overflow-wrap: anywhere;
+}
