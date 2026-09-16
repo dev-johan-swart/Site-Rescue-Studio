@@ -1,9 +1,14 @@
 const {
-    generateFullReport
-  } = require(
-    "../lib/reportGenerator"
-  );
-  
+  generateFullReport
+} = require(
+  "../lib/reportGenerator"
+);
+
+const {
+  authenticateAdmin
+} = require(
+  "../lib/adminAuth"
+);
   /*
    * ============================================================
    * SITE RESCUE STUDIO
@@ -37,26 +42,6 @@ const {
         });
       }
   
-      const adminPassword =
-        String(
-          process.env
-            .HEALTH_REPORT_ADMIN_PASSWORD ||
-          ""
-        );
-  
-      if (!adminPassword) {
-  
-        console.error(
-          "HEALTH_REPORT_ADMIN_PASSWORD is not configured."
-        );
-  
-        return res.status(500).json({
-          success: false,
-          error:
-            "The admin report service is not configured."
-        });
-      }
-  
       try {
   
         const body =
@@ -78,15 +63,19 @@ const {
             body.password || ""
           );
   
-        if (
-          suppliedPassword !==
-          adminPassword
-        ) {
-  
-          return res.status(401).json({
+        const authentication =
+          await authenticateAdmin(
+            req,
+            suppliedPassword
+          );
+
+        if (!authentication.ok) {
+          return res.status(
+            authentication.status
+          ).json({
             success: false,
             error:
-              "Incorrect admin password."
+              authentication.error
           });
         }
   

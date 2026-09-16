@@ -14,82 +14,6 @@ const MAX_CRAWL_PAGES = 8;
 const MAX_DISCOVERED_LINKS = 80;
 const MAX_LINKS_TO_TEST = 30;
 
-async function isPublicHostname(hostname) {
-
-  const host =
-      String(hostname || "")
-          .trim()
-          .toLowerCase();
-
-  if (!host) {
-      return false;
-  }
-
-  if (isBlockedHostname(host)) {
-      return false;
-  }
-
-  const addresses =
-      await dns.lookup(
-          host,
-          {
-              all: true,
-              verbatim: true
-          }
-      );
-
-  if (!addresses.length) {
-      return false;
-  }
-
-  return addresses.every(
-      address =>
-          !isPrivateOrReservedIp(
-              address.address
-          )
-  );
-}
-
-function isPrivateOrReservedIp(ip) {
-
-  const version =
-      net.isIP(ip);
-
-  if (version === 4) {
-
-      const parts =
-          ip.split(".").map(Number);
-
-      const a = parts[0];
-      const b = parts[1];
-
-      return (
-          a === 10 ||
-          (a === 172 && b >= 16 && b <= 31) ||
-          (a === 192 && b === 168) ||
-          a === 127 ||
-          (a === 169 && b === 254) ||
-          a === 0
-      );
-  }
-
-  if (version === 6) {
-
-      const normalized =
-          ip.toLowerCase();
-
-      return (
-          normalized === "::1" ||
-          normalized === "::" ||
-          normalized.startsWith("fc") ||
-          normalized.startsWith("fd") ||
-          normalized.startsWith("fe80:")
-      );
-  }
-
-  return true;
-}
-
 function debugTiming(label, startedAt) {
   console.log(
     `[V3 TIMING] ${label} — ${Date.now() - startedAt}ms`
@@ -571,6 +495,91 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchPublicUrl(
+  startUrl,
+  options = {},
+  timeout = FETCH_TIMEOUT,
+  maxRedirects = 5
+) {
+  let currentUrl =
+    String(startUrl);
+
+  for (
+    let redirectCount = 0;
+    redirectCount <= maxRedirects;
+    redirectCount++
+  ) {
+    const parsed =
+      new URL(currentUrl);
+
+    if (
+      parsed.protocol !== "http:" &&
+      parsed.protocol !== "https:"
+    ) {
+      throw new Error(
+        "Only HTTP and HTTPS URLs can be scanned."
+      );
+    }
+
+    if (
+      !(await isPublicHostname(
+        parsed.hostname
+      ))
+    ) {
+      throw new Error(
+        "The website redirected to an address that cannot be scanned."
+      );
+    }
+
+    const response =
+      await fetchWithTimeout(
+        currentUrl,
+        {
+          ...options,
+          redirect: "manual"
+        },
+        timeout
+      );
+
+    if (
+      response.status < 300 ||
+      response.status >= 400
+    ) {
+      return response;
+    }
+
+    const location =
+      response.headers.get(
+        "location"
+      );
+
+    if (!location) {
+      return response;
+    }
+
+    let nextUrl;
+
+    try {
+      nextUrl =
+        new URL(
+          location,
+          currentUrl
+        ).href;
+    } catch {
+      throw new Error(
+        "The website returned an invalid redirect."
+      );
+    }
+
+    currentUrl =
+      nextUrl;
+  }
+
+  throw new Error(
+    "The website redirected too many times."
+  );
 }
 
 function detectPageAccessIssue(
@@ -4572,10 +4581,12 @@ function buildRecommendation(check) {
  */
 
 function isPrivateOrReservedIp(ip) {
-  const version = net.isIP(ip);
+  const version =
+    net.isIP(ip);
 
   if (version === 4) {
-    const parts = ip.split(".").map(Number);
+    const parts =
+      ip.split(".").map(Number);
 
     if (parts.length !== 4) {
       return true;
@@ -4583,25 +4594,40 @@ function isPrivateOrReservedIp(ip) {
 
     const a = parts[0];
     const b = parts[1];
+    const c = parts[2];
 
     return (
       a === 0 ||
       a === 10 ||
       a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 0) ||
-      (a === 192 && b === 168) ||
-      (a === 198 && b >= 18 && b <= 19) ||
-      (a === 198 && b === 51 && parts[2] === 100) ||
-      (a === 203 && b === 0 && parts[2] === 113) ||
+      (a === 100 &&
+        b >= 64 &&
+        b <= 127) ||
+      (a === 169 &&
+        b === 254) ||
+      (a === 172 &&
+        b >= 16 &&
+        b <= 31) ||
+      (a === 192 &&
+        b === 0) ||
+      (a === 192 &&
+        b === 168) ||
+      (a === 198 &&
+        b >= 18 &&
+        b <= 19) ||
+      (a === 198 &&
+        b === 51 &&
+        c === 100) ||
+      (a === 203 &&
+        b === 0 &&
+        c === 113) ||
       a >= 224
     );
   }
 
   if (version === 6) {
-    const normalized = ip.toLowerCase();
+    const normalized =
+      ip.toLowerCase();
 
     return (
       normalized === "::" ||
@@ -4609,7 +4635,11 @@ function isPrivateOrReservedIp(ip) {
       normalized.startsWith("fc") ||
       normalized.startsWith("fd") ||
       normalized.startsWith("fe80:") ||
-      normalized.startsWith("ff")
+      normalized.startsWith("ff") ||
+      normalized.startsWith("::ffff:127.") ||
+      normalized.startsWith("::ffff:10.") ||
+      normalized.startsWith("::ffff:192.168.") ||
+      normalized.startsWith("::ffff:172.")
     );
   }
 
@@ -4626,7 +4656,19 @@ async function isPublicHostname(hostname) {
     return false;
   }
 
-  if (isBlockedHostname(host)) {
+  if (
+    isBlockedHostname(host)
+  ) {
+    return false;
+  }
+
+  const literalIp =
+    net.isIP(host);
+
+  if (
+    literalIp &&
+    isPrivateOrReservedIp(host)
+  ) {
     return false;
   }
 
@@ -4762,6 +4804,21 @@ module.exports =
         });
       }
 
+      if (
+        !(await isPublicHostname(
+          targetUrl.hostname
+        ))
+      ) {
+        return res.status(
+          400
+        ).json({
+          success:
+            false,
+          error:
+            "That website address cannot be scanned."
+        });
+      }
+
       const started =
         Date.now();
 
@@ -4772,12 +4829,9 @@ module.exports =
        */
 
       const response =
-        await fetchWithTimeout(
+        await fetchPublicUrl(
           targetUrl.href,
           {
-            redirect:
-              "follow",
-
             headers: {
               "User-Agent":
                 USER_AGENT,
@@ -5200,16 +5254,13 @@ if (
           );
         
           const pageResponse =
-            await fetchWithTimeout(
+            await fetchPublicUrl(
               normalized,
               {
-                redirect:
-                  "follow",
-        
                 headers: {
                   "User-Agent":
                     USER_AGENT,
-        
+
                   Accept:
                     "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
                 }
