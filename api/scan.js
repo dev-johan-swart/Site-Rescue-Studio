@@ -27,16 +27,29 @@ function cleanText(value = "") {
 }
 
 function getAttribute(tag, attribute) {
+  const escapedAttribute =
+    String(attribute).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
   const regex = new RegExp(
-    `${attribute}\\s*=\\s*["']([^"']*)["']`,
+    `\\b${escapedAttribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>` + "`" + `]+))`,
     "i"
   );
 
   const match = tag.match(regex);
 
-  return match
-    ? cleanText(match[1])
-    : "";
+  if (!match) {
+    return "";
+  }
+
+  return cleanText(
+    match[1] ??
+    match[2] ??
+    match[3] ??
+    ""
+  );
 }
 
 /*
@@ -246,6 +259,141 @@ function extractElements(html, tagName) {
   );
 
   return html.match(regex) || [];
+}
+
+function classifyContactLink(link) {
+  const href =
+    getAttribute(link, "href") || "";
+
+  const dataHref =
+    getAttribute(link, "data-href") || "";
+
+  const dataUrl =
+    getAttribute(link, "data-url") || "";
+
+  const dataLink =
+    getAttribute(link, "data-link") || "";
+
+  const dataWhatsApp =
+    getAttribute(link, "data-whatsapp") || "";
+
+  const dataPhone =
+    getAttribute(link, "data-phone") || "";
+
+  const dataEmail =
+    getAttribute(link, "data-email") || "";
+
+  const onclick =
+    getAttribute(link, "onclick") || "";
+
+  const ariaLabel =
+    getAttribute(link, "aria-label") || "";
+
+  const title =
+    getAttribute(link, "title") || "";
+
+  const visibleText =
+    cleanText(
+      link
+        .replace(
+          /<svg[\s\S]*?<\/svg>/gi,
+          " "
+        )
+        .replace(
+          /<[^>]+>/g,
+          " "
+        )
+    );
+
+  /*
+   * Only destination-bearing attributes are used
+   * to establish CLICKABLE contact evidence.
+   *
+   * Text such as "WhatsApp" alone does not make
+   * a link clickable.
+   */
+  const destinations = [
+    href,
+    dataHref,
+    dataUrl,
+    dataLink,
+    dataWhatsApp,
+    dataPhone,
+    dataEmail,
+    onclick
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const normalizedDestinations =
+    destinations
+      .replace(/&amp;/gi, "&")
+      .replace(/&#x2F;/gi, "/")
+      .replace(/&#47;/gi, "/")
+      .trim();
+
+  const normalizedText =
+    `${visibleText} ${ariaLabel} ${title}`
+      .toLowerCase();
+
+  /*
+   * PHONE
+   *
+   * Recognise normal tel: links as well as
+   * JavaScript/data-attribute representations
+   * containing an explicit telephone destination.
+   */
+  const clickablePhone =
+    /(?:^|[\s"'=(])tel\s*:/i.test(
+      normalizedDestinations
+    ) ||
+    /\b(?:tel|telephone|phone|call)\s*[:=]\s*["']?\+?\d/i.test(
+      normalizedDestinations
+    );
+
+  /*
+   * EMAIL
+   *
+   * mailto: remains the strongest signal.
+   * A data/onClick destination containing a
+   * genuine email address is also accepted.
+   */
+  const clickableEmail =
+    /(?:^|[\s"'=(])mailto\s*:/i.test(
+      normalizedDestinations
+    ) ||
+    /\b(?:mailto|email)\s*[:=]\s*["']?[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(
+      normalizedDestinations
+    );
+
+  /*
+   * WHATSAPP
+   *
+   * Cover the common official and redirect
+   * formats used by real websites.
+   */
+  const clickableWhatsApp =
+    /(?:wa\.me|wa\.link|api\.whatsapp\.com|web\.whatsapp\.com|chat\.whatsapp\.com|whatsapp:\/\/)/i.test(
+      normalizedDestinations
+    );
+
+  /*
+   * Keep text/accessibility evidence separate.
+   *
+   * This does NOT make the link clickable.
+   */
+  const mentionsWhatsApp =
+    /\bwhatsapp\b/i.test(
+      normalizedText
+    );
+
+  return {
+    href,
+    clickablePhone,
+    clickableEmail,
+    clickableWhatsApp,
+    mentionsWhatsApp
+  };
 }
 
 function extractTextBetween(html, tagName) {
@@ -1666,10 +1814,50 @@ function analyzeBusinessSignals(
         )
     );
 
+    /*
+   * CONTACT LINKS
+   *
+   * Use the actual extracted <a> elements instead
+   * of relying on one exact HTML representation.
+   */
+    const links =
+    extractElements(
+      html,
+      "a"
+    );
+
+  const contactLinks =
+    links.map(
+      link =>
+        classifyContactLink(
+          link
+        )
+    );
+
+  const hasClickablePhone =
+    contactLinks.some(
+      link =>
+        link.clickablePhone
+    );
+
+  const hasClickableEmail =
+    contactLinks.some(
+      link =>
+        link.clickableEmail
+    );
+
+  const hasClickableWhatsApp =
+    contactLinks.some(
+      link =>
+        link.clickableWhatsApp
+    );
+
   /*
    * PHONE
+   *
+   * Text detection remains independent from
+   * clickable detection.
    */
-
   const phonePattern =
     /(?:\+27|0)\s?\d{2}[\s-]?\d{3}[\s-]?\d{4}/i;
 
@@ -1679,17 +1867,15 @@ function analyzeBusinessSignals(
     ) ||
     phonePattern.test(
       html
-    );
-
-  const hasClickablePhone =
-    /<a\b[^>]*href\s*=\s*["']\s*tel:/i.test(
-      html
-    );
+    ) ||
+    hasClickablePhone;
 
   /*
    * EMAIL
+   *
+   * Text detection remains independent from
+   * clickable detection.
    */
-
   const emailPattern =
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
@@ -1699,28 +1885,23 @@ function analyzeBusinessSignals(
     ) ||
     emailPattern.test(
       html
-    );
-
-  const hasClickableEmail =
-    /<a\b[^>]*href\s*=\s*["']\s*mailto:/i.test(
-      html
-    );
+    ) ||
+    hasClickableEmail;
 
   /*
    * WHATSAPP
+   *
+   * A recognised WhatsApp destination is
+   * definitive link evidence. Text mentioning
+   * WhatsApp remains separate evidence.
    */
-
   const hasWhatsApp =
-    /wa\.me|api\.whatsapp\.com|whatsapp:\/\//i.test(
-      html
+    contactLinks.some(
+      link =>
+        link.clickableWhatsApp
     ) ||
     /\bwhatsapp\b/i.test(
       pageText
-    );
-
-    const hasClickableWhatsApp =
-    /<a\b[^>]*href\s*=\s*["'][^"']*(?:wa\.me|api\.whatsapp\.com|web\.whatsapp\.com|whatsapp:\/\/)[^"']*["']/i.test(
-      html
     );
 
   /*

@@ -138,6 +138,285 @@ const cancelScanHistoryButton =
 
   let latestScanData = null;
 
+  function mergeBrowserBusinessEvidence(
+    scanData
+  ) {
+    if (
+      !scanData ||
+      !scanData.browserInspection ||
+      !scanData.browserInspection.available
+    ) {
+      return scanData;
+    }
+
+    const renderedLinks =
+      Array.isArray(
+        scanData.browserInspection
+          .renderedContactLinks
+      )
+        ? scanData.browserInspection
+            .renderedContactLinks
+        : [];
+
+    if (!renderedLinks.length) {
+      return scanData;
+    }
+
+    const existingEvidence =
+      scanData.businessEvidence &&
+      typeof scanData.businessEvidence ===
+        "object"
+        ? scanData.businessEvidence
+        : {};
+
+    const phoneLinks =
+      renderedLinks.filter(
+        link =>
+          link &&
+          link.type === "phone"
+      );
+
+    const emailLinks =
+      renderedLinks.filter(
+        link =>
+          link &&
+          link.type === "email"
+      );
+
+    const whatsappLinks =
+      renderedLinks.filter(
+        link =>
+          link &&
+          link.type === "whatsapp"
+      );
+
+    const browserPhoneEvidence =
+      phoneLinks.map(link => ({
+        source: "browser-rendered",
+        href: link.href || "",
+        text: link.text || "",
+        type: "phone"
+      }));
+
+    const browserEmailEvidence =
+      emailLinks.map(link => ({
+        source: "browser-rendered",
+        href: link.href || "",
+        text: link.text || "",
+        type: "email"
+      }));
+
+    const browserWhatsAppEvidence =
+      whatsappLinks.map(link => ({
+        source: "browser-rendered",
+        href: link.href || "",
+        text: link.text || "",
+        type: "whatsapp"
+      }));
+
+    const mergedEvidence = {
+      ...existingEvidence,
+
+      phone: [
+        ...(Array.isArray(
+          existingEvidence.phone
+        )
+          ? existingEvidence.phone
+          : []),
+        ...browserPhoneEvidence
+      ],
+
+      email: [
+        ...(Array.isArray(
+          existingEvidence.email
+        )
+          ? existingEvidence.email
+          : []),
+        ...browserEmailEvidence
+      ],
+
+      whatsapp: [
+        ...(Array.isArray(
+          existingEvidence.whatsapp
+        )
+          ? existingEvidence.whatsapp
+          : []),
+        ...browserWhatsAppEvidence
+      ]
+    };
+
+    const uniqueEvidence =
+      values =>
+        Array.from(
+          new Map(
+            values.map(item => [
+              JSON.stringify(item),
+              item
+            ])
+          ).values()
+        );
+
+    mergedEvidence.phone =
+      uniqueEvidence(
+        mergedEvidence.phone
+      );
+
+    mergedEvidence.email =
+      uniqueEvidence(
+        mergedEvidence.email
+      );
+
+    mergedEvidence.whatsapp =
+      uniqueEvidence(
+        mergedEvidence.whatsapp
+      );
+
+    const mergedData = {
+      ...scanData,
+      businessEvidence:
+        mergedEvidence
+    };
+
+    const businessChecks =
+      Array.isArray(
+        mergedData.checks?.business
+      )
+        ? mergedData.checks.business
+        : [];
+
+    const updateBusinessCheck = (
+      title,
+      shouldPass,
+      passDescription,
+      warningDescription
+    ) => {
+      const check =
+        businessChecks.find(
+          item =>
+            item &&
+            item.title === title
+        );
+
+      if (!check) {
+        return;
+      }
+
+      check.status =
+        shouldPass
+          ? "pass"
+          : "warning";
+
+      check.severity =
+        shouldPass
+          ? "info"
+          : "medium";
+
+      check.description =
+        shouldPass
+          ? passDescription
+          : warningDescription;
+    };
+
+    const hasPhone =
+      mergedEvidence.phone.length >
+      0;
+
+    const hasEmail =
+      mergedEvidence.email.length >
+      0;
+
+    const hasWhatsApp =
+      mergedEvidence.whatsapp.length >
+      0;
+
+    updateBusinessCheck(
+      "Phone number",
+      hasPhone,
+      "A clickable phone link was detected.",
+      "A phone number was detected, but no clickable call link was found."
+    );
+
+    updateBusinessCheck(
+      "Email address",
+      hasEmail,
+      "A clickable email link was detected.",
+      "An email address was detected, but no mailto link was found."
+    );
+
+    updateBusinessCheck(
+      "WhatsApp",
+      hasWhatsApp,
+      "A WhatsApp contact link was detected.",
+      "No WhatsApp reference was detected across the pages scanned."
+    );
+
+    const businessIssues =
+      Array.isArray(
+        mergedData.issues
+      )
+        ? mergedData.issues
+        : [];
+
+    const businessRecommendations =
+      Array.isArray(
+        mergedData.recommendations
+      )
+        ? mergedData.recommendations
+        : [];
+
+    const contactTitles = new Set([
+      "Phone number",
+      "Email address",
+      "WhatsApp"
+    ]);
+
+    mergedData.issues =
+      businessIssues.filter(
+        issue =>
+          !(
+            issue &&
+            contactTitles.has(
+              issue.title
+            ) &&
+            (
+              issue.title ===
+                "Phone number" &&
+              hasPhone ||
+              issue.title ===
+                "Email address" &&
+              hasEmail ||
+              issue.title ===
+                "WhatsApp" &&
+              hasWhatsApp
+            )
+          )
+      );
+
+    mergedData.recommendations =
+      businessRecommendations.filter(
+        recommendation =>
+          !(
+            recommendation &&
+            contactTitles.has(
+              recommendation.title
+            ) &&
+            (
+              recommendation.title ===
+                "Phone number" &&
+              hasPhone ||
+              recommendation.title ===
+                "Email address" &&
+              hasEmail ||
+              recommendation.title ===
+                "WhatsApp" &&
+              hasWhatsApp
+            )
+          )
+      );
+
+    return mergedData;
+  }
+
 
   function renderRecommendations(recommendations) {
 
@@ -400,19 +679,30 @@ try {
   ) {
 
     latestScanData =
+  {
+    ...data,
+    browserInspection:
       {
-        ...data,
-        browserInspection:
-          {
-            ...browserData.inspection,
-            findings:
-              browserData.findings || []
-          }
-      };
+        ...browserData.inspection,
+        findings:
+          browserData.findings || []
+      }
+  };
 
-    renderBrowserInspection(
-      latestScanData.browserInspection
-    );
+  latestScanData =
+  mergeBrowserBusinessEvidence(
+    latestScanData
+  );
+
+// Recalculate scores after browser business evidence has been merged.
+latestScanData =
+  recalculateScoresAfterBusinessMerge(
+    latestScanData
+  );
+
+renderBrowserInspection(
+  latestScanData.browserInspection
+);
 
   } else {
 
@@ -449,6 +739,91 @@ try {
 
 }
 
+function recalculateScoresAfterBusinessMerge(scanData) {
+  if (!scanData || typeof scanData !== "object") {
+    return scanData;
+  }
+
+  const businessChecks =
+    Array.isArray(scanData?.checks?.business)
+      ? scanData.checks.business
+      : [];
+
+  if (!businessChecks.length) {
+    return scanData;
+  }
+
+  let totalWeight = 0;
+  let earnedWeight = 0;
+
+  businessChecks.forEach(check => {
+    const weight =
+      typeof check?.weight === "number" &&
+      Number.isFinite(check.weight)
+        ? check.weight
+        : 0;
+
+    totalWeight += weight;
+
+    if (check?.status === "pass") {
+      earnedWeight += weight;
+    } else if (check?.status === "warning") {
+      earnedWeight += weight * 0.5;
+    }
+  });
+
+  if (totalWeight <= 0) {
+    return scanData;
+  }
+
+  const businessScore =
+    Math.round(
+      (earnedWeight / totalWeight) * 100
+    );
+
+  const currentScores =
+    scanData.scores || {};
+
+  const performanceScore =
+    currentScores.performance;
+
+  let overall;
+
+  if (
+    performanceScore !== null &&
+    performanceScore !== undefined &&
+    Number.isFinite(
+      Number(performanceScore)
+    )
+  ) {
+    overall =
+      Math.round(
+        Number(currentScores.seo || 0) * 0.25 +
+        Number(performanceScore) * 0.20 +
+        Number(currentScores.accessibility || 0) * 0.10 +
+        Number(currentScores.technical || 0) * 0.15 +
+        businessScore * 0.30
+      );
+  } else {
+    overall =
+      Math.round(
+        Number(currentScores.seo || 0) * 0.30 +
+        Number(currentScores.accessibility || 0) * 0.10 +
+        Number(currentScores.technical || 0) * 0.20 +
+        businessScore * 0.40
+      );
+  }
+
+  return {
+    ...scanData,
+    scores: {
+      ...currentScores,
+      business: businessScore,
+      overall
+    }
+  };
+}
+
 console.log(
   "FULL SCAN DATA:",
   latestScanData
@@ -462,6 +837,15 @@ console.log(
 
     latestOverall:
       latestScanData?.scores?.overall,
+
+    serverBusiness:
+      data?.scores?.business,
+
+    latestBusiness:
+      latestScanData?.scores?.business,
+
+    businessChecks:
+      latestScanData?.checks?.business,
 
     serverScores:
       data?.scores,
