@@ -494,6 +494,11 @@ module.exports = async function handler(req, res) {
         issues
       );
 
+    const reportIssues =
+      deduplicateReportIssues(
+        issues
+      );
+
     /*
      * ----------------------------------------------------------
      * PAGE 1 — COVER
@@ -553,7 +558,7 @@ module.exports = async function handler(req, res) {
 
     drawPriorityFindings(
       doc,
-      issues
+      reportIssues
     );
 
     /*
@@ -566,7 +571,9 @@ module.exports = async function handler(req, res) {
 
     drawRecommendations(
       doc,
-      reportRecommendations
+      deduplicateReportRecommendations(
+        reportRecommendations
+      )
     );
 
     /*
@@ -815,6 +822,74 @@ function buildReportRecommendations(
   }
 
   return output;
+}
+
+function deduplicateReportIssues(
+  issues
+) {
+  if (!Array.isArray(issues)) {
+    return [];
+  }
+
+  const seen = new Set();
+
+  return issues.filter(issue => {
+    const normalized =
+      normalizeIssue(issue);
+
+    const title =
+      String(
+        normalized.title || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (!title) {
+      return true;
+    }
+
+    if (seen.has(title)) {
+      return false;
+    }
+
+    seen.add(title);
+
+    return true;
+  });
+}
+
+function deduplicateReportRecommendations(
+  recommendations
+) {
+  if (!Array.isArray(recommendations)) {
+    return [];
+  }
+
+  const seen = new Set();
+
+  return recommendations.filter(
+    recommendation => {
+      const title =
+        String(
+          recommendation?.title ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if (!title) {
+        return true;
+      }
+
+      if (seen.has(title)) {
+        return false;
+      }
+
+      seen.add(title);
+
+      return true;
+    }
+  );
 }
 
 function findRecommendationMapping(
@@ -3204,6 +3279,241 @@ function drawRecommendationCard(
  * ============================================================
  */
 
+function drawSecurityTrustAssessment(
+  doc,
+  securityChecks
+) {
+  const checks =
+    Array.isArray(securityChecks)
+      ? securityChecks
+      : [];
+
+  if (!checks.length) {
+    return;
+  }
+
+  const findCheck = title =>
+    checks.find(check =>
+      String(
+        check?.title ||
+        ""
+      )
+        .trim()
+        .toLowerCase() ===
+      title.toLowerCase()
+    );
+
+  const httpsCheck =
+    findCheck("HTTPS");
+
+  const redirectCheck =
+    findCheck(
+      "HTTP to HTTPS redirect"
+    );
+
+  const hstsCheck =
+    findCheck("HSTS");
+
+  const securityStatus =
+    String(
+      httpsCheck?.status ||
+      ""
+    ).toLowerCase();
+
+  let statusTitle =
+    "Security status could not be verified";
+
+  let statusDescription =
+    "The scanner could not determine the website's overall HTTPS security status from the available security checks.";
+
+  let statusColor =
+    BRAND.orange;
+
+  if (
+    securityStatus ===
+    "fail"
+  ) {
+    statusTitle =
+      "Not secure — HTTPS is not active";
+
+    statusDescription =
+      "The website is currently being served over HTTP rather than HTTPS. This means the connection between visitors and the website is not receiving the protection normally provided by TLS encryption. Visitors may also see browser security warnings.";
+
+    statusColor =
+      BRAND.red;
+  } else if (
+    securityStatus ===
+    "pass"
+  ) {
+    const redirectStatus =
+      String(
+        redirectCheck?.status ||
+        ""
+      ).toLowerCase();
+
+    statusTitle =
+      redirectStatus ===
+      "fail"
+        ? "HTTPS active — redirect configuration needs attention"
+        : "HTTPS is active";
+
+    statusDescription =
+      redirectStatus ===
+      "fail"
+        ? "The website is using HTTPS, but the HTTP version does not consistently redirect visitors to the secure HTTPS version."
+        : "The website is being served over HTTPS. The remaining security checks below identify additional protections that may strengthen the site's security configuration.";
+
+    statusColor =
+      redirectStatus ===
+      "fail"
+        ? BRAND.orange
+        : BRAND.green;
+  }
+
+  ensureSpace(
+    doc,
+    185
+  );
+
+  drawSubheading(
+    doc,
+    "Security & Trust Assessment"
+  );
+
+  doc
+    .fillColor(statusColor)
+    .font("Helvetica-Bold")
+    .fontSize(15)
+    .text(
+      statusTitle,
+      PAGE.left,
+      doc.y,
+      {
+        width:
+          PAGE.width,
+        lineGap: 1
+      }
+    );
+
+  doc.moveDown(0.7);
+
+  doc
+    .fillColor(BRAND.text)
+    .font("Helvetica")
+    .fontSize(9.8)
+    .text(
+      statusDescription,
+      {
+        width:
+          PAGE.width,
+        lineGap: 3
+      }
+    );
+
+  doc.moveDown(0.9);
+
+  doc
+    .fillColor(BRAND.dark)
+    .font("Helvetica-Bold")
+    .fontSize(10.5)
+    .text(
+      "What this means"
+    );
+
+  doc.moveDown(0.3);
+
+  const meaning =
+    securityStatus ===
+    "fail"
+      ? "HTTPS should be treated as a baseline requirement for a modern website. The recommended first step is to install or verify a valid SSL/TLS certificate, serve all pages through HTTPS and configure the HTTP version to redirect permanently to HTTPS."
+      : "HTTPS is only one part of website security. The remaining checks should be reviewed to determine whether additional browser security headers and configuration improvements are appropriate.";
+
+  doc
+    .fillColor(BRAND.text)
+    .font("Helvetica")
+    .fontSize(9.5)
+    .text(
+      meaning,
+      {
+        width:
+          PAGE.width,
+        lineGap: 3
+      }
+    );
+
+  doc.moveDown(0.9);
+
+  doc
+    .fillColor(BRAND.dark)
+    .font("Helvetica-Bold")
+    .fontSize(10.5)
+    .text(
+      "Recommended security priorities"
+    );
+
+  doc.moveDown(0.3);
+
+  const priorities =
+    securityStatus ===
+    "fail"
+      ? [
+          "Enable HTTPS with a valid SSL/TLS certificate.",
+          "Redirect HTTP visitors to the HTTPS version.",
+          "Review HSTS after HTTPS is correctly configured.",
+          "Review the remaining security headers for appropriate protection.",
+          "Reduce unnecessary server technology disclosure where possible."
+        ]
+      : [
+          "Maintain valid HTTPS across the website.",
+          "Ensure HTTP requests redirect consistently to HTTPS.",
+          "Review HSTS and other browser security headers.",
+          "Review server information disclosure and other configuration findings."
+        ];
+
+  priorities.forEach(
+    (priority, index) => {
+      doc
+        .fillColor(BRAND.text)
+        .font("Helvetica")
+        .fontSize(9.2)
+        .text(
+          `${index + 1}. ${priority}`,
+          {
+            width:
+              PAGE.width,
+            lineGap: 2
+          }
+        );
+
+      doc.moveDown(0.15);
+    }
+  );
+
+  doc.moveDown(0.5);
+
+  if (
+    hstsCheck &&
+    securityStatus ===
+    "fail"
+  ) {
+    doc
+      .fillColor(BRAND.muted)
+      .font("Helvetica-Oblique")
+      .fontSize(8.5)
+      .text(
+        "HSTS was not treated as an active protection because the scanned website was not serving the final page over HTTPS.",
+        {
+          width:
+            PAGE.width,
+          lineGap: 2
+        }
+      );
+  }
+
+  doc.x =
+    PAGE.left;
+}
+
 function drawDetailedHealthChecks(
   doc,
   checks,
@@ -3211,6 +3521,11 @@ function drawDetailedHealthChecks(
 ) {
   checks =
     checks || {};
+
+    drawSecurityTrustAssessment(
+      doc,
+      checks.security
+    );
 
   sectionTitle(
     doc,
