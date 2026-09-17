@@ -1759,6 +1759,145 @@ async function loadScanHistory() {
 
   }
 
+  function getSecurityStatus(data) {
+    const securityChecks =
+      Array.isArray(data?.checks?.security)
+        ? data.checks.security
+        : [];
+
+    const finalUrl =
+      data?.finalUrl ||
+      data?.url ||
+      "";
+
+    let finalProtocol = "";
+
+    try {
+      finalProtocol =
+        new URL(finalUrl).protocol;
+    } catch {}
+
+    const isHttps =
+      finalProtocol === "https:";
+
+    const hasFailedSecurityCheck =
+      securityChecks.some(
+        check =>
+          check?.status === "fail"
+      );
+
+    const warningChecks =
+      securityChecks.filter(
+        check =>
+          check?.status === "warning"
+      );
+
+    const hasInsecureResourceFinding =
+      securityChecks.some(
+        check =>
+          check?.title === "Insecure resources" &&
+          check?.status === "fail"
+      );
+
+    const hasInsecureFormFinding =
+      securityChecks.some(
+        check =>
+          check?.title === "Insecure form submission" &&
+          check?.status === "fail"
+      );
+
+    const hasRedirectWarning =
+      securityChecks.some(
+        check =>
+          check?.title === "HTTP to HTTPS redirect" &&
+          check?.status === "warning"
+      );
+
+    /*
+     * Unable to verify:
+     * The scan did not produce a reliable final URL
+     * or usable security checks.
+     */
+    if (
+      !finalUrl ||
+      !securityChecks.length
+    ) {
+      return {
+        key: "info",
+        label: "Unable to verify",
+        title: "Unable to verify",
+        description:
+          "The scanner could not reliably verify the website's security status. Connection, redirect or access limitations may have prevented a complete assessment."
+      };
+    }
+
+    /*
+     * Not secure:
+     * The final page remains on HTTP.
+     */
+    if (
+      !isHttps ||
+      hasRedirectWarning
+    ) {
+      return {
+        key: "danger",
+        label: "Not secure",
+        title: "Not secure — HTTPS is not active",
+        description:
+          "This website is currently being served over HTTP. Information sent between visitors and the website may not receive the protection provided by HTTPS. The website should be configured with a valid SSL/TLS certificate and redirected from HTTP to HTTPS."
+      };
+    }
+
+    /*
+     * Not secure:
+     * HTTPS is active but an important insecure
+     * resource or form submission was detected.
+     */
+    if (
+      hasInsecureResourceFinding ||
+      hasInsecureFormFinding
+    ) {
+      return {
+        key: "danger",
+        label: "Not secure",
+        title: "Not secure — insecure content detected",
+        description:
+          "HTTPS is active, but the scan detected content or form destinations using HTTP. These insecure references should be corrected so visitors receive consistent HTTPS protection."
+      };
+    }
+
+    /*
+     * Partially protected:
+     * HTTPS works, but additional security
+     * protections are missing or need review.
+     */
+    if (
+      warningChecks.length > 0 ||
+      hasFailedSecurityCheck
+    ) {
+      return {
+        key: "warning",
+        label: "Partially protected",
+        title: "HTTPS active — additional security improvements recommended",
+        description:
+          "The website uses HTTPS and no obvious insecure resources were detected. Several additional browser security protections are missing or need review as part of a technical security improvement."
+      };
+    }
+
+    /*
+     * Secure:
+     * HTTPS is active and the security checks
+     * did not identify obvious concerns.
+     */
+    return {
+      key: "success",
+      label: "Secure",
+      title: "Secure",
+      description:
+        "The website is served over HTTPS and the scan did not identify obvious insecure resources, insecure form submissions or major security concerns. Additional security improvements may still be possible."
+    };
+  }
+
 
   function renderResults(data) {
 
@@ -1808,6 +1947,8 @@ async function loadScanHistory() {
       data.scores.security
     );
 
+    renderSecurityStatus(data);
+
       const performanceElement =
         document.getElementById(
           "performanceScore"
@@ -1845,6 +1986,46 @@ async function loadScanHistory() {
       data.pageSpeed
     );
 
+  }
+
+  function renderSecurityStatus(data) {
+    const titleElement =
+      document.getElementById(
+        "securityStatusTitle"
+      );
+
+    const badgeElement =
+      document.getElementById(
+        "securityStatusBadge"
+      );
+
+    const descriptionElement =
+      document.getElementById(
+        "securityStatusDescription"
+      );
+
+    if (
+      !titleElement ||
+      !badgeElement ||
+      !descriptionElement
+    ) {
+      return;
+    }
+
+    const status =
+      getSecurityStatus(data);
+
+    titleElement.textContent =
+      status.title;
+
+    badgeElement.textContent =
+      status.label;
+
+    badgeElement.className =
+      `security-status-badge ${status.key}`;
+
+    descriptionElement.textContent =
+      status.description;
   }
 
 
