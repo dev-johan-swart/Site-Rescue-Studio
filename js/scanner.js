@@ -214,36 +214,33 @@ const cancelScanHistoryButton =
         type: "whatsapp"
       }));
 
-    const mergedEvidence = {
-      ...existingEvidence,
+      const mergedEvidence = {
+        ...existingEvidence,
 
-      phone: [
-        ...(Array.isArray(
-          existingEvidence.phone
-        )
-          ? existingEvidence.phone
-          : []),
-        ...browserPhoneEvidence
-      ],
+        phone: browserPhoneEvidence.length
+          ? browserPhoneEvidence
+          : (
+              Array.isArray(existingEvidence.phone)
+                ? existingEvidence.phone
+                : []
+            ),
 
-      email: [
-        ...(Array.isArray(
-          existingEvidence.email
-        )
-          ? existingEvidence.email
-          : []),
-        ...browserEmailEvidence
-      ],
+        email: browserEmailEvidence.length
+          ? browserEmailEvidence
+          : (
+              Array.isArray(existingEvidence.email)
+                ? existingEvidence.email
+                : []
+            ),
 
-      whatsapp: [
-        ...(Array.isArray(
-          existingEvidence.whatsapp
-        )
-          ? existingEvidence.whatsapp
-          : []),
-        ...browserWhatsAppEvidence
-      ]
-    };
+        whatsapp: browserWhatsAppEvidence.length
+          ? browserWhatsAppEvidence
+          : (
+              Array.isArray(existingEvidence.whatsapp)
+                ? existingEvidence.whatsapp
+                : []
+            )
+      };
 
     const uniqueEvidence =
       values =>
