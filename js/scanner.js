@@ -939,7 +939,8 @@ latestScanData =
   );
 
 renderBrowserInspection(
-  latestScanData.browserInspection
+  latestScanData.browserInspection,
+  latestScanData.routeHealth
 );
 
   } else {
@@ -3005,7 +3006,8 @@ async function loadScanHistory() {
   }
 
   function renderBrowserInspection(
-    browserInspection
+    browserInspection,
+    routeHealth
   ) {
     const section =
       document.getElementById(
@@ -3089,6 +3091,58 @@ async function loadScanHistory() {
           failure?.status
       );
 
+    const routesRequiringReview =
+      Array.isArray(routeHealth?.routes)
+        ? routeHealth.routes.filter(
+            route =>
+              route?.status === "broken" ||
+              route?.status === "unreachable" ||
+              route?.status === "blocked" ||
+              route?.status === "redirected"
+          )
+        : [];
+
+    const routeHealthHtml =
+      routesRequiringReview.length > 0
+        ? `
+          <div class="browser-inspection-findings">
+            <h3>Route Reliability</h3>
+            <p>
+              Discovered internal routes were requested directly.
+              The routes below require review.
+            </p>
+            ${routesRequiringReview
+              .slice(0, 10)
+              .map(
+                route => `
+                  <article>
+                    <strong>${escapeHtml(route.path || route.url || "Internal route")}</strong>
+                    <p>${escapeHtml(
+                      route.status === "redirected"
+                        ? "Redirected to " + (route.finalUrl || "another URL") + "."
+                        : route.status === "blocked"
+                          ? "Returned HTTP " + (route.statusCode || "blocked") + "."
+                          : route.status === "unreachable"
+                            ? "Could not be reached when requested directly."
+                            : "Returned HTTP " + (route.statusCode || "error") + "."
+                    )}</p>
+                    <p><strong>Status:</strong> ${escapeHtml(
+                      route.statusCode !== null && route.statusCode !== undefined
+                        ? route.status.toUpperCase() + " — HTTP " + route.statusCode
+                        : (route.status || "unknown").toUpperCase()
+                    )}</p>
+                  </article>
+                `
+              )
+              .join("")}
+            ${routesRequiringReview.length > 10
+              ? `<p>Showing the first 10 routes. The detailed report contains the complete route evidence.</p>`
+              : ""}
+          </div>
+        `
+        : `
+          <p>No discovered internal route failures or redirects requiring attention were identified.</p>
+        `;
     content.innerHTML = `
       <div class="browser-inspection-summary">
 
@@ -3149,6 +3203,8 @@ async function loadScanHistory() {
             </p>
           `
       }
+
+      ${routeHealthHtml}
     `;
 
     section.hidden = false;
