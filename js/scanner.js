@@ -3064,68 +3064,153 @@ async function loadScanHistory() {
           failure?.status
       );
 
-    content.innerHTML = `
+    const routeHealth =
+      Array.isArray(
+        browserInspection.routeHealth
+      )
+        ? browserInspection.routeHealth
+        : [];
+
+    const routeFailures =
+      routeHealth.filter(
+        route =>
+          route?.status === "broken" ||
+          route?.status === "unreachable" ||
+          route?.status === "blocked"
+      );
+
+    const redirectedRoutes =
+      routeHealth.filter(
+        route =>
+          route?.status === "redirected"
+      );
+
+    const routeAttention =
+      routeHealth.filter(
+        route =>
+          route?.status !== "working"
+      );
+
+    const routeSummary =
+      routeHealth.length
+        ? \`
+          <div class="browser-inspection-summary">
+
+            <div>
+              <strong>Routes tested</strong>
+              <span>\${routeHealth.length}</span>
+            </div>
+
+            <div>
+              <strong>Route failures</strong>
+              <span>\${routeFailures.length}</span>
+            </div>
+
+            <div>
+              <strong>Redirected routes</strong>
+              <span>\${redirectedRoutes.length}</span>
+            </div>
+
+            <div>
+              <strong>Working routes</strong>
+              <span>\${routeHealth.filter(route => route?.status === "working").length}</span>
+            </div>
+
+          </div>
+
+          <div class="browser-inspection-findings">
+            \${routeAttention
+              .slice(0, 10)
+              .map(
+                route => \`
+                  <article>
+                    <strong>
+                      \${escapeHtml(
+                        route.status === "redirected"
+                          ? "Internal route redirects"
+                          : "Internal route requires attention"
+                      )}
+                    </strong>
+                    <p>
+                      \${escapeHtml(
+                        \`\${route.path || route.url} — \${String(route.status || "unknown").toUpperCase()}\${route.statusCode ? \` (HTTP \${route.statusCode})\` : ""}\${route.finalUrl && route.finalUrl !== route.url ? \` → \${route.finalUrl}\` : ""}\`
+                      )}
+                    </p>
+                  </article>
+                \`
+              )
+              .join("")}
+          </div>
+        \`
+        : \`
+          <p>
+            No rendered internal page routes were discovered
+            for direct URL testing on this scan.
+          </p>
+        \`;
+
+    content.innerHTML = \`
       <div class="browser-inspection-summary">
 
         <div>
           <strong>Inspection duration</strong>
-          <span>${escapeHtml(duration)}</span>
+          <span>\${escapeHtml(duration)}</span>
         </div>
 
         <div>
           <strong>Console errors</strong>
-          <span>${consoleErrors.length}</span>
+          <span>\${consoleErrors.length}</span>
         </div>
 
         <div>
           <strong>Browser findings</strong>
-          <span>${findings.length}</span>
+          <span>\${findings.length}</span>
         </div>
 
         <div>
           <strong>Confirmed same-origin failures</strong>
-          <span>${sameOriginFailures.length}</span>
+          <span>\${sameOriginFailures.length}</span>
         </div>
 
       </div>
 
-      ${
+      \${routeSummary}
+
+      \${
         findings.length > 0
-          ? `
+          ? \`
             <div class="browser-inspection-findings">
-              ${findings
+              \${findings
                 .slice(0, 5)
                 .map(
-                  (finding) => `
+                  (finding) => \`
                     <article>
                       <strong>
-                        ${escapeHtml(
+                        \${escapeHtml(
                           finding.title ||
                           "Browser finding"
                         )}
                       </strong>
-
                       <p>
-                        ${escapeHtml(
+                        \${escapeHtml(
                           finding.description ||
                           ""
                         )}
                       </p>
                     </article>
-                  `
+                  \`
                 )
                 .join("")}
             </div>
-          `
-          : `
+          \`
+          : \`
             <p>
               No browser-specific findings requiring
               attention were identified.
             </p>
-          `
-      }
-    `;
-
+          \`
+      \`
+    \`;
     section.hidden = false;
   }
 
