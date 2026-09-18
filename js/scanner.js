@@ -3056,6 +3056,36 @@ async function loadScanHistory() {
       )
         ? browserInspection.findings
         : [];
+    const routeHealth =
+      Array.isArray(
+        browserInspection.routeHealth
+      )
+        ? browserInspection.routeHealth
+        : [];
+
+    const failedRoutes =
+      routeHealth.filter(
+        route =>
+          route?.status === "broken" ||
+          route?.status === "unreachable"
+      );
+
+    const routeEvidenceHtml =
+      failedRoutes.length > 0
+        ? `
+          <div class="browser-inspection-findings">
+            <article>
+              <strong>Internal routes requiring attention</strong>
+              <p>The scanner directly tested these discovered internal routes.</p>
+              <ul>
+                ${failedRoutes.slice(0, 10).map(route =>
+                  `<li><strong>${escapeHtml(route.path || route.url || "Unknown route")}</strong> — ${escapeHtml(route.statusCode ? "HTTP " + route.statusCode : "Unreachable")} — ${escapeHtml(route.status === "unreachable" ? "Unreachable" : "Broken")}</li>`
+                ).join("")}
+              </ul>
+            </article>
+          </div>
+        `
+        : "";
 
     const durationMs =
       Number(
@@ -3101,6 +3131,8 @@ async function loadScanHistory() {
         </div>
 
       </div>
+
+      ${routeEvidenceHtml}
 
       ${
         findings.length > 0
