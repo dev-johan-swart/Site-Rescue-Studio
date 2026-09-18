@@ -3093,61 +3093,70 @@ async function loadScanHistory() {
 
     const routeSummary =
       routeHealth.length
-        ? \`
+        ? `
           <div class="browser-inspection-summary">
-
             <div>
               <strong>Routes tested</strong>
-              <span>\${routeHealth.length}</span>
+              <span>${routeHealth.length}</span>
             </div>
-
             <div>
               <strong>Route failures</strong>
-              <span>\${routeFailures.length}</span>
+              <span>${routeFailures.length}</span>
             </div>
-
             <div>
               <strong>Redirected routes</strong>
-              <span>\${redirectedRoutes.length}</span>
+              <span>${redirectedRoutes.length}</span>
             </div>
-
             <div>
               <strong>Working routes</strong>
-              <span>\${routeHealth.filter(route => route?.status === "working").length}</span>
+              <span>${routeHealth.filter(route => route?.status === "working").length}</span>
             </div>
-
           </div>
 
           <div class="browser-inspection-findings">
-            \${routeAttention
+            ${routeAttention
               .slice(0, 10)
-              .map(
-                route => \`
+              .map(route => {
+                const statusText =
+                  String(route.status || "unknown").toUpperCase();
+
+                const httpText =
+                  route.statusCode
+                    ? ` (HTTP ${route.statusCode})`
+                    : "";
+
+                const redirectText =
+                  route.finalUrl &&
+                  route.finalUrl !== route.url
+                    ? ` → ${route.finalUrl}`
+                    : "";
+
+                return `
                   <article>
                     <strong>
-                      \${escapeHtml(
+                      ${escapeHtml(
                         route.status === "redirected"
                           ? "Internal route redirects"
                           : "Internal route requires attention"
                       )}
                     </strong>
                     <p>
-                      \${escapeHtml(
-                        \`\${route.path || route.url} — \${String(route.status || "unknown").toUpperCase()}\${route.statusCode ? \` (HTTP \${route.statusCode})\` : ""}\${route.finalUrl && route.finalUrl !== route.url ? \` → \${route.finalUrl}\` : ""}\`
+                      ${escapeHtml(
+                        `${route.path || route.url} — ${statusText}${httpText}${redirectText}`
                       )}
                     </p>
                   </article>
-                \`
-              )
+                `;
+              })
               .join("")}
           </div>
-        \`
-        : \`
+        `
+        : `
           <p>
             No rendered internal page routes were discovered
             for direct URL testing on this scan.
           </p>
-        \`;
+        `;
 
     content.innerHTML = \`
       <div class="browser-inspection-summary">
