@@ -5355,6 +5355,8 @@ if (
           )
         ]);
 
+        const routeHealth = [];
+
       /*
        * --------------------------------------------------
        * CRAWL RELEVANT PAGES
@@ -5465,6 +5467,62 @@ if (
           const pageResponseTime =
             Date.now() -
             pageStarted;
+
+            const routeFinalUrl =
+            pageResponse.url ||
+            normalized;
+
+          let routeStatus =
+            "working";
+
+          if (
+            pageResponse.status === 403 ||
+            pageResponse.status === 405 ||
+            pageResponse.status === 429
+          ) {
+            routeStatus =
+              "blocked";
+          } else if (
+            pageResponse.status >= 400
+          ) {
+            routeStatus =
+              "broken";
+          } else if (
+            routeFinalUrl !==
+            normalized
+          ) {
+            routeStatus =
+              "redirected";
+          }
+
+          routeHealth.push({
+            url:
+              normalized,
+
+            path:
+              getPathname(
+                normalized
+              ),
+
+            status:
+              routeStatus,
+
+            statusCode:
+              pageResponse.status,
+
+            finalUrl:
+              routeFinalUrl,
+
+            redirected:
+              routeFinalUrl !==
+              normalized,
+
+            responseTime:
+              pageResponseTime,
+
+            anchorText:
+              candidate.anchorText
+          });
 
           /*
            * We only analyse successful HTML pages.
@@ -5614,6 +5672,38 @@ if (
 
           await sleep(100);
         } catch (error) {
+          routeHealth.push({
+            url:
+              normalized,
+
+            path:
+              getPathname(
+                normalized
+              ),
+
+            status:
+              "unreachable",
+
+            statusCode:
+              null,
+
+            finalUrl:
+              normalized,
+
+            redirected:
+              false,
+
+            responseTime:
+              null,
+
+            anchorText:
+              candidate.anchorText,
+
+            error:
+              error.message ||
+              "Route could not be reached."
+          });
+
           pages.push({
             url:
               normalized,
@@ -5638,6 +5728,58 @@ if (
           });
         }
       }
+
+      const routeHealthSummary = {
+        tested:
+          routeHealth.length,
+
+        working:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "working"
+          ).length,
+
+        redirected:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "redirected"
+          ).length,
+
+        broken:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "broken"
+          ).length,
+
+        blocked:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "blocked"
+          ).length,
+
+        unreachable:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "unreachable"
+          ).length,
+
+        failed:
+          routeHealth.filter(
+            route =>
+              route.status ===
+                "broken" ||
+              route.status ===
+                "unreachable"
+          ).length,
+
+        routes:
+          routeHealth
+      };
 
       /*
        * --------------------------------------------------
@@ -6308,8 +6450,38 @@ function drawEvidenceMessage(
         ...businessChecks
       ];
 
+      const routeIssues = [];
+
+      if (
+        routeHealthSummary.failed >
+        0
+      ) {
+        routeIssues.push({
+          id:
+            "website-route-reliability",
+
+          category:
+            "Technical",
+
+          title:
+            "Website reliability issue",
+
+          description:
+            "One or more internal website routes could not be reached successfully by a direct URL request. The affected routes and response evidence are included in the detailed report.",
+
+          status:
+            "warning",
+
+          severity:
+            "medium"
+        });
+      }
+
       const issues =
-        topLevelChecks
+        [
+          ...topLevelChecks,
+          ...routeIssues
+        ]
           .filter(
             check =>
               check.status ===
@@ -6642,6 +6814,9 @@ const opportunity =
 
         linkResults:
           homepage.linkResults,
+
+        routeHealth:
+          routeHealthSummary,
 
         pageSize:
           Buffer.byteLength(

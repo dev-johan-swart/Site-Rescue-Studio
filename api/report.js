@@ -436,6 +436,7 @@ module.exports = async function handler(req, res) {
       pageSpeed = null,
       counts = {},
       linkHealth = {},
+      routeHealth,
       responseTime,
       scannedAt,
       _pdfPassword = ""
@@ -5261,6 +5262,137 @@ function drawWebsiteInformation(
     doc,
     linkRows
   );
+
+  /*
+   * ROUTE RELIABILITY
+   *
+   * Detailed direct-URL route evidence for the
+   * paid Website Health Report.
+   */
+
+  const failedRoutes =
+    Array.isArray(
+      routeHealth?.routes
+    )
+      ? routeHealth.routes.filter(
+          route =>
+            route.status ===
+              "broken" ||
+            route.status ===
+              "unreachable" ||
+            route.status ===
+              "blocked"
+        )
+      : [];
+
+  if (
+    failedRoutes.length > 0
+  ) {
+
+    doc.moveDown(1);
+
+    drawSubheading(
+      doc,
+      "Route Reliability"
+    );
+
+    ensureSpace(
+      doc,
+      55
+    );
+
+    drawInfoBox(
+      doc,
+      "Internal routes requiring attention",
+      "The scanner requested discovered internal URLs directly. The routes below returned an unsuccessful response or could not be reached."
+    );
+
+    failedRoutes.forEach(
+      route => {
+
+        ensureSpace(
+          doc,
+          80
+        );
+
+        const statusText =
+          route.statusCode !==
+            null &&
+          route.statusCode !==
+            undefined
+            ? `${route.status.toUpperCase()} — HTTP ${route.statusCode}`
+            : (
+              route.status ||
+              "unknown"
+            ).toUpperCase();
+
+        drawKeyValueRows(
+          doc,
+          [
+            [
+              "Route",
+              route.path ||
+                route.url
+            ],
+            [
+              "Status",
+              statusText
+            ],
+            [
+              "Direct URL",
+              route.url
+            ],
+            [
+              "Final URL",
+              route.finalUrl ||
+                route.url
+            ],
+            [
+              "Response time",
+              route.responseTime !==
+                null &&
+              route.responseTime !==
+                undefined
+                ? `${route.responseTime} ms`
+                : "Not available"
+            ]
+          ]
+        );
+
+        if (
+          route.anchorText
+        ) {
+          drawKeyValueRows(
+            doc,
+            [
+              [
+                "Navigation text",
+                route.anchorText
+              ]
+            ]
+          );
+        }
+
+        if (
+          route.error
+        ) {
+          drawKeyValueRows(
+            doc,
+            [
+              [
+                "Error",
+                route.error
+              ]
+            ]
+          );
+        }
+
+        doc.moveDown(
+          0.5
+        );
+      }
+    );
+  }
 
   doc.moveDown(1);
 

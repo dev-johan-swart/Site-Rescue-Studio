@@ -193,6 +193,23 @@ module.exports =
         "The most important issues identified by the free scan."
       );
 
+      if (
+        data?.routeHealth?.failed >
+        0
+      ) {
+
+        ensureSpace(
+          doc,
+          85
+        );
+
+        drawInfoBox(
+          doc,
+          "Website reliability alert",
+          "One or more internal website routes returned an unsuccessful response when requested directly. The full Website Health Report includes the affected routes and response details."
+        );
+      }
+
       const topIssues =
         [...issues]
           .sort(

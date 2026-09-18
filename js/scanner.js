@@ -149,22 +149,154 @@ const cancelScanHistoryButton =
       return scanData;
     }
 
-    const renderedLinks =
-      Array.isArray(
-        scanData.browserInspection
-          .renderedContactLinks
-      )
-        ? scanData.browserInspection
-            .renderedContactLinks
-        : [];
+        /*
+     * --------------------------------------------------------
+     * BROWSER RENDERED ROUTE HEALTH
+     * --------------------------------------------------------
+     *
+     * Browser inspection can discover internal routes that
+     * the server-side crawler cannot see because they are
+     * rendered by JavaScript.
+     *
+     * Reuse the route results already produced by the
+     * browser inspection. Do not run another crawler here.
+     */
 
-    if (!renderedLinks.length) {
-      return scanData;
-    }
+        const browserRouteResults =
+        Array.isArray(
+          scanData.browserInspection
+            .routeHealth
+        )
+          ? scanData.browserInspection
+              .routeHealth
+          : [];
+
+      const routeHealthSummary = {
+        tested:
+          browserRouteResults.length,
+
+        working:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+              "working"
+          ).length,
+
+        redirected:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+              "redirected"
+          ).length,
+
+        broken:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+              "broken"
+          ).length,
+
+        blocked:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+              "blocked"
+          ).length,
+
+        unreachable:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+              "unreachable"
+          ).length,
+
+        failed:
+          browserRouteResults.filter(
+            route =>
+              route.status ===
+                "broken" ||
+              route.status ===
+                "unreachable"
+          ).length,
+
+        routes:
+          browserRouteResults
+      };
+
+      const mergedScanData = {
+        ...scanData,
+        routeHealth:
+          routeHealthSummary
+      };
+
+      /*
+       * Add one concise route reliability issue.
+       *
+       * Remove any previous browser-generated route issue
+       * first so repeated merges cannot create duplicates.
+       */
+
+      const existingIssues =
+        Array.isArray(
+          mergedScanData.issues
+        )
+          ? mergedScanData.issues
+          : [];
+
+      const routeIssueId =
+        "website-route-reliability";
+
+      const issuesWithoutRouteIssue =
+        existingIssues.filter(
+          issue =>
+            issue?.id !==
+            routeIssueId
+        );
+
+      if (
+        routeHealthSummary.failed >
+        0
+      ) {
+        issuesWithoutRouteIssue.push({
+          id:
+            routeIssueId,
+
+          category:
+            "Technical",
+
+          title:
+            "Website reliability issue",
+
+          description:
+            "One or more discovered internal website routes returned an unsuccessful response when requested directly. The affected routes and response evidence are included in the detailed report.",
+
+          status:
+            "warning",
+
+          severity:
+            "medium"
+        });
+      }
+
+      mergedScanData.issues =
+        issuesWithoutRouteIssue;
+
+      const renderedLinks =
+        Array.isArray(
+          mergedScanData.browserInspection
+            .renderedContactLinks
+        )
+          ? mergedScanData.browserInspection
+              .renderedContactLinks
+          : [];
+
+      if (!renderedLinks.length) {
+        return mergedScanData;
+      }
 
     const existingEvidence =
-      scanData.businessEvidence &&
-      typeof scanData.businessEvidence ===
+      mergedScanData.businessEvidence &&
+      typeof mergedScanData.businessEvidence ===
         "object"
         ? scanData.businessEvidence
         : {};
@@ -269,7 +401,7 @@ const cancelScanHistoryButton =
       );
 
     const mergedData = {
-      ...scanData,
+      ...mergedScanData,
       businessEvidence:
         mergedEvidence
     };
