@@ -265,6 +265,31 @@ const cancelScanHistoryButton =
         });
       }
 
+      if (
+        routeHealthSummary.redirected >
+        0
+      ) {
+        issuesWithoutRouteIssue.push({
+          id:
+            "website-internal-redirects",
+
+          category:
+            "Technical",
+
+          title:
+            "Internal route redirects detected",
+
+          description:
+            "One or more discovered internal website routes redirect to another URL when requested directly. The affected routes and redirect destinations are included in the detailed report.",
+
+          status:
+            "warning",
+
+          severity:
+            "low"
+        });
+      }
+
       mergedScanData.issues =
         issuesWithoutRouteIssue;
 
