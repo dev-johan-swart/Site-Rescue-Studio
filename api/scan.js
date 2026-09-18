@@ -6477,6 +6477,31 @@ function drawEvidenceMessage(
         });
       }
 
+      if (
+        routeHealthSummary.redirected >
+        0
+      ) {
+        routeIssues.push({
+          id:
+            "website-internal-redirects",
+
+          category:
+            "Technical",
+
+          title:
+            "Internal route redirects detected",
+
+          description:
+            "One or more discovered internal website routes redirect to another URL when requested directly. Redirects may be intentional, but unnecessary internal redirects can add an extra request and should be reviewed.",
+
+          status:
+            "warning",
+
+          severity:
+            "low"
+        });
+      }
+
       const issues =
         [
           ...topLevelChecks,
