@@ -346,33 +346,55 @@ const cancelScanHistoryButton =
         type: "whatsapp"
       }));
 
-      const mergedEvidence = {
-        ...existingEvidence,
+      const browserCtaEvidence =
+        renderedLinks
+          .filter(
+            link =>
+              link &&
+              link.type === "contact"
+          )
+          .map(link => ({
+            source: "browser-rendered",
+            href: link.href || "",
+            text: link.text || "",
+            type: "cta"
+          }));
 
-        phone: browserPhoneEvidence.length
-          ? browserPhoneEvidence
-          : (
-              Array.isArray(existingEvidence.phone)
-                ? existingEvidence.phone
-                : []
-            ),
+    const mergedEvidence = {
+            ...existingEvidence,
 
-        email: browserEmailEvidence.length
-          ? browserEmailEvidence
-          : (
-              Array.isArray(existingEvidence.email)
-                ? existingEvidence.email
-                : []
-            ),
+            phone: browserPhoneEvidence.length
+              ? browserPhoneEvidence
+              : (
+                  Array.isArray(existingEvidence.phone)
+                    ? existingEvidence.phone
+                    : []
+                ),
 
-        whatsapp: browserWhatsAppEvidence.length
-          ? browserWhatsAppEvidence
-          : (
-              Array.isArray(existingEvidence.whatsapp)
-                ? existingEvidence.whatsapp
-                : []
-            )
-      };
+            email: browserEmailEvidence.length
+              ? browserEmailEvidence
+              : (
+                  Array.isArray(existingEvidence.email)
+                    ? existingEvidence.email
+                    : []
+                ),
+
+            whatsapp: browserWhatsAppEvidence.length
+              ? browserWhatsAppEvidence
+              : (
+                  Array.isArray(existingEvidence.whatsapp)
+                    ? existingEvidence.whatsapp
+                    : []
+                ),
+
+            cta: browserCtaEvidence.length
+              ? browserCtaEvidence
+              : (
+                  Array.isArray(existingEvidence.cta)
+                    ? existingEvidence.cta
+                    : []
+                )
+          };
 
     const uniqueEvidence =
       values =>
@@ -458,6 +480,10 @@ const cancelScanHistoryButton =
       mergedEvidence.whatsapp.length >
       0;
 
+    const hasCta =
+      mergedEvidence.cta.length >
+      0;
+
     updateBusinessCheck(
       "Phone number",
       hasPhone,
@@ -479,6 +505,13 @@ const cancelScanHistoryButton =
       "No WhatsApp reference was detected across the pages scanned."
     );
 
+    updateBusinessCheck(
+      "Call to action",
+      hasCta,
+      "A conversion-focused call to action was detected.",
+      "No clear conversion-focused call to action was detected across the pages scanned."
+    );
+
     const businessIssues =
       Array.isArray(
         mergedData.issues
@@ -496,7 +529,8 @@ const cancelScanHistoryButton =
     const contactTitles = new Set([
       "Phone number",
       "Email address",
-      "WhatsApp"
+      "WhatsApp",
+      "Call to action"
     ]);
 
     mergedData.issues =
@@ -516,7 +550,10 @@ const cancelScanHistoryButton =
               hasEmail ||
               issue.title ===
                 "WhatsApp" &&
-              hasWhatsApp
+              hasWhatsApp ||
+              issue.title ===
+                "Call to action" &&
+              hasCta
             )
           )
       );
