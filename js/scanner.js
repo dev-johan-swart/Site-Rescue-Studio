@@ -233,23 +233,18 @@ const cancelScanHistoryButton =
       const routeIssueId =
         "website-route-reliability";
 
-      const redirectIssueId =
-        "website-internal-redirects";
-
-      const issuesWithoutRouteIssues =
+      const issuesWithoutRouteIssue =
         existingIssues.filter(
           issue =>
             issue?.id !==
-              routeIssueId &&
-            issue?.id !==
-              redirectIssueId
+            routeIssueId
         );
 
       if (
         routeHealthSummary.failed >
         0
       ) {
-        issuesWithoutRouteIssues.push({
+        issuesWithoutRouteIssue.push({
           id:
             routeIssueId,
 
@@ -270,33 +265,8 @@ const cancelScanHistoryButton =
         });
       }
 
-      if (
-        routeHealthSummary.redirected >
-        0
-      ) {
-        issuesWithoutRouteIssues.push({
-          id:
-            redirectIssueId,
-
-          category:
-            "Technical",
-
-          title:
-            "Internal route redirects detected",
-
-          description:
-            "One or more discovered internal website routes redirect to another URL when requested directly. Redirects may be intentional, but unnecessary internal redirects can add an extra request and should be reviewed.",
-
-          status:
-            "warning",
-
-          severity:
-            "low"
-        });
-      }
-
       mergedScanData.issues =
-        issuesWithoutRouteIssues;
+        issuesWithoutRouteIssue;
 
       const renderedLinks =
         Array.isArray(
@@ -3094,162 +3064,68 @@ async function loadScanHistory() {
           failure?.status
       );
 
-    const routeHealth =
-      Array.isArray(
-        browserInspection.routeHealth
-      )
-        ? browserInspection.routeHealth
-        : [];
-
-    const routeFailures =
-      routeHealth.filter(
-        route =>
-          route?.status === "broken" ||
-          route?.status === "unreachable" ||
-          route?.status === "blocked"
-      );
-
-    const redirectedRoutes =
-      routeHealth.filter(
-        route =>
-          route?.status === "redirected"
-      );
-
-    const routeAttention =
-      routeHealth.filter(
-        route =>
-          route?.status !== "working"
-      );
-
-    const routeSummary =
-      routeHealth.length
-        ? `
-          <div class="browser-inspection-summary">
-            <div>
-              <strong>Routes tested</strong>
-              <span>${routeHealth.length}</span>
-            </div>
-            <div>
-              <strong>Route failures</strong>
-              <span>${routeFailures.length}</span>
-            </div>
-            <div>
-              <strong>Redirected routes</strong>
-              <span>${redirectedRoutes.length}</span>
-            </div>
-            <div>
-              <strong>Working routes</strong>
-              <span>${routeHealth.filter(route => route?.status === "working").length}</span>
-            </div>
-          </div>
-
-          <div class="browser-inspection-findings">
-            ${routeAttention
-              .slice(0, 10)
-              .map(route => {
-                const statusText =
-                  String(route.status || "unknown").toUpperCase();
-
-                const httpText =
-                  route.statusCode
-                    ? ` (HTTP ${route.statusCode})`
-                    : "";
-
-                const redirectText =
-                  route.finalUrl &&
-                  route.finalUrl !== route.url
-                    ? ` → ${route.finalUrl}`
-                    : "";
-
-                return `
-                  <article>
-                    <strong>
-                      ${escapeHtml(
-                        route.status === "redirected"
-                          ? "Internal route redirects"
-                          : "Internal route requires attention"
-                      )}
-                    </strong>
-                    <p>
-                      ${escapeHtml(
-                        `${route.path || route.url} — ${statusText}${httpText}${redirectText}`
-                      )}
-                    </p>
-                  </article>
-                `;
-              })
-              .join("")}
-          </div>
-        `
-        : `
-          <p>
-            No rendered internal page routes were discovered
-            for direct URL testing on this scan.
-          </p>
-        `;
-
-    content.innerHTML = \`
+    content.innerHTML = `
       <div class="browser-inspection-summary">
 
         <div>
           <strong>Inspection duration</strong>
-          <span>\${escapeHtml(duration)}</span>
+          <span>${escapeHtml(duration)}</span>
         </div>
 
         <div>
           <strong>Console errors</strong>
-          <span>\${consoleErrors.length}</span>
+          <span>${consoleErrors.length}</span>
         </div>
 
         <div>
           <strong>Browser findings</strong>
-          <span>\${findings.length}</span>
+          <span>${findings.length}</span>
         </div>
 
         <div>
           <strong>Confirmed same-origin failures</strong>
-          <span>\${sameOriginFailures.length}</span>
+          <span>${sameOriginFailures.length}</span>
         </div>
 
       </div>
 
-      \${routeSummary}
-
-      \${
+      ${
         findings.length > 0
-          ? \`
+          ? `
             <div class="browser-inspection-findings">
-              \${findings
+              ${findings
                 .slice(0, 5)
                 .map(
-                  (finding) => \`
+                  (finding) => `
                     <article>
                       <strong>
-                        \${escapeHtml(
+                        ${escapeHtml(
                           finding.title ||
                           "Browser finding"
                         )}
                       </strong>
+
                       <p>
-                        \${escapeHtml(
+                        ${escapeHtml(
                           finding.description ||
                           ""
                         )}
                       </p>
                     </article>
-                  \`
+                  `
                 )
                 .join("")}
             </div>
-          \`
-          : \`
+          `
+          : `
             <p>
               No browser-specific findings requiring
               attention were identified.
             </p>
-          \`
-      \`
-    \`;
+          `
+      }
+    `;
+
     section.hidden = false;
   }
 
