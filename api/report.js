@@ -5272,7 +5272,7 @@ function drawWebsiteInformation(
    * paid Website Health Report.
    */
 
-  const failedRoutes =
+  const routesRequiringReview =
     Array.isArray(
       routeHealth?.routes
     )
@@ -5283,12 +5283,14 @@ function drawWebsiteInformation(
             route.status ===
               "unreachable" ||
             route.status ===
-              "blocked"
+              "blocked" ||
+            route.status ===
+              "redirected"
         )
       : [];
 
   if (
-    failedRoutes.length > 0
+    routesRequiringReview.length > 0
   ) {
 
     doc.moveDown(1);
@@ -5305,11 +5307,11 @@ function drawWebsiteInformation(
 
     drawInfoBox(
       doc,
-      "Internal routes requiring attention",
-      "The scanner requested discovered internal URLs directly. The routes below returned an unsuccessful response or could not be reached."
+      "Internal route reliability",
+      "The scanner requested discovered internal URLs directly. Failed routes are highlighted as requiring attention. Redirected routes are also shown so unnecessary internal redirects can be identified without manually checking each URL."
     );
 
-    failedRoutes.forEach(
+    routesRequiringReview.forEach(
       route => {
 
         ensureSpace(
