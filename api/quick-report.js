@@ -208,6 +208,26 @@ module.exports =
           "Website reliability alert",
           "One or more internal website routes returned an unsuccessful response when requested directly. The full Website Health Report includes the affected routes and response details."
         );
+
+        const failedRoutes =
+          Array.isArray(data?.routeHealth?.routes)
+            ? data.routeHealth.routes.filter(
+                route =>
+                  route?.status === "broken" ||
+                  route?.status === "unreachable"
+              )
+            : [];
+
+        failedRoutes.slice(0, 5).forEach(route => {
+          ensureSpace(doc, 32);
+          drawInfoBox(
+            doc,
+            route.path || route.url || "Internal route",
+            route.status === "unreachable"
+              ? "The route could not be reached when tested directly."
+              : "The route returned HTTP " + (route.statusCode || "error") + " when tested directly."
+          );
+        });
       }
 
       const topIssues =
