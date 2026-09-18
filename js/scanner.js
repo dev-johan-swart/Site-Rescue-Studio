@@ -233,18 +233,23 @@ const cancelScanHistoryButton =
       const routeIssueId =
         "website-route-reliability";
 
-      const issuesWithoutRouteIssue =
+      const redirectIssueId =
+        "website-internal-redirects";
+
+      const issuesWithoutRouteIssues =
         existingIssues.filter(
           issue =>
             issue?.id !==
-            routeIssueId
+              routeIssueId &&
+            issue?.id !==
+              redirectIssueId
         );
 
       if (
         routeHealthSummary.failed >
         0
       ) {
-        issuesWithoutRouteIssue.push({
+        issuesWithoutRouteIssues.push({
           id:
             routeIssueId,
 
@@ -265,8 +270,33 @@ const cancelScanHistoryButton =
         });
       }
 
+      if (
+        routeHealthSummary.redirected >
+        0
+      ) {
+        issuesWithoutRouteIssues.push({
+          id:
+            redirectIssueId,
+
+          category:
+            "Technical",
+
+          title:
+            "Internal route redirects detected",
+
+          description:
+            "One or more discovered internal website routes redirect to another URL when requested directly. Redirects may be intentional, but unnecessary internal redirects can add an extra request and should be reviewed.",
+
+          status:
+            "warning",
+
+          severity:
+            "low"
+        });
+      }
+
       mergedScanData.issues =
-        issuesWithoutRouteIssue;
+        issuesWithoutRouteIssues;
 
       const renderedLinks =
         Array.isArray(
