@@ -194,8 +194,8 @@ module.exports =
       );
 
       if (
-        data?.routeHealth?.failed >
-        0
+        data?.routeHealth?.failed > 0 ||
+        data?.routeHealth?.redirected > 0
       ) {
 
         ensureSpace(
@@ -205,27 +205,33 @@ module.exports =
 
         drawInfoBox(
           doc,
-          "Website reliability alert",
-          "One or more internal website routes returned an unsuccessful response when requested directly. The full Website Health Report includes the affected routes and response details."
+          "Website route alert",
+          "One or more discovered internal website routes failed, were blocked, could not be reached, or redirect to another URL when requested directly. The full Website Health Report includes the affected routes and response details."
         );
 
-        const failedRoutes =
+        const routesRequiringReview =
           Array.isArray(data?.routeHealth?.routes)
             ? data.routeHealth.routes.filter(
                 route =>
                   route?.status === "broken" ||
-                  route?.status === "unreachable"
+                  route?.status === "unreachable" ||
+                  route?.status === "blocked" ||
+                  route?.status === "redirected"
               )
             : [];
 
-        failedRoutes.slice(0, 5).forEach(route => {
+        routesRequiringReview.slice(0, 5).forEach(route => {
           ensureSpace(doc, 32);
           drawInfoBox(
             doc,
             route.path || route.url || "Internal route",
-            route.status === "unreachable"
-              ? "The route could not be reached when tested directly."
-              : "The route returned HTTP " + (route.statusCode || "error") + " when tested directly."
+            route.status === "redirected"
+              ? "The internal route redirects to " + (route.finalUrl || "another URL") + " when tested directly."
+              : route.status === "blocked"
+                ? "The route returned HTTP " + (route.statusCode || "blocked") + " when tested directly."
+                : route.status === "unreachable"
+                  ? "The route could not be reached when tested directly."
+                  : "The route returned HTTP " + (route.statusCode || "error") + " when tested directly."
           );
         });
       }
