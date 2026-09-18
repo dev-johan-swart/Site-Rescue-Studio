@@ -636,6 +636,7 @@ module.exports = async function handler(req, res) {
       metadata,
       counts,
       linkHealth,
+      routeHealth,
       responseTime,
       checks,
       url
@@ -4668,6 +4669,7 @@ function drawWebsiteInformation(
   metadata,
   counts,
   linkHealth,
+  routeHealth,
   responseTime,
   checks,
   url
