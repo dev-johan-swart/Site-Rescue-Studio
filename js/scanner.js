@@ -290,6 +290,63 @@ const cancelScanHistoryButton =
               .renderedContactLinks
           : [];
 
+      const renderedH1Count =
+        Number(
+          scanData.browserInspection
+            ?.renderedH1Count
+        );
+
+      if (
+        Number.isFinite(
+          renderedH1Count
+        )
+      ) {
+        const seoChecks =
+          Array.isArray(
+            scanData.checks?.seo
+          )
+            ? scanData.checks.seo
+            : [];
+
+        const h1Check =
+          seoChecks.find(
+            check =>
+              check &&
+              check.title ===
+                "Missing H1"
+          );
+
+        if (
+          h1Check
+        ) {
+          if (
+            renderedH1Count ===
+            1
+          ) {
+            h1Check.status =
+              "pass";
+            h1Check.passed =
+              true;
+            h1Check.severity =
+              "info";
+            h1Check.description =
+              "A visible H1 heading was detected in the rendered page.";
+          } else if (
+            renderedH1Count >
+            1
+          ) {
+            h1Check.status =
+              "warning";
+            h1Check.passed =
+              false;
+            h1Check.severity =
+              "medium";
+            h1Check.description =
+              "Multiple H1 headings were detected in the rendered page. Consider using one clear primary H1 heading.";
+          }
+        }
+      }
+
       if (!renderedLinks.length) {
         return mergedScanData;
       }
@@ -575,7 +632,10 @@ const cancelScanHistoryButton =
               hasEmail ||
               recommendation.title ===
                 "WhatsApp" &&
-              hasWhatsApp
+              hasWhatsApp ||
+              recommendation.title ===
+                "Call to action" &&
+              hasCta
             )
           )
       );
@@ -942,6 +1002,38 @@ function recalculateScoresAfterBusinessMerge(scanData) {
     return scanData;
   }
 
+  if (
+    scanData.browserInspection &&
+    scanData.browserInspection.responsiveCssDetected === true
+  ) {
+    const mobileChecks =
+      Array.isArray(scanData.checks?.mobile)
+        ? scanData.checks.mobile
+        : [];
+
+    const responsiveCssCheck =
+      mobileChecks.find(
+        check =>
+          check &&
+          check.title === "Responsive CSS"
+      );
+
+    if (responsiveCssCheck) {
+      responsiveCssCheck.status = "pass";
+      responsiveCssCheck.passed = true;
+      responsiveCssCheck.severity = "info";
+      responsiveCssCheck.description =
+        "Responsive media or container CSS rules were detected in the rendered page.";
+    }
+  }
+
+  const seoScore =
+    Number.isFinite(
+      Number(scanData.scores?.seo)
+    )
+      ? Number(scanData.scores.seo)
+      : 0;
+
   const businessScore =
     Math.round(
       (earnedWeight / totalWeight) * 100
@@ -964,7 +1056,7 @@ function recalculateScoresAfterBusinessMerge(scanData) {
   ) {
     overall =
       Math.round(
-        Number(currentScores.seo || 0) * 0.25 +
+        seoScore * 0.25 +
         Number(performanceScore) * 0.20 +
         Number(currentScores.accessibility || 0) * 0.10 +
         Number(currentScores.technical || 0) * 0.15 +
@@ -973,17 +1065,86 @@ function recalculateScoresAfterBusinessMerge(scanData) {
   } else {
     overall =
       Math.round(
-        Number(currentScores.seo || 0) * 0.30 +
+        seoScore * 0.30 +
         Number(currentScores.accessibility || 0) * 0.10 +
         Number(currentScores.technical || 0) * 0.20 +
         businessScore * 0.40
       );
   }
 
+  const browserCorrectedTitles = new Set([
+    "Missing H1",
+    "Responsive CSS",
+    "Phone number",
+    "Email address",
+    "WhatsApp",
+    "Call to action"
+  ]);
+
+  const resolvedCheckTitles = new Set(
+    (Array.isArray(scanData.checks?.seo)
+      ? scanData.checks.seo
+      : []
+    )
+      .concat(
+        Array.isArray(scanData.checks?.mobile)
+          ? scanData.checks.mobile
+          : []
+      )
+      .concat(
+        Array.isArray(scanData.checks?.business)
+          ? scanData.checks.business
+          : []
+      )
+      .filter(
+        check =>
+          check &&
+          browserCorrectedTitles.has(
+            check.title
+          ) &&
+          check.status === "pass"
+      )
+      .map(
+        check =>
+          check.title
+      )
+  );
+
+  const syncedIssues =
+    Array.isArray(scanData.issues)
+      ? scanData.issues.filter(
+          issue =>
+            !(
+              issue &&
+              resolvedCheckTitles.has(
+                issue.title
+              )
+            )
+        )
+      : [];
+
+  const syncedRecommendations =
+    Array.isArray(scanData.recommendations)
+      ? scanData.recommendations.filter(
+          recommendation =>
+            !(
+              recommendation &&
+              resolvedCheckTitles.has(
+                recommendation.title
+              )
+            )
+        )
+      : [];
+
   return {
     ...scanData,
+    issues:
+      syncedIssues,
+    recommendations:
+      syncedRecommendations,
     scores: {
       ...currentScores,
+      seo: seoScore,
       business: businessScore,
       overall
     }
