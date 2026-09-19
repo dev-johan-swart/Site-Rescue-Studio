@@ -5795,6 +5795,11 @@ if (
         }
       }
 
+      const routeReliabilityScore =
+        calculateRouteReliabilityScore({
+          routes: routeHealth
+        });
+
       const routeHealthSummary = {
         tested:
           routeHealth.length,
@@ -6440,11 +6445,6 @@ function drawEvidenceMessage(
        * TECHNICAL SCORE
        * --------------------------------------------------
        */
-
-      const routeReliabilityScore =
-        calculateRouteReliabilityScore(
-          routeHealthSummary
-        );
 
       const technicalScore =
         routeReliabilityScore === null
