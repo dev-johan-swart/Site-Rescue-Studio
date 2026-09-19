@@ -1183,6 +1183,14 @@ function numericScore(
   value
 ) {
 
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return NaN;
+  }
+
   const number =
     Number(value);
 
