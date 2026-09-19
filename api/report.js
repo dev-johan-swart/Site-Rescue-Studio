@@ -639,7 +639,8 @@ module.exports = async function handler(req, res) {
       routeHealth,
       responseTime,
       checks,
-      url
+      url,
+      browserInspection
     );
 
     /*
@@ -4102,7 +4103,7 @@ function drawBusinessEvidence(
       title: "WhatsApp"
     },
     {
-      key: "contactForm",
+      key: "form",
       title: "Contact form"
     },
     {
@@ -4228,7 +4229,7 @@ function getBusinessEvidenceTitle(
       "Email address",
     whatsapp:
       "WhatsApp",
-    contactForm:
+    form:
       "Contact form",
     location:
       "Business location",
@@ -4333,6 +4334,32 @@ function formatBusinessEvidence(
       entry.usable
         ? "Usable"
         : "Not confirmed usable"
+    );
+  }
+
+  if (entry.type) {
+    parts.push(`Form type: ${entry.type}`);
+  }
+
+  if (entry.confidence) {
+    parts.push(`Detection confidence: ${entry.confidence}`);
+  }
+
+  if (entry.fields !== undefined) {
+    parts.push(`Fields detected: ${entry.fields}`);
+  }
+
+  if (typeof entry.hasSubmit === "boolean") {
+    parts.push(
+      entry.hasSubmit
+        ? "Submit control detected"
+        : "No submit control detected"
+    );
+  }
+
+  if (entry.source === "browser-rendered") {
+    parts.push(
+      "Source: browser-rendered DOM; form was inspected only and was not submitted"
     );
   }
 
@@ -4672,7 +4699,8 @@ function drawWebsiteInformation(
   routeHealth,
   responseTime,
   checks,
-  url
+  url,
+  browserInspection
 ) {
   metadata =
     metadata || {};
@@ -5190,9 +5218,15 @@ function drawWebsiteInformation(
         : "Not available"
     ],
     [
-      "H1 headings",
+      "Raw H1 headings",
       counts.h1 ??
         "Not available"
+    ],
+    [
+      "Rendered H1 headings",
+      Number.isFinite(Number(browserInspection?.renderedH1Count))
+        ? Number(browserInspection.renderedH1Count)
+        : "Not available"
     ],
     [
       "H2 headings",

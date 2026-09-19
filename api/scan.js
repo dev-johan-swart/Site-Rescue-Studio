@@ -1793,6 +1793,63 @@ if (
  * --------------------------------------------------------
  */
 
+function classifyFormEvidence(
+  formHtml,
+  source = "server-html"
+) {
+  const htmlValue = String(formHtml || "");
+  const formText = cleanText(
+    htmlValue
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+  );
+  const tags = htmlValue.match(/<(?:input|textarea|select)\b[^>]*>/gi) || [];
+  const fields = tags.map(tag => ({
+    type: (
+      getAttribute(tag,"type") ||
+      (/^<textarea/i.test(tag) ? "textarea" : /^<select/i.test(tag) ? "select" : "text")
+    ).toLowerCase(),
+    name: getAttribute(tag,"name"),
+    placeholder: getAttribute(tag,"placeholder"),
+    ariaLabel: getAttribute(tag,"aria-label")
+  }));
+  const fieldText = fields.map(f => [f.name,f.placeholder,f.ariaLabel].join(" ")).join(" ");
+  const combined = (formText+" "+fieldText).toLowerCase();
+  const hasMessage = fields.some(f => f.type==="textarea" || /message|comment|enquir|question|details|request/i.test([f.name,f.placeholder,f.ariaLabel].join(" ")));
+  const hasEmail = fields.some(f => f.type==="email" || /email|e-mail/i.test([f.name,f.placeholder,f.ariaLabel].join(" ")));
+  const hasPhone = fields.some(f => f.type==="tel" || /phone|telephone|mobile|cell|contact-number/i.test([f.name,f.placeholder,f.ariaLabel].join(" ")));
+  const hasName = fields.some(f => /(^|[-_ ])name|full.?name|first.?name|surname/i.test([f.name,f.placeholder,f.ariaLabel].join(" ")));
+  const hasPassword = fields.some(f => f.type==="password");
+  const hasSearch = fields.some(f => f.type==="search" || /(^|[-_ ])search|(^|[-_ ])query|(^|[-_ ])q$/i.test(f.name));
+  const quote = /request.?a?.?quote|get.?a?.?quote|quote/i.test(combined);
+  const booking = /book|booking|appointment|schedule/i.test(combined);
+  const enquiry = /contact|enquir|reach.?us|get.?in.?touch|send.?message|request/i.test(combined);
+  const submitText = cleanText(htmlValue.match(/<button\b[^>]*>([\s\S]*?)<\/button>/i)?.[1] || "");
+  const hasSubmit = /<button\b/i.test(htmlValue) || /<input\b[^>]*type\s*=\s*["']?submit\b/i.test(htmlValue);
+  const searchOnly = hasSearch && !hasMessage && !hasEmail && !hasPhone && !hasName && !quote && !booking && !enquiry;
+  let type = "generic";
+  if (searchOnly) type="search";
+  else if (hasPassword && !hasMessage && !quote && !booking && !enquiry) type="login";
+  else if (quote) type="quote";
+  else if (booking) type="booking";
+  else if (enquiry || hasMessage) type="contact";
+  else if (hasEmail && /subscribe|newsletter|updates/i.test(combined)) type="newsletter";
+  const contactIntent = !searchOnly && type!=="login" && type!=="newsletter" &&
+    (hasMessage || hasName || hasPhone || hasEmail || quote || booking || enquiry);
+  const confidence =
+    (hasMessage && (hasEmail || hasPhone || hasName)) || quote || booking || (hasName && hasEmail)
+      ? "high" : contactIntent ? "medium" : "low";
+  return {
+    source,type,confidence,contactIntent,fields:fields.length,
+    fieldTypes:fields.map(f=>f.type),
+    fieldLabels:fields.map(f=>f.name||f.placeholder||f.ariaLabel||"").filter(Boolean).slice(0,12),
+    hasSubmit,
+    action:getAttribute(htmlValue,"action") || null,
+    submitText:submitText || null
+  };
+}
+
 function analyzeBusinessSignals(
   html,
   pageUrl
@@ -1971,36 +2028,13 @@ function analyzeBusinessSignals(
   const forms =
     formMatches.map(
       form => {
-
-        const fields =
-          (
-            form.match(
-              /<(?:input|textarea|select)\b/gi
-            ) || []
-          ).length;
-
-        const hasSubmit =
-          /<button\b[^>]*type\s*=\s*["']?submit\b/i.test(
-            form
-          ) ||
-          /<input\b[^>]*type\s*=\s*["']?submit\b/i.test(
-            form
-          ) ||
-          /<button\b/i.test(
-            form
-          );
-
-        const action =
-          getAttribute(
+        const classifiedForm =
+          classifyFormEvidence(
             form,
-            "action"
+            "server-html"
           );
 
-        return {
-          fields,
-          hasSubmit,
-          action
-        };
+        return classifiedForm;
       }
     );
 
@@ -2011,7 +2045,8 @@ function analyzeBusinessSignals(
     forms.some(
       form =>
         form.fields > 0 &&
-        form.hasSubmit
+        form.hasSubmit &&
+        form.contactIntent
     );
 
   /*
@@ -2061,10 +2096,9 @@ function analyzeBusinessSignals(
 
     form: {
       found: hasForm,
-      usable:
-        hasUsableForm,
-      count:
-        forms.length
+      usable: hasUsableForm,
+      count: forms.length,
+      entries: forms
     },
 
     cta: {
@@ -3931,13 +3965,12 @@ function aggregateBusinessEvidence(
     if (
       page.business.form.found
     ) {
-      evidence.form.push({
-        url:
-          page.url,
-        usable:
-          page.business.form.usable,
-        count:
-          page.business.form.count
+      page.business.form.entries.forEach(form => {
+        evidence.form.push({
+          url: page.url,
+          ...form,
+          usable: Boolean(form.contactIntent && form.hasSubmit)
+        });
       });
     }
 

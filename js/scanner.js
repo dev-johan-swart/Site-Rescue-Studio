@@ -359,15 +359,11 @@ const cancelScanHistoryButton =
         }
       }
 
-      if (!renderedLinks.length) {
-        return mergedScanData;
-      }
-
     const existingEvidence =
       mergedScanData.businessEvidence &&
       typeof mergedScanData.businessEvidence ===
         "object"
-        ? scanData.businessEvidence
+        ? mergedScanData.businessEvidence
         : {};
 
     const phoneLinks =
@@ -429,6 +425,14 @@ const cancelScanHistoryButton =
             type: "cta"
           }));
 
+    const renderedForms = Array.isArray(mergedScanData.browserInspection?.renderedForms)
+      ? mergedScanData.browserInspection.renderedForms
+      : [];
+    const browserFormEvidence = renderedForms.map(form => ({
+      ...form,
+      source: "browser-rendered"
+    }));
+
     const mergedEvidence = {
             ...existingEvidence,
 
@@ -462,7 +466,11 @@ const cancelScanHistoryButton =
                   Array.isArray(existingEvidence.cta)
                     ? existingEvidence.cta
                     : []
-                )
+                ),
+            form: [
+              ...(Array.isArray(existingEvidence.form) ? existingEvidence.form : []),
+              ...browserFormEvidence
+            ]
           };
 
     const uniqueEvidence =
@@ -489,6 +497,10 @@ const cancelScanHistoryButton =
     mergedEvidence.whatsapp =
       uniqueEvidence(
         mergedEvidence.whatsapp
+      );
+    mergedEvidence.form =
+      uniqueEvidence(
+        mergedEvidence.form
       );
 
     const mergedData = {
@@ -574,6 +586,24 @@ const cancelScanHistoryButton =
       "No WhatsApp reference was detected across the pages scanned."
     );
 
+    const contactForm = mergedEvidence.form.find(
+      form => form && form.contactIntent && form.hasSubmit
+    );
+    const hasContactForm = Boolean(contactForm);
+
+    updateBusinessCheck(
+      "Contact form",
+      hasContactForm,
+      "A " +
+        (contactForm?.type || "contact") +
+        " form was detected on " +
+        (contactForm?.url || "the scanned website") +
+        " with " +
+        (contactForm?.fields || 0) +
+        " field(s). The form was inspected only and was not submitted.",
+      "Forms were detected, but no contact/enquiry form with a confirmed submit mechanism was identified."
+    );
+
     updateBusinessCheck(
       "Call to action",
       hasCta,
@@ -599,6 +629,7 @@ const cancelScanHistoryButton =
       "Phone number",
       "Email address",
       "WhatsApp",
+      "Contact form",
       "Call to action"
     ]);
 
@@ -1091,6 +1122,7 @@ function recalculateScoresAfterBusinessMerge(scanData) {
     "Phone number",
     "Email address",
     "WhatsApp",
+    "Contact form",
     "Call to action"
   ]);
 
