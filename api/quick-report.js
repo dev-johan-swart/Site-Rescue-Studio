@@ -207,7 +207,7 @@ module.exports =
         drawInfoBox(
           doc,
           "Website route alert",
-          "One or more discovered internal website routes failed, were blocked, could not be reached, or redirect to another URL when requested directly. The full Website Health Report includes the affected routes and response details."
+          "One or more discovered internal website routes returned an unsuccessful HTTP response when requested directly. The full Website Health Report includes the affected routes and response details."
         );
 
         const routesRequiringReview =

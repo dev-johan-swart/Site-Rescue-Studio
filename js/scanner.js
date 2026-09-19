@@ -223,7 +223,13 @@ const cancelScanHistoryButton =
       const mergedScanData = {
         ...scanData,
         routeHealth:
-          routeHealthSummary
+          routeHealthSummary,
+
+        scores: {
+          ...(scanData.scores || {}),
+          routeReliability:
+            routeHealthSummary.reliabilityScore
+        }
       };
 
       /*
