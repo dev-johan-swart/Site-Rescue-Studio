@@ -103,6 +103,7 @@ module.exports =
             left: PAGE.left,
             right: PAGE.right
           },
+          bufferPages: true,
           info: {
             Title:
               "Site Rescue Studio — Website Quick Check Report",

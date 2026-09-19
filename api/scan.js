@@ -497,6 +497,29 @@ function calculateWeightedScore(checks) {
   );
 }
 
+function calculateRouteReliabilityScore(routeHealthSummary) {
+  if (!routeHealthSummary || !Array.isArray(routeHealthSummary.routes)) {
+    return null;
+  }
+  const scoreableRoutes =
+    routeHealthSummary.routes.filter(
+      route =>
+        route?.status === "working" ||
+        route?.status === "broken" ||
+        route?.status === "unreachable"
+    );
+  if (scoreableRoutes.length < 3) {
+    return null;
+  }
+  const workingRoutes =
+    scoreableRoutes.filter(
+      route => route.status === "working"
+    ).length;
+  return Math.round(
+    (workingRoutes / scoreableRoutes.length) * 100
+  );
+}
+
 function isBlockedHostname(hostname) {
   const host =
     String(hostname || "").toLowerCase();
@@ -4307,6 +4330,16 @@ function buildBusinessChecks(
 
 function buildRecommendation(check) {
   const recommendations = {
+    "Website reliability issue": {
+      why:
+        "Visitors may encounter failed internal URLs when opening a page directly or refreshing it.",
+      action:
+        "Review the routing, rewrite and hosting configuration for the affected internal URLs and ensure valid routes return the expected pages.",
+      service:
+        "Website Rescue"
+    },
+
+
     "Missing page title": {
       why:
         "The page does not have a clear title for search engines and visitors.",
@@ -5811,7 +5844,10 @@ if (
           ).length,
 
         routes:
-          routeHealth
+          routeHealth,
+
+        reliabilityScore:
+          routeReliabilityScore
       };
 
       /*
@@ -6405,8 +6441,18 @@ function drawEvidenceMessage(
        * --------------------------------------------------
        */
 
+      const routeReliabilityScore =
+        calculateRouteReliabilityScore(
+          routeHealthSummary
+        );
+
       const technicalScore =
-        homepageTechnicalScore;
+        routeReliabilityScore === null
+          ? homepageTechnicalScore
+          : Math.round(
+              homepageTechnicalScore * 0.5 +
+              routeReliabilityScore * 0.5
+            );
 
       /*
        * --------------------------------------------------
@@ -6500,7 +6546,7 @@ function drawEvidenceMessage(
             "Website reliability issue",
 
           description:
-            "One or more internal website routes could not be reached successfully by a direct URL request. The affected routes and response evidence are included in the detailed report.",
+            "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a direct-navigation or refresh routing issue. The affected routes and response evidence are included in the detailed report.",
 
           status:
             "warning",
@@ -6917,7 +6963,8 @@ const opportunity =
           accessibility: accessibilityScore,
           technical: technicalScore,
           business: businessScore,
-          security: homepage.security.score
+          security: homepage.security.score,
+          routeReliability: routeReliabilityScore
       },
         /*
          * PAGESPEED

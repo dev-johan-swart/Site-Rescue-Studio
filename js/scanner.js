@@ -207,6 +207,16 @@ const cancelScanHistoryButton =
             route.status === "broken" ||
             route.status === "unreachable"
         ).length,
+        reliabilityScore:
+          Number.isFinite(
+            Number(
+              scanData.routeHealth?.reliabilityScore
+            )
+          )
+            ? Number(
+                scanData.routeHealth.reliabilityScore
+              )
+            : null,
         routes: mergedRouteResults
       };
 
@@ -2809,6 +2819,10 @@ async function loadScanHistory() {
       data.pageSpeed
     );
 
+    renderLinkHealth(
+      data
+    );
+
   }
 
   function renderSecurityStatus(data) {
@@ -2966,6 +2980,127 @@ async function loadScanHistory() {
 
   }
 
+
+  function renderLinkHealth(data) {
+    const section = document.getElementById("linkHealthSection");
+    const content = document.getElementById("linkHealthContent");
+
+    if (!section || !content) {
+      return;
+    }
+
+    const linkHealth = data?.linkHealth || {};
+    const routeHealth = data?.routeHealth || {};
+
+    const problemLinks =
+      Array.isArray(data?.linkResults)
+        ? data.linkResults.filter(
+            link =>
+              link?.status === "broken" ||
+              link?.status === "unreachable" ||
+              link?.status === "blocked" ||
+              link?.status === "placeholder"
+          )
+        : [];
+
+    const routeProblems =
+      Array.isArray(routeHealth?.routes)
+        ? routeHealth.routes.filter(
+            route =>
+              route?.status === "broken" ||
+              route?.status === "unreachable" ||
+              route?.status === "blocked" ||
+              route?.status === "redirected"
+          )
+        : [];
+
+    const routeScore =
+      Number.isFinite(Number(routeHealth.reliabilityScore))
+        ? `${Number(routeHealth.reliabilityScore)}/100`
+        : "Not enough confirmed routes";
+
+    const stats = [
+      ["Links found", linkHealth.total ?? 0],
+      ["Links tested", linkHealth.tested ?? 0],
+      ["Working", linkHealth.working ?? 0],
+      ["Broken", linkHealth.broken ?? 0],
+      ["Blocked", linkHealth.blocked ?? 0],
+      ["Redirected", linkHealth.redirected ?? 0],
+      ["Placeholders", linkHealth.placeholder ?? 0],
+      ["Route reliability", routeScore]
+    ];
+
+    content.innerHTML = "";
+
+    const grid = document.createElement("div");
+    grid.className = "check-section-grid";
+
+    stats.forEach(([label, value]) => {
+      const item = document.createElement("div");
+      item.className = "check-section";
+
+      const heading = document.createElement("h3");
+      heading.textContent = label;
+
+      const valueElement = document.createElement("p");
+      valueElement.textContent = String(value);
+
+      item.appendChild(heading);
+      item.appendChild(valueElement);
+      grid.appendChild(item);
+    });
+
+    content.appendChild(grid);
+
+    if (problemLinks.length === 0 && routeProblems.length === 0) {
+      const cleanMessage = document.createElement("p");
+      cleanMessage.textContent =
+        "No link or direct-route problems were returned by the scan.";
+      content.appendChild(cleanMessage);
+      section.hidden = false;
+      return;
+    }
+
+    const note = document.createElement("p");
+    note.textContent =
+      "Redirected links are not automatically broken. Blocked results are verification limits rather than confirmed failures.";
+    content.appendChild(note);
+
+    const list = document.createElement("div");
+    list.className = "issues-list";
+
+    [...problemLinks.slice(0, 5), ...routeProblems.slice(0, 5)]
+      .forEach(item => {
+        const card = document.createElement("article");
+        card.className = "issue warning";
+
+        const icon = document.createElement("div");
+        icon.className = "issue-icon";
+        icon.textContent = "!";
+
+        const body = document.createElement("div");
+
+        const heading = document.createElement("h3");
+        heading.textContent =
+          item.path || item.url || "Route or link";
+
+        const description = document.createElement("p");
+        description.textContent =
+          `${String(item.status || "review").toUpperCase()} — ` +
+          (item.statusCode
+            ? `HTTP ${item.statusCode}`
+            : "Review in the detailed report");
+
+        body.appendChild(heading);
+        body.appendChild(description);
+        card.appendChild(icon);
+        card.appendChild(body);
+        list.appendChild(card);
+      });
+
+    content.appendChild(list);
+    section.hidden = false;
+  }
 
   function renderCheckSections(checks) {
 

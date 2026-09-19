@@ -1349,7 +1349,11 @@ function drawOverviewPage(
     [
       "Security & Trust",
       scores?.security
-    ]
+    ],
+    [
+      "Route Reliability",
+      scores?.routeReliability
+    ],
   ];
 
   drawScoreDashboard(

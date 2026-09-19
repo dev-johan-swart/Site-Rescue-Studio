@@ -25,14 +25,15 @@ const sampleData = {
     "2026-09-10T10:00:00.000Z",
 
   scores: {
-    overall: 82,
+    overall: 83,
     seo: 88,
     mobile: 84,
     accessibility: 76,
     technical: 80,
     business: 91,
     performance: 72,
-    security: 78
+    security: 78,
+    routeReliability: 80
   },
 
   issues: [
@@ -153,14 +154,39 @@ const sampleData = {
 
   ],
 
-  checks: {},
+  checks: {
+    seo: [
+      { title: "Page title", description: "A descriptive page title was detected.", status: "pass", weight: 15 },
+      { title: "Title length", description: "The title is slightly longer than the recommended range.", status: "warning", weight: 8, severity: "low" },
+      { title: "Meta description", description: "A meta description was detected.", status: "pass", weight: 12 }
+    ],
+    accessibility: [
+      { title: "Document language", description: "The document language is declared.", status: "pass", weight: 10 },
+      { title: "Images alternative text", description: "Some images are missing useful alternative text.", status: "warning", weight: 10, severity: "high" }
+    ],
+    mobile: [
+      { title: "Viewport", description: "A responsive viewport meta tag was detected.", status: "pass", weight: 10 },
+      { title: "Flexible layout", description: "Some layout elements would benefit from more flexible responsive rules.", status: "warning", weight: 8, severity: "medium" }
+    ],
+    technical: [
+      { title: "HTTPS", description: "The website is served over HTTPS.", status: "pass", weight: 15 },
+      { title: "Server response time", description: "The initial server response could be improved.", status: "warning", weight: 10, severity: "high" }
+    ],
+    security: [
+      { title: "HTTPS", description: "The website is served over HTTPS.", status: "pass", weight: 15 },
+      { title: "HSTS", description: "Strict-Transport-Security was detected.", status: "pass", weight: 8 },
+      { title: "Content Security Policy", description: "No Content-Security-Policy header was detected.", status: "warning", weight: 8, severity: "medium" },
+      { title: "Referrer-Policy", description: "No Referrer-Policy header was detected.", status: "warning", weight: 5, severity: "low" }
+    ]
+  },
 
   businessEvidence: {
-    phone: true,
-    email: true,
-    whatsapp: true,
-    contactForm: true,
-    location: true
+    phone: [{ url: "https://example-business.co.za/", value: "+27 12 555 0100", clickable: true }],
+    email: [{ url: "https://example-business.co.za/contact", value: "info@example-business.co.za", clickable: true }],
+    whatsapp: [{ url: "https://example-business.co.za/", value: "WhatsApp", clickable: true }],
+    form: [{ url: "https://example-business.co.za/contact", count: 1, usable: true }],
+    location: [{ url: "https://example-business.co.za/", value: "Pretoria, Gauteng" }],
+    cta: [{ url: "https://example-business.co.za/", value: "Request a quote" }]
   },
 
   metadata: {
@@ -176,12 +202,73 @@ const sampleData = {
   },
 
   linkHealth: {
+    total: 20,
+    tested: 18,
     working: 16,
     broken: 1,
-    blocked: 1
+    placeholder: 1,
+    blocked: 1,
+    unreachable: 0,
+    redirected: 1,
+    internal: 12,
+    external: 8,
+    anchors: 2
+  },
+
+  routeHealth: {
+    tested: 7,
+    working: 4,
+    broken: 1,
+    blocked: 1,
+    unreachable: 0,
+    redirected: 1,
+    failed: 1,
+    reliabilityScore: 80,
+    routes: [
+      { path: "/about", url: "https://example-business.co.za/about", status: "working", statusCode: 200, finalUrl: "https://example-business.co.za/about" },
+      { path: "/services", url: "https://example-business.co.za/services", status: "working", statusCode: 200, finalUrl: "https://example-business.co.za/services" },
+      { path: "/contact", url: "https://example-business.co.za/contact", status: "working", statusCode: 200, finalUrl: "https://example-business.co.za/contact" },
+      { path: "/quote", url: "https://example-business.co.za/quote", status: "working", statusCode: 200, finalUrl: "https://example-business.co.za/quote" },
+      { path: "/pricing", url: "https://example-business.co.za/pricing", status: "broken", statusCode: 404, finalUrl: "https://example-business.co.za/pricing" },
+      { path: "/old-page", url: "https://example-business.co.za/old-page", status: "blocked", statusCode: 403, finalUrl: "https://example-business.co.za/old-page" },
+      { path: "/legacy", url: "https://example-business.co.za/legacy", status: "redirected", statusCode: 301, finalUrl: "https://example-business.co.za/services" }
+    ]
+  },
+
+  browserInspection: {
+    attempted: true,
+    available: true,
+    durationMs: 8200,
+    consoleErrors: [],
+    failedResources: [],
+    findings: [],
+    renderedForms: [{ action: "/contact", method: "POST" }],
+    renderedButtons: [{ text: "Request a quote" }, { text: "Contact us" }],
+    renderedHeadings: [{ tag: "h1", text: "Example Business" }, { tag: "h2", text: "Our Services" }],
+    renderedContactLinks: [{ type: "phone", text: "Call us" }, { type: "email", text: "Email us" }, { type: "whatsapp", text: "WhatsApp" }],
+    horizontalOverflow: false
+  },
+
+  pageAccess: {
+    limited: false,
+    status: 200,
+    challengeDetected: false,
+    reason: ""
   },
 
   responseTime: 842,
+
+  crawl: {
+    enabled: true,
+    maxAdditionalPages: 8,
+    pagesScanned: 5,
+    totalPagesDiscovered: 6,
+    pages: [
+      { path: "/", type: "homepage", scanned: true },
+      { path: "/services", type: "priority", scanned: true },
+      { path: "/contact", type: "priority", scanned: true }
+    ]
+  },
 
 pageSpeed: {
   available: true,
