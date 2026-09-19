@@ -428,6 +428,62 @@ const cancelScanHistoryButton =
     const renderedForms = Array.isArray(mergedScanData.browserInspection?.renderedForms)
       ? mergedScanData.browserInspection.renderedForms
       : [];
+
+    /*
+     * Browser-rendered forms can exist on an important
+     * conversion page even when the homepage HTML contains
+     * no <form> element. Keep the mobile form check aligned
+     * with the same rendered evidence without treating a
+     * form as a contact form automatically.
+     */
+    const browserFormControls =
+      renderedForms.flatMap(
+        form =>
+          Array.isArray(form?.fieldTypes)
+            ? form.fieldTypes
+            : []
+      );
+
+    const hasBrowserForms =
+      renderedForms.length > 0;
+
+    const hasUsefulBrowserInputTypes =
+      browserFormControls.some(
+        type =>
+          /^(email|tel|number|url|search)$/i.test(
+            String(type || "")
+          )
+      );
+
+    const mobileInputCheck =
+      Array.isArray(mergedScanData.checks?.mobile)
+        ? mergedScanData.checks.mobile.find(
+            check =>
+              check &&
+              check.title === "Mobile-friendly input types"
+          )
+        : null;
+
+    if (mobileInputCheck && hasBrowserForms) {
+      mobileInputCheck.status =
+        hasUsefulBrowserInputTypes
+          ? "pass"
+          : "warning";
+
+      mobileInputCheck.passed =
+        hasUsefulBrowserInputTypes;
+
+      mobileInputCheck.severity =
+        hasUsefulBrowserInputTypes
+          ? "info"
+          : "low";
+
+      mobileInputCheck.description =
+        hasUsefulBrowserInputTypes
+          ? "Rendered forms include mobile-friendly input types."
+          : "Rendered forms were detected, but no common mobile-friendly input types were confirmed.";
+    }
+
     const browserFormEvidence = renderedForms.map(form => ({
       ...form,
       source: "browser-rendered",
@@ -657,6 +713,9 @@ const cancelScanHistoryButton =
                 "WhatsApp" &&
               hasWhatsApp ||
               issue.title ===
+                "Contact form" &&
+              hasContactForm ||
+              issue.title ===
                 "Call to action" &&
               hasCta
             )
@@ -681,6 +740,9 @@ const cancelScanHistoryButton =
               recommendation.title ===
                 "WhatsApp" &&
               hasWhatsApp ||
+              recommendation.title ===
+                "Contact form" &&
+              hasContactForm ||
               recommendation.title ===
                 "Call to action" &&
               hasCta
