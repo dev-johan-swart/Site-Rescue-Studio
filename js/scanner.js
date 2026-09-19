@@ -430,7 +430,12 @@ const cancelScanHistoryButton =
       : [];
     const browserFormEvidence = renderedForms.map(form => ({
       ...form,
-      source: "browser-rendered"
+      source: "browser-rendered",
+      usable: Boolean(
+        form &&
+        form.contactIntent &&
+        form.hasSubmit
+      )
     }));
 
     const mergedEvidence = {
