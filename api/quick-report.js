@@ -1139,6 +1139,12 @@ function addFooters(
       range.start + i
     );
 
+    doc.x =
+      PAGE.left;
+
+    doc.y =
+      doc.page.height - 38;
+
     doc
       .fillColor(
         BRAND.muted
