@@ -166,7 +166,7 @@ module.exports =
       const scoreRows = [
         ["Overall", scores.overall],
         ["SEO", scores.seo],
-        ["Performance", data?.pageSpeed?.available === false ? null : scores.performance],
+        ["Performance", data?.pageSpeed?.available === true ? scores.performance : null],
         ["Mobile", scores.mobile],
         ["Accessibility", scores.accessibility],
         ["Technical", scores.technical],
