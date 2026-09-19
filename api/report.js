@@ -4256,34 +4256,27 @@ function formatBusinessEvidence(
   entry
 ) {
   if (
-    entry ===
-      null ||
-    entry ===
-      undefined
+    entry === null ||
+    entry === undefined
   ) {
     return "Evidence detected.";
   }
 
   if (
-    typeof entry ===
-    "string"
+    typeof entry === "string"
   ) {
     return entry;
   }
 
   const parts = [];
 
-  if (
-    entry.url
-  ) {
+  if (entry.url) {
     parts.push(
       `Page: ${cleanDisplayUrl(
         entry.url
       )}`
     );
-  } else if (
-    entry.page
-  ) {
+  } else if (entry.page) {
     parts.push(
       `Page: ${cleanDisplayUrl(
         entry.page
@@ -4291,33 +4284,26 @@ function formatBusinessEvidence(
     );
   }
 
-  if (
-    entry.value
-  ) {
+  if (entry.value) {
     parts.push(
       `Value: ${entry.value}`
     );
   }
 
-  if (
-    entry.text
-  ) {
+  if (entry.text) {
     parts.push(
       `Text: ${entry.text}`
     );
   }
 
-  if (
-    entry.href
-  ) {
+  if (entry.href) {
     parts.push(
       `Link: ${entry.href}`
     );
   }
 
   if (
-    entry.clickable !==
-      undefined
+    entry.clickable !== undefined
   ) {
     parts.push(
       entry.clickable
@@ -4327,8 +4313,7 @@ function formatBusinessEvidence(
   }
 
   if (
-    entry.usable !==
-      undefined
+    entry.usable !== undefined
   ) {
     parts.push(
       entry.usable
@@ -4337,92 +4322,96 @@ function formatBusinessEvidence(
     );
   }
 
-  if (entry.type) {
-    parts.push(`Form type: ${entry.type}`);
+  /*
+   * Form-only metadata.
+   *
+   * These fields must never be interpreted as form
+   * metadata for phone, email, WhatsApp, location or CTA
+   * evidence. Browser-rendered source wording is also
+   * form-specific because the scanner never submits forms.
+   */
+  if (key === "form") {
+    if (entry.type) {
+      parts.push(
+        `Form type: ${entry.type}`
+      );
+    }
+
+    if (entry.confidence) {
+      parts.push(
+        `Detection confidence: ${entry.confidence}`
+      );
+    }
+
+    if (entry.fields !== undefined) {
+      parts.push(
+        `Fields detected: ${entry.fields}`
+      );
+    }
+
+    if (
+      typeof entry.hasSubmit === "boolean"
+    ) {
+      parts.push(
+        entry.hasSubmit
+          ? "Submit control detected"
+          : "No submit control detected"
+      );
+    }
+
+    if (
+      entry.source === "browser-rendered"
+    ) {
+      parts.push(
+        "Source: browser-rendered DOM; form was inspected only and was not submitted"
+      );
+    }
+
+    if (
+      entry.formCount !== undefined
+    ) {
+      parts.push(
+        `Forms detected: ${entry.formCount}`
+      );
+    }
+
+    if (entry.forms !== undefined) {
+      const count =
+        Array.isArray(entry.forms)
+          ? entry.forms.length
+          : entry.forms;
+
+      parts.push(
+        `Forms detected: ${count}`
+      );
+    }
   }
 
-  if (entry.confidence) {
-    parts.push(`Detection confidence: ${entry.confidence}`);
-  }
-
-  if (entry.fields !== undefined) {
-    parts.push(`Fields detected: ${entry.fields}`);
-  }
-
-  if (typeof entry.hasSubmit === "boolean") {
-    parts.push(
-      entry.hasSubmit
-        ? "Submit control detected"
-        : "No submit control detected"
-    );
-  }
-
-  if (entry.source === "browser-rendered") {
-    parts.push(
-      "Source: browser-rendered DOM; form was inspected only and was not submitted"
-    );
-  }
-
-  if (
-    entry.formCount !==
-      undefined
-  ) {
-    parts.push(
-      `Forms detected: ${entry.formCount}`
-    );
-  }
-
-  if (
-    entry.forms !==
-      undefined
-  ) {
-    const count =
-      Array.isArray(
-        entry.forms
-      )
-        ? entry.forms.length
-        : entry.forms;
-
-    parts.push(
-      `Forms detected: ${count}`
-    );
-  }
-
-  if (
-    entry.address
-  ) {
+  if (entry.address) {
     parts.push(
       `Address: ${entry.address}`
     );
   }
 
-  if (
-    entry.mapLink
-  ) {
+  if (entry.mapLink) {
     parts.push(
       "Map link detected"
     );
   }
 
-  if (
-    entry.mapEmbed
-  ) {
+  if (entry.mapEmbed) {
     parts.push(
       "Map embed detected"
     );
   }
 
-  if (
-    entry.cta
-  ) {
+  if (entry.cta) {
     parts.push(
       `CTA: ${entry.cta}`
     );
   }
 
-  if (
-    !parts.length
-  ) {
+  if (!parts.length) {
     parts.push(
       "Evidence detected."
     );
