@@ -162,10 +162,25 @@ const {
           const historyId =
             Number(body.historyId);
 
+          const requestedWebsite =
+            String(body.website || "").trim();
+
+          const requestedWebsiteNormalized =
+            requestedWebsite
+              ? normalizeWebsite(requestedWebsite)
+              : null;
+
           if (!Number.isInteger(historyId) || historyId <= 0) {
             return res.status(400).json({
               success: false,
               error: "A valid scan history ID is required."
+            });
+          }
+
+          if (!requestedWebsiteNormalized) {
+            return res.status(400).json({
+              success: false,
+              error: "The website for this scan archive is required."
             });
           }
 
@@ -179,6 +194,7 @@ const {
                 scan_data
               FROM scan_history
               WHERE id = ${historyId}
+                AND website_normalized = ${requestedWebsiteNormalized}
               LIMIT 1;
             `;
 
