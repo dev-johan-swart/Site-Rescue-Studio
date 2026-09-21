@@ -131,6 +131,11 @@ const loadScanHistoryButton =
     "loadScanHistoryButton"
   );
 
+const downloadScanHistoryButton =
+  document.getElementById(
+    "downloadScanHistoryButton"
+  );
+
 const cancelScanHistoryButton =
   document.getElementById(
     "cancelScanHistoryButton"
@@ -2055,28 +2060,14 @@ if (
 
 function openScanHistoryModal() {
 
-  if (!latestScanData) {
-
-    showError(
-      "Please complete a website scan first."
-    );
-
-    return;
-  }
-
   if (!scanHistoryModal) {
     return;
   }
 
-  const website =
-    latestScanData.finalUrl ||
-    latestScanData.url ||
-    "";
-
   if (scanHistoryWebsite) {
 
     scanHistoryWebsite.textContent =
-      `Viewing scan history for ${website}`;
+      "All recorded scan history across every scanned website.";
 
   }
 
@@ -2114,6 +2105,13 @@ function openScanHistoryModal() {
 
   }
 
+  if (downloadScanHistoryButton) {
+
+    downloadScanHistoryButton.hidden =
+      true;
+
+  }
+
   scanHistoryModal.hidden =
     false;
 
@@ -2126,6 +2124,149 @@ function openScanHistoryModal() {
     );
 
   }
+
+}
+
+
+function csvEscapeHistoryValue(value) {
+
+  const textValue =
+    value === null ||
+    value === undefined
+      ? ""
+      : String(value);
+
+  return `"${textValue.replace(/"/g, '""')}"`;
+
+}
+
+
+function downloadScanHistoryCsv() {
+
+  if (
+    !scanHistoryResults ||
+    scanHistoryResults.hidden
+  ) {
+    return;
+  }
+
+  const entries =
+    scanHistoryResults.querySelectorAll(
+      ".scan-history-entry"
+    );
+
+  if (!entries.length) {
+    return;
+  }
+
+  const rows = [
+    [
+      "Date",
+      "Website",
+      "Scanner Version",
+      "Overall",
+      "SEO",
+      "Mobile",
+      "Accessibility",
+      "Technical",
+      "Business",
+      "Performance",
+      "Security"
+    ]
+  ];
+
+  entries.forEach(entry => {
+
+    const website =
+      entry.querySelector(
+        ".scan-history-website"
+      )?.textContent?.trim() || "";
+
+    const date =
+      entry.querySelector(
+        ".scan-history-date"
+      )?.textContent?.trim() || "";
+
+    const version =
+      entry.querySelector(
+        ".scan-history-version"
+      )?.textContent?.trim() || "";
+
+    const overall =
+      entry.querySelector(
+        ".scan-history-overall strong"
+      )?.textContent?.trim() || "";
+
+    const scores =
+      Array.from(
+        entry.querySelectorAll(
+          ".scan-history-scores strong"
+        )
+      ).map(
+        element =>
+          element.textContent.trim()
+      );
+
+    rows.push([
+      date,
+      website,
+      version,
+      overall,
+      ...scores
+    ]);
+
+  });
+
+  const csv =
+    rows
+      .map(
+        row =>
+          row
+            .map(csvEscapeHistoryValue)
+            .join(",")
+      )
+      .join("\r\n");
+
+  const blob =
+    new Blob(
+      [csv],
+      {
+        type:
+          "text/csv;charset=utf-8;"
+      }
+    );
+
+  const downloadUrl =
+    URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href =
+    downloadUrl;
+
+  link.download =
+    "site-rescue-studio-scan-history.csv";
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  link.remove();
+
+  URL.revokeObjectURL(
+    downloadUrl
+  );
+
+}
+
+
+if (downloadScanHistoryButton) {
+
+  downloadScanHistoryButton.addEventListener(
+    "click",
+    downloadScanHistoryCsv
+  );
 
 }
 
@@ -2325,6 +2466,13 @@ function renderScanHistory(
 
               <div class="scan-history-entry-header">
 
+                <div class="scan-history-website">
+                  ${escapeHtml(
+                    scan.website ||
+                    "Unknown website"
+                  )}
+                </div>
+
                 <div>
                   <div class="scan-history-date">
                     ${escapeHtml(
@@ -2483,22 +2631,15 @@ function renderScanHistory(
   scanHistoryResults.hidden =
     false;
 
+  if (downloadScanHistoryButton) {
+    downloadScanHistoryButton.hidden =
+      false;
+  }
+
 }
 
 
 async function loadScanHistory() {
-
-  if (!latestScanData) {
-
-    closeScanHistoryModal();
-
-    showError(
-      "Please complete a website scan first."
-    );
-
-    return;
-
-  }
 
   const password =
     String(
@@ -2515,11 +2656,6 @@ async function loadScanHistory() {
     return;
 
   }
-
-  const website =
-    latestScanData.finalUrl ||
-    latestScanData.url ||
-    "";
 
   if (loadScanHistoryButton) {
 
@@ -2567,7 +2703,6 @@ async function loadScanHistory() {
 
           body:
             JSON.stringify({
-              website,
               password
             })
         }
@@ -2631,7 +2766,7 @@ async function loadScanHistory() {
         false;
 
       loadScanHistoryButton.textContent =
-        "View History";
+        "Load All History";
 
     }
 
