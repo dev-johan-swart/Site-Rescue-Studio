@@ -195,6 +195,28 @@ const cancelScanHistoryButton =
       const mergedRouteResults =
         Array.from(routeMap.values());
 
+      const scoreableRoutes =
+        mergedRouteResults.filter(
+          route =>
+            route?.status === "working" ||
+            route?.status === "broken" ||
+            route?.status === "unreachable"
+        );
+
+      const routeReliabilityScore =
+        scoreableRoutes.length >= 3
+          ? Math.round(
+              (
+                scoreableRoutes.filter(
+                  route =>
+                    route.status === "working"
+                ).length /
+                scoreableRoutes.length
+              ) *
+              100
+            )
+          : null;
+
       const routeHealthSummary = {
         tested: mergedRouteResults.length,
         working: mergedRouteResults.filter(route => route.status === "working").length,
@@ -207,16 +229,7 @@ const cancelScanHistoryButton =
             route.status === "broken" ||
             route.status === "unreachable"
         ).length,
-        reliabilityScore:
-          Number.isFinite(
-            Number(
-              scanData.routeHealth?.reliabilityScore
-            )
-          )
-            ? Number(
-                scanData.routeHealth.reliabilityScore
-              )
-            : null,
+        reliabilityScore: routeReliabilityScore,
         routes: mergedRouteResults
       };
 
