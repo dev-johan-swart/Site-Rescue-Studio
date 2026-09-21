@@ -6546,7 +6546,7 @@ function drawEvidenceMessage(
             "Website reliability issue",
 
           description:
-            "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a direct-navigation or refresh routing issue. The affected routes and response evidence are included in the detailed report.",
+            "One or more discovered internal website routes require review when requested directly. Failed routes may indicate a direct-navigation or refresh routing issue. Redirected routes are reported separately because a redirect that reaches HTTP 200 is not automatically a broken route. The affected routes and response evidence are included in the detailed report.",
 
           status:
             "warning",
