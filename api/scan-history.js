@@ -158,6 +158,43 @@ const {
           });
         }
 
+        if (action === "get") {
+          const historyId =
+            Number(body.historyId);
+
+          if (!Number.isInteger(historyId) || historyId <= 0) {
+            return res.status(400).json({
+              success: false,
+              error: "A valid scan history ID is required."
+            });
+          }
+
+          const rows =
+            await sql`
+              SELECT
+                id,
+                website,
+                scanned_at,
+                scanner_version,
+                scan_data
+              FROM scan_history
+              WHERE id = ${historyId}
+              LIMIT 1;
+            `;
+
+          if (!rows.length) {
+            return res.status(404).json({
+              success: false,
+              error: "The requested scan archive was not found."
+            });
+          }
+
+          return res.status(200).json({
+            success: true,
+            history: rows[0]
+          });
+        }
+
         let history = [];
 
         if (websiteNormalized) {
