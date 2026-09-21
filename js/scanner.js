@@ -2724,6 +2724,102 @@ function renderScanHistory(
 }
 
 
+async function downloadHistoricalReport(historyId) {
+  const password =
+    String(scanHistoryPassword?.value || "");
+
+  if (!password || !historyId) {
+    showScanHistoryError(
+      "Please enter your admin password and select a stored scan."
+    );
+    return;
+  }
+
+  try {
+    const response =
+      await fetch("/api/scan-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          password,
+          action: "get",
+          historyId: Number(historyId)
+        })
+      });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success || !data.history?.scan_data) {
+      throw new Error(
+        data?.error ||
+        "The full scan archive is not available."
+      );
+    }
+
+    const reportResponse =
+      await fetch("/api/report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data.history.scan_data)
+      });
+
+    if (!reportResponse.ok) {
+      let message =
+        "Unable to generate the archived R200 report.";
+
+      try {
+        const errorData = await reportResponse.json();
+        message = errorData?.error || message;
+      } catch {}
+
+      throw new Error(message);
+    }
+
+    const blob =
+      await reportResponse.blob();
+
+    if (!blob.size) {
+      throw new Error(
+        "The archived report was empty."
+      );
+    }
+
+    const downloadUrl =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download =
+      buildReportFilename(
+        data.history.scan_data,
+        "health-report"
+      );
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(downloadUrl);
+
+  } catch (error) {
+    console.error(
+      "Historical report download error:",
+      error
+    );
+
+    showScanHistoryError(
+      error.message ||
+      "Unable to download the archived R200 report."
+    );
+  }
+}
+
 async function loadScanHistory() {
 
   const password =
