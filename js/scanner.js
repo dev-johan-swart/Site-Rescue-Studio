@@ -1182,6 +1182,59 @@ function recalculateScoresAfterBusinessMerge(scanData) {
   const currentScores =
     scanData.scores || {};
 
+  /*
+   * Rebuild the homepage Technical score from its own checks,
+   * then combine it with the browser-merged Route Reliability
+   * score. This prevents the old server-side route score from
+   * surviving after browser route evidence is merged.
+   */
+  const technicalChecks =
+    Array.isArray(scanData?.checks?.technical)
+      ? scanData.checks.technical
+      : [];
+
+  let technicalTotalWeight = 0;
+  let technicalEarnedWeight = 0;
+
+  technicalChecks.forEach(check => {
+    const weight =
+      typeof check?.weight === "number" &&
+      Number.isFinite(check.weight)
+        ? check.weight
+        : 0;
+
+    technicalTotalWeight += weight;
+
+    if (check?.status === "pass") {
+      technicalEarnedWeight += weight;
+    } else if (check?.status === "warning") {
+      technicalEarnedWeight += weight * 0.5;
+    }
+  });
+
+  const homepageTechnicalScore =
+    technicalTotalWeight > 0
+      ? Math.round(
+          (technicalEarnedWeight / technicalTotalWeight) *
+          100
+        )
+      : Number(currentScores.technical || 0);
+
+  const routeReliabilityScore =
+    Number.isFinite(
+      Number(scanData?.routeHealth?.reliabilityScore)
+    )
+      ? Number(scanData.routeHealth.reliabilityScore)
+      : null;
+
+  const technicalScore =
+    routeReliabilityScore === null
+      ? homepageTechnicalScore
+      : Math.round(
+          homepageTechnicalScore * 0.5 +
+          routeReliabilityScore * 0.5
+        );
+
   const performanceScore =
     currentScores.performance;
 
@@ -1199,7 +1252,7 @@ function recalculateScoresAfterBusinessMerge(scanData) {
         seoScore * 0.25 +
         Number(performanceScore) * 0.20 +
         Number(currentScores.accessibility || 0) * 0.10 +
-        Number(currentScores.technical || 0) * 0.15 +
+        technicalScore * 0.15 +
         businessScore * 0.30
       );
   } else {
@@ -1207,7 +1260,7 @@ function recalculateScoresAfterBusinessMerge(scanData) {
       Math.round(
         seoScore * 0.30 +
         Number(currentScores.accessibility || 0) * 0.10 +
-        Number(currentScores.technical || 0) * 0.20 +
+        technicalScore * 0.20 +
         businessScore * 0.40
       );
   }
@@ -1287,6 +1340,7 @@ function recalculateScoresAfterBusinessMerge(scanData) {
       ...currentScores,
       seo: seoScore,
       business: businessScore,
+      technical: technicalScore,
       overall
     }
   };
