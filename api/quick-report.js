@@ -207,7 +207,7 @@ module.exports =
         drawInfoBox(
           doc,
           "Website route alert",
-          "One or more discovered internal website routes returned an unsuccessful HTTP response when requested directly. The full Website Health Report includes the affected routes and response details."
+          "One or more discovered internal website routes require review when requested directly. Failed routes may indicate a direct-navigation or refresh routing issue. Redirected routes are reported separately because a redirect that reaches HTTP 200 is not automatically a broken route. The full Website Health Report includes the affected routes and response details."
         );
 
         const routesRequiringReview =
