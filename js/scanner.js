@@ -2858,7 +2858,15 @@ async function downloadHistoricalReport(historyId, website) {
     link.click();
     link.remove();
 
-    URL.revokeObjectURL(downloadUrl);
+    /*
+     * Keep the object URL alive briefly after the synthetic click.
+     * Revoking it immediately can cancel the download in some
+     * browsers before the download request has been consumed.
+     */
+    setTimeout(
+      () => URL.revokeObjectURL(downloadUrl),
+      1000
+    );
 
   } catch (error) {
     console.error(
