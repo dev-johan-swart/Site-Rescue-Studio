@@ -2363,6 +2363,34 @@ if (downloadScanHistoryButton) {
 }
 
 
+if (scanHistoryResults) {
+
+  scanHistoryResults.addEventListener(
+    "click",
+    event => {
+
+      const button =
+        event.target.closest(
+          ".scan-history-download"
+        );
+
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+
+      downloadHistoricalReport(
+        button.dataset.historyId,
+        button.dataset.historyWebsite
+      );
+
+    }
+  );
+
+}
+
+
 function closeScanHistoryModal() {
 
   if (scanHistoryModal) {
@@ -2616,7 +2644,7 @@ function renderScanHistory(
 
               ${scan.archive_available ? `
                 <div class="scan-history-actions">
-                  <button type="button" class="scan-history-download" data-history-id="${escapeHtml(String(scan.id || ""))}">
+                  <button type="button" class="scan-history-download" data-history-id="${escapeHtml(String(scan.id || ""))}" data-history-website="${escapeHtml(String(scan.website || ""))}">
                     Download R200 Report
                   </button>
                 </div>
@@ -2745,11 +2773,11 @@ function renderScanHistory(
 }
 
 
-async function downloadHistoricalReport(historyId) {
+async function downloadHistoricalReport(historyId, website) {
   const password =
     String(scanHistoryPassword?.value || "");
 
-  if (!password || !historyId) {
+  if (!password || !historyId || !website) {
     showScanHistoryError(
       "Please enter your admin password and select a stored scan."
     );
@@ -2766,7 +2794,8 @@ async function downloadHistoricalReport(historyId) {
         body: JSON.stringify({
           password,
           action: "get",
-          historyId: Number(historyId)
+          historyId: Number(historyId),
+          website: String(website)
         })
       });
 
