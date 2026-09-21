@@ -1139,13 +1139,13 @@ function addFooters(
       range.start + i
     );
 
-    doc.x =
-      PAGE.left;
-
-    doc.y =
-      doc.page.height - 38;
+    const footerY =
+      doc.page.height -
+      PAGE.bottom +
+      8;
 
     doc
+      .save()
       .fillColor(
         BRAND.muted
       )
@@ -1156,14 +1156,17 @@ function addFooters(
       .text(
         `Site Rescue Studio • Fix. Improve. Grow. • Page ${i + 1} of ${range.count}`,
         PAGE.left,
-        doc.page.height - 38,
+        footerY,
         {
           width:
             PAGE.width,
           align:
-            "center"
+            "center",
+          lineBreak:
+            false
         }
-      );
+      )
+      .restore();
   }
 }
 
