@@ -2607,6 +2607,20 @@ function renderScanHistory(
 
               </div>
 
+              ${scan.archive_available ? `
+                <div class="scan-history-actions">
+                  <button type="button" class="scan-history-download" data-history-id="${escapeHtml(String(scan.id || ""))}">
+                    Download R200 Report
+                  </button>
+                </div>
+              ` : `
+                <div class="scan-history-actions">
+                  <span class="scan-history-unavailable">
+                    Full report archive not available for this older scan
+                  </span>
+                </div>
+              `}
+
               <div class="scan-history-scores">
 
                 <div>
