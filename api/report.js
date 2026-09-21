@@ -4932,28 +4932,36 @@ function drawWebsiteInformation(
       }); 
       
       if (structuredCheck) { 
-        const text = 
-        String( structuredCheck.description ?? 
-          structuredCheck.details ?? 
-          structuredCheck.value ?? 
-          "" 
-        ); 
-        
-        const match = 
-        text.match( 
-          /found:\s*(.+)$/i 
-        ); 
-        
-        if (match) { 
+        const checkStatus =
+          String(
+            structuredCheck.status ??
+            ""
+          ).toLowerCase();
+
+        const text =
+          String(
+            structuredCheck.description ??
+            structuredCheck.details ??
+            structuredCheck.value ??
+            ""
+          );
+
+        const match =
+          text.match(
+            /found:\s*(.+)$/i
+          );
+
+        if (
+          checkStatus === "pass"
+        ) {
           structuredDataValue =
-           match[1].trim(); 
-          } else { 
-            structuredDataValue = 
-            "Detected"; 
-          } 
-        } else { 
-          structuredDataValue = 
-          "Detected"; 
+            match
+              ? match[1].trim()
+              : "Detected";
+        } else {
+          structuredDataValue =
+            text ||
+            "Not detected";
         } 
       }
 
