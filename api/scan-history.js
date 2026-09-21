@@ -217,7 +217,7 @@ const {
                 security_score,
                 key_problems,
                 potential_services,
-                scan_data
+                (scan_data IS NOT NULL) AS archive_available
 
               FROM scan_history
 
@@ -250,7 +250,7 @@ const {
                 security_score,
                 key_problems,
                 potential_services,
-                scan_data
+                (scan_data IS NOT NULL) AS archive_available
 
               FROM scan_history
 
