@@ -4904,34 +4904,35 @@ function drawWebsiteInformation(
         String(
           structuredDataValue.type
         );
-      } else { 
+    } else {
+      /*
+       * Try to extract schema types from the scanner's
+       * detailed SEO health check before falling back
+       * to a generic "Detected" label.
+       */
 
-        /* 
-        * Try to extract schema types from the scanner's 
-        * detailed SEO health check before falling back 
-        * to a generic "Detected" label. 
-        * */ 
-       
-        const seoChecks = 
-        Array.isArray(checks.seo) 
-        ? checks.seo 
-        : []; 
-        
-        const structuredCheck = 
-        seoChecks.find(check => { 
-          const title = 
-          String( check?.title ?? 
-            check?.name ?? 
-            check?.label ?? 
-            "" 
-          ).toLowerCase(); 
-          
-          return ( title.includes("structured data") || 
-          title.includes("schema") 
-        ); 
-      }); 
-      
-      if (structuredCheck) { 
+      const seoChecks =
+        Array.isArray(checks.seo)
+          ? checks.seo
+          : [];
+
+      const structuredCheck =
+        seoChecks.find(check => {
+          const title =
+            String(
+              check?.title ??
+              check?.name ??
+              check?.label ??
+              ""
+            ).toLowerCase();
+
+          return (
+            title.includes("structured data") ||
+            title.includes("schema")
+          );
+        });
+
+      if (structuredCheck) {
         const checkStatus =
           String(
             structuredCheck.status ??
@@ -4962,9 +4963,9 @@ function drawWebsiteInformation(
           structuredDataValue =
             text ||
             "Not detected";
-        } 
+        }
       }
-
+    }
   } else {
     structuredDataValue =
       formatMetadataValue(
