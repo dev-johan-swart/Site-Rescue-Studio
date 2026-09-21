@@ -62,7 +62,14 @@ const {
           });
         }
   
-        const website =
+        const action =
+        String(
+          body.action ||
+          "list"
+        ).trim()
+        .toLowerCase();
+
+      const website =
           String(
             body.website ||
             ""
@@ -113,7 +120,8 @@ const {
                 performance_score,
                 security_score,
                 key_problems,
-                potential_services
+                potential_services,
+                scan_data
 
               FROM scan_history
 
