@@ -99,6 +99,63 @@ const {
             process.env.DATABASE_URL
           );
 
+        if (action === "archive") {
+          const archiveToken =
+            String(body.archiveToken || "").trim();
+
+          const scanData =
+            body.scanData &&
+            typeof body.scanData === "object"
+              ? body.scanData
+              : null;
+
+          if (!archiveToken || !scanData) {
+            return res.status(400).json({
+              success: false,
+              error: "A complete scan archive is required."
+            });
+          }
+
+          const crypto = require("crypto");
+          const archiveTokenHash =
+            crypto.createHash("sha256")
+              .update(archiveToken)
+              .digest("hex");
+
+          const scores = scanData.scores || {};
+
+          const updated =
+            await sql`
+              UPDATE scan_history
+              SET
+                scan_data = ${JSON.stringify(scanData)},
+                overall_score = ${scores.overall ?? null},
+                seo_score = ${scores.seo ?? null},
+                mobile_score = ${scores.mobile ?? null},
+                accessibility_score = ${scores.accessibility ?? null},
+                technical_score = ${scores.technical ?? null},
+                business_score = ${scores.business ?? null},
+                performance_score = ${scores.performance ?? null},
+                security_score = ${scores.security ?? null},
+                key_problems = ${scanData.keyProblems ?? null},
+                potential_services = ${scanData.potentialServices ?? null}
+              WHERE archive_token_hash = ${archiveTokenHash}
+              RETURNING id;
+            `;
+
+          if (!updated.length) {
+            return res.status(404).json({
+              success: false,
+              error: "The scan archive could not be found."
+            });
+          }
+
+          return res.status(200).json({
+            success: true,
+            historyId: updated[0].id
+          });
+        }
+
         let history = [];
 
         if (websiteNormalized) {
@@ -153,7 +210,8 @@ const {
                 performance_score,
                 security_score,
                 key_problems,
-                potential_services
+                potential_services,
+                scan_data
 
               FROM scan_history
 
