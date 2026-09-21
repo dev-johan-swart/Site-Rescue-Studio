@@ -1141,8 +1141,8 @@ function addFooters(
 
     const footerY =
       doc.page.height -
-      PAGE.bottom +
-      8;
+      PAGE.bottom -
+      10;
 
     doc
       .save()
