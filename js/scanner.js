@@ -2870,7 +2870,7 @@ async function downloadHistoricalReport(historyId, website) {
       "Download Generated R200 PDF";
 
     downloadLink.className =
-      "scan-history-download scan-history-download-ready";
+      "scan-history-generated-report";
 
     const currentButton =
       Array.from(
