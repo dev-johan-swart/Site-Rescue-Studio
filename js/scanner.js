@@ -678,7 +678,7 @@ const cancelScanHistoryButton =
         " with " +
         (contactForm?.fields || 0) +
         " field(s). The form was inspected only and was not submitted.",
-      "Forms were detected, but no contact/enquiry form with a confirmed submit mechanism was identified."
+      "No confirmed contact/enquiry form with a working submit mechanism was detected."
     );
 
     updateBusinessCheck(
