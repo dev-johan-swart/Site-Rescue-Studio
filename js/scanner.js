@@ -2809,12 +2809,15 @@ async function downloadHistoricalReport(historyId, website) {
     }
 
     const reportResponse =
-      await fetch("/api/report", {
+      await fetch("/api/health-report", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(data.history.scan_data)
+        body: JSON.stringify({
+          ...data.history.scan_data,
+          password
+        })
       });
 
     if (!reportResponse.ok) {
