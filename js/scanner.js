@@ -284,13 +284,51 @@ const cancelScanHistoryButton =
             "Website reliability issue",
 
           description:
-            "One or more discovered internal website routes returned an unsuccessful response when requested directly. The affected routes and response evidence are included in the detailed report.",
+            "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a likely refresh/direct-navigation routing issue. The affected routes and response evidence are included in the detailed report.",
 
           status:
             "warning",
 
           severity:
             "medium"
+        });
+      }
+
+      /*
+       * Browser-only route findings are added after the server scan,
+       * so ensure the matching recommendation is also present.
+       */
+      const hasRouteRecommendation =
+        Array.isArray(
+          mergedScanData.recommendations
+        ) &&
+        mergedScanData.recommendations.some(
+          recommendation =>
+            recommendation?.title ===
+            "Website reliability issue"
+        );
+
+      if (
+        routeHealthSummary.failed > 0 &&
+        !hasRouteRecommendation
+      ) {
+        if (!Array.isArray(mergedScanData.recommendations)) {
+          mergedScanData.recommendations = [];
+        }
+
+        mergedScanData.recommendations.push({
+          title:
+            "Website reliability issue",
+          severity:
+            "medium",
+          status:
+            "warning",
+          why:
+            "Visitors may encounter failed internal URLs when opening a page directly or refreshing it.",
+          action:
+            "Review the routing, rewrite and hosting configuration for the affected internal URLs and ensure valid routes return the expected pages.",
+          service:
+            "Website Rescue"
         });
       }
 
