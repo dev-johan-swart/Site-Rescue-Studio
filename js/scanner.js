@@ -431,6 +431,61 @@ const cancelScanHistoryButton =
         }
       }
 
+    const browserFormFailures =
+      Array.isArray(
+        mergedScanData.browserInspection?.formReliability
+      )
+        ? mergedScanData.browserInspection.formReliability
+        : [];
+
+    if (browserFormFailures.length) {
+      const formIssueIds = new Set([
+        "browser-form-reliability",
+        "contact-form-reliability"
+      ]);
+
+      mergedScanData.issues =
+        (Array.isArray(mergedScanData.issues)
+          ? mergedScanData.issues
+          : []
+        ).filter(
+          issue =>
+            !formIssueIds.has(issue?.id)
+        );
+
+      mergedScanData.issues.push({
+        id: "contact-form-reliability",
+        category: "Business",
+        title: "Contact form reliability issue",
+        description:
+          "A detected contact/enquiry form points to a submission endpoint that returned an unsuccessful response or could not be reached. The form was inspected only and was not submitted.",
+        status: "fail",
+        severity: "high"
+      });
+
+      if (!Array.isArray(mergedScanData.recommendations)) {
+        mergedScanData.recommendations = [];
+      }
+
+      mergedScanData.recommendations =
+        mergedScanData.recommendations.filter(
+          recommendation =>
+            recommendation?.title !==
+            "Contact form reliability issue"
+        );
+
+      mergedScanData.recommendations.push({
+        title: "Contact form reliability issue",
+        severity: "high",
+        status: "fail",
+        why:
+          "A broken or unreachable form submission endpoint can prevent website enquiries from being delivered.",
+        action:
+          "Review the form action, form handler and hosting configuration. Test the form end-to-end after the endpoint is corrected.",
+        service: "Website Rescue"
+      });
+    }
+
     const existingEvidence =
       mergedScanData.businessEvidence &&
       typeof mergedScanData.businessEvidence ===
@@ -1107,6 +1162,36 @@ latestScanData =
   recalculateScoresAfterBusinessMerge(
     latestScanData
   );
+
+if (data.archiveToken) {
+  try {
+    const archiveResponse =
+      await fetch("/api/scan-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          password: "",
+          action: "archive",
+          archiveToken: data.archiveToken,
+          scanData: latestScanData
+        })
+      });
+
+    if (!archiveResponse.ok) {
+      console.warn(
+        "Final scan archive update failed:",
+        archiveResponse.status
+      );
+    }
+  } catch (archiveError) {
+    console.warn(
+      "Final scan archive update failed:",
+      archiveError
+    );
+  }
+}
 
 renderBrowserInspection(
   latestScanData.browserInspection,
