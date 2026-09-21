@@ -2151,8 +2151,15 @@ function openScanHistoryModal() {
 
   if (scanHistoryWebsite) {
 
+    const currentWebsite =
+      latestScanData?.finalUrl ||
+      latestScanData?.url ||
+      "";
+
     scanHistoryWebsite.textContent =
-      "All recorded scan history across every scanned website.";
+      currentWebsite
+        ? `History for ${currentWebsite}`
+        : "Complete scan history is available after a website scan.";
 
   }
 
@@ -2883,6 +2890,18 @@ async function loadScanHistory() {
 
   }
 
+  const currentWebsite =
+    latestScanData?.finalUrl ||
+    latestScanData?.url ||
+    "";
+
+  if (!currentWebsite) {
+    showScanHistoryError(
+      "Please complete a website scan first so the history can be limited to that website."
+    );
+    return;
+  }
+
   try {
 
     const response =
@@ -2898,7 +2917,8 @@ async function loadScanHistory() {
 
           body:
             JSON.stringify({
-              password
+              password,
+              website: currentWebsite
             })
         }
       );
@@ -2961,7 +2981,7 @@ async function loadScanHistory() {
         false;
 
       loadScanHistoryButton.textContent =
-        "Load All History";
+        "Load Site History";
 
     }
 
