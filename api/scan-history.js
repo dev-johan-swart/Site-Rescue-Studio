@@ -41,33 +41,35 @@ const {
         const body =
           req.body || {};
   
-        const suppliedPassword =
-          String(
-            body.password || ""
-          );
-  
-        const authentication =
-          await authenticateAdmin(
-            req,
-            suppliedPassword
-          );
-
-        if (!authentication.ok) {
-          return res.status(
-            authentication.status
-          ).json({
-            success: false,
-            error:
-              authentication.error
-          });
-        }
-  
         const action =
-        String(
-          body.action ||
-          "list"
-        ).trim()
-        .toLowerCase();
+          String(
+            body.action ||
+            "list"
+          ).trim()
+          .toLowerCase();
+
+        if (action !== "archive") {
+          const suppliedPassword =
+            String(
+              body.password || ""
+            );
+
+          const authentication =
+            await authenticateAdmin(
+              req,
+              suppliedPassword
+            );
+
+          if (!authentication.ok) {
+            return res.status(
+              authentication.status
+            ).json({
+              success: false,
+              error:
+                authentication.error
+            });
+          }
+        }
 
       const website =
           String(
