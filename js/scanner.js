@@ -2844,29 +2844,56 @@ async function downloadHistoricalReport(historyId, website) {
     const downloadUrl =
       URL.createObjectURL(blob);
 
-    const link =
-      document.createElement("a");
-
-    link.href = downloadUrl;
-    link.download =
+    const filename =
       buildReportFilename(
         data.history.scan_data,
         "health-report"
       );
 
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    /*
+     * The PDF request is asynchronous. Some browsers can reject a
+     * synthetic download click after an awaited fetch because the
+     * original user activation has expired. Replace the action with
+     * a real anchor so the browser can download it from an explicit
+     * user click.
+     */
+    const downloadLink =
+      document.createElement("a");
+
+    downloadLink.href =
+      downloadUrl;
+
+    downloadLink.download =
+      filename;
+
+    downloadLink.textContent =
+      "Download Generated R200 PDF";
+
+    downloadLink.className =
+      "scan-history-download scan-history-download-ready";
+
+    const currentButton =
+      Array.from(
+        scanHistoryResults?.querySelectorAll(
+          ".scan-history-download"
+        ) || []
+      ).find(
+        element =>
+          element.dataset.historyId ===
+          String(historyId)
+      );
+
+    if (currentButton) {
+      currentButton.replaceWith(
+        downloadLink
+      );
+    }
 
     /*
-     * Keep the object URL alive briefly after the synthetic click.
-     * Revoking it immediately can cancel the download in some
-     * browsers before the download request has been consumed.
+     * Leave the object URL alive for this explicit download link.
+     * It is released when the user closes/reloads the page.
      */
-    setTimeout(
-      () => URL.revokeObjectURL(downloadUrl),
-      1000
-    );
+    
 
   } catch (error) {
     console.error(
