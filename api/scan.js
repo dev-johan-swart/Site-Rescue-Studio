@@ -899,7 +899,12 @@ function analyzeSecurity(
 
   const insecureResourceMatches =
       html.match(
-          /(?:src|href|action)\s*=\s*["']http:\/\//gi
+          /<(?:script|img|iframe|embed|object|video|audio|source|track)\b[^>]*(?:src|data)\s*=\s*["']http:\/\//gi
+      ) || [];
+
+  const insecureStylesheetMatches =
+      html.match(
+          /<link\b[^>]*rel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*href\s*=\s*["']http:\/\//gi
       ) || [];
 
   const insecureFormMatches =
@@ -1367,7 +1372,7 @@ function analyzeSecurity(
 
       evidence: {
           insecureResources:
-              insecureResourceMatches.length,
+              insecureResourceMatches.length + insecureStylesheetMatches.length,
 
           insecureForms:
               insecureFormMatches.length,
@@ -2481,11 +2486,10 @@ console.log(
     );
 
   const mixedContent =
-    response.url?.startsWith(
-      "https://"
-    ) &&
-    /(?:src|href)\s*=\s*["']http:\/\//i.test(
-      html
+    response.url?.startsWith("https://") &&
+    (
+      /<(?:script|img|iframe|embed|object|video|audio|source|track)\b[^>]*(?:src|data)\s*=\s*["']http:\/\//i.test(html) ||
+      /<link\b[^>]*rel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*href\s*=\s*["']http:\/\//i.test(html)
     );
 
   let imagesWithoutAlt = 0;
