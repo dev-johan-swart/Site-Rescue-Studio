@@ -6784,6 +6784,8 @@ const opportunity =
        */
 
       let prospectSaved = false;
+      let historyId = null;
+      let archiveToken = null;
 
       const prospectSaveStarted =
         Date.now();
@@ -6823,6 +6825,12 @@ const opportunity =
 
         prospectSaved =
           prospectResult.saved === true;
+
+        historyId =
+          prospectResult.historyId ?? null;
+
+        archiveToken =
+          prospectResult.archiveToken ?? null;
       } catch (prospectError) {
         console.error(
           "Prospect database save failed:",
@@ -6853,6 +6861,10 @@ const opportunity =
           true,
 
         prospectSaved,
+
+        historyId,
+
+        archiveToken,
 
         scannerVersion:
          "3.2",
