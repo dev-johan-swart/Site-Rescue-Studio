@@ -453,12 +453,24 @@ const cancelScanHistoryButton =
             !formIssueIds.has(issue?.id)
         );
 
+      const hasInsecureFormAction =
+        browserFormFailures.some(
+          form =>
+            form?.reason ===
+            "insecure-http-action"
+        );
+
       mergedScanData.issues.push({
         id: "contact-form-reliability",
         category: "Business",
-        title: "Contact form reliability issue",
+        title:
+          hasInsecureFormAction
+            ? "Insecure contact form endpoint"
+            : "Contact form reliability issue",
         description:
-          "A detected contact/enquiry form points to a submission endpoint that returned an unsuccessful response or could not be reached. The form was inspected only and was not submitted.",
+          hasInsecureFormAction
+            ? "A detected contact/enquiry form on an HTTPS page submits to an HTTP endpoint. The form was inspected only and was not submitted."
+            : "A detected GET contact/enquiry form points to an endpoint that returned an unsuccessful response or could not be reached. Non-GET submission methods are not treated as failed by this non-invasive check. The form was inspected only and was not submitted.",
         status: "fail",
         severity: "high"
       });
