@@ -1842,6 +1842,33 @@ function drawPerformancePage(
     }
   );
 
+  const diagnostics =
+    Array.isArray(pageSpeed?.diagnostics)
+      ? pageSpeed.diagnostics
+      : [];
+
+  if (diagnostics.length) {
+    doc.moveDown(0.6);
+
+    doc
+      .fillColor(BRAND.dark)
+      .font("Helvetica-Bold")
+      .fontSize(12)
+      .text("Performance interpretation");
+
+    doc.moveDown(0.5);
+
+    diagnostics.forEach(diagnostic => {
+      ensureSpace(doc, 38);
+
+      drawKeyValueRow(
+        doc,
+        diagnostic?.metric || "Metric",
+        diagnostic?.message || "Review this metric."
+      );
+    });
+  }
+
   doc.moveDown(1);
 
   drawInfoBox(
