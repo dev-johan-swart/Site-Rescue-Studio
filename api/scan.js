@@ -4109,6 +4109,17 @@ function buildBusinessChecks(
 
   /*
    * CONTACT FORM
+   *
+   * Keep the three meaningful states separate:
+   * 1. No form was found on accessible pages.
+   * 2. A contact/conversion route is broken, so its form
+   *    cannot be verified.
+   * 3. A form exists, but a working submit mechanism could
+   *    not be confirmed.
+   *
+   * This prevents a broken /contact or /book route from
+   * being reported as if the scanner had inspected a healthy
+   * contact page and simply found no form.
    */
 
   const failedConversionRoute =
@@ -4116,7 +4127,9 @@ function buildBusinessChecks(
     Array.isArray(routeHealthSummary.routes)
       ? routeHealthSummary.routes.find(
           route =>
-            route?.status === "broken" &&
+            (route?.status === "broken" ||
+              route?.status === "unreachable" ||
+              route?.status === "blocked") &&
             /\/(?:contact|quote|booking|book|appointment)(?:\/|$)/i.test(
               route.path || ""
             )
@@ -4127,16 +4140,22 @@ function buildBusinessChecks(
     evidence.form.length === 0 &&
     failedConversionRoute
   ) {
+    const routeResponse =
+      failedConversionRoute.statusCode
+        ? "HTTP " +
+          failedConversionRoute.statusCode
+        : "an unreachable or blocked response";
+
     businessChecks.push(
       finding(
         "Contact form",
-        "No confirmed contact/enquiry form was detected on the pages that could be scanned. The discovered contact/booking route " +
+        "No confirmed contact/enquiry form was detected on the pages that could be scanned. The discovered contact/conversion route " +
           failedConversionRoute.path +
-          " also returned HTTP " +
-          (failedConversionRoute.statusCode || "error") +
-          " when tested directly, so that route could not be verified as a working enquiry page.",
+          " could not be verified because it returned " +
+          routeResponse +
+          " when tested directly.",
         "warning",
-        15,
+        20,
         "medium"
       )
     );
@@ -4146,19 +4165,44 @@ function buildBusinessChecks(
     businessChecks.push(
       finding(
         "Contact form",
-        "No contact/enquiry form was detected on the pages inspected.",
+        "No contact/enquiry form was detected on the accessible pages inspected.",
         "warning",
-        15,
+        20,
         "medium"
+      )
+    );
+  } else if (
+    evidence.form.some(
+      item =>
+        item.usable
+    )
+  ) {
+    const usableForm =
+      evidence.form.find(
+        item =>
+          item.usable
+      );
+
+    businessChecks.push(
+      finding(
+        "Contact form",
+        "A usable contact/enquiry form was detected on " +
+          getPathname(usableForm.url) +
+          ".",
+        "pass",
+        20
       )
     );
   } else {
     businessChecks.push(
       finding(
         "Contact form",
-        "A contact/enquiry form was detected.",
-        "pass",
-        15
+        "A contact/enquiry form was detected on " +
+          getPathname(evidence.form[0].url) +
+          ", but a working submit mechanism could not be confirmed.",
+        "warning",
+        20,
+        "medium"
       )
     );
   }
@@ -4366,55 +4410,6 @@ function buildBusinessChecks(
         "medium"
       )
     );
-  }
-
-  /*
-   * CONTACT FORM
-   */
-
-  if (
-    evidence.form.length === 0
-  ) {
-    businessChecks.push(
-      finding(
-        "Contact form",
-        "No confirmed contact/enquiry form with a working submit mechanism was detected.",
-        "warning",
-        20,
-        "medium"
-      )
-    );
-  } else {
-    const usableForm =
-      evidence.form.find(
-        item =>
-          item.usable
-      );
-
-    if (usableForm) {
-      businessChecks.push(
-        finding(
-          "Contact form",
-          `A usable contact/enquiry form was detected on ${getPathname(
-            usableForm.url
-          )}.`,
-          "pass",
-          20
-        )
-      );
-    } else {
-      businessChecks.push(
-        finding(
-          "Contact form",
-          `A form was detected on ${getPathname(
-            evidence.form[0].url
-          )}, but no clearly usable submit mechanism was confirmed.`,
-          "warning",
-          20,
-          "medium"
-        )
-      );
-    }
   }
 
   /*
