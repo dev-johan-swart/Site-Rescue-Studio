@@ -1518,6 +1518,16 @@ function recalculateScoresAfterBusinessMerge(scanData) {
     }
   }
 
+  const routeIssue =
+    (Array.isArray(scanData.issues) ? scanData.issues : []).find(
+      issue => issue?.id === "website-route-reliability"
+    );
+
+  if (routeIssue) {
+    routeIssue.description =
+      "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a likely refresh/direct-navigation routing issue. Automated verification timeouts are not counted as confirmed route failures. The affected routes and response evidence are included in the detailed report.";
+  }
+
   const performanceScore =
     currentScores.performance;
 
