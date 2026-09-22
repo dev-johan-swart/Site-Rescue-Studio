@@ -3666,10 +3666,13 @@ async function loadScanHistory() {
       Array.isArray(data?.linkResults)
         ? data.linkResults.filter(
             link =>
-              link?.status === "broken" ||
-              link?.status === "unreachable" ||
-              link?.status === "blocked" ||
-              link?.status === "placeholder"
+              link?.type !== "anchor" &&
+              (
+                link?.status === "broken" ||
+                link?.status === "unreachable" ||
+                link?.status === "blocked" ||
+                link?.status === "placeholder"
+              )
           )
         : [];
 
@@ -3690,9 +3693,18 @@ async function loadScanHistory() {
       routeHealth.reliabilityScore !== undefined &&
       Number.isFinite(Number(routeHealth.reliabilityScore));
 
+    const technicalRouteCheck =
+      Array.isArray(data?.checks?.technical)
+        ? data.checks.technical.find(
+            check =>
+              check?.title === "Route reliability"
+          )
+        : null;
+
     const hasRouteProblems =
       routeProblems.length > 0 ||
-      Number(routeHealth?.failed || 0) > 0;
+      Number(routeHealth?.failed || 0) > 0 ||
+      technicalRouteCheck?.status === "warning";
 
     const routeScore =
       routeReliabilityAvailable
