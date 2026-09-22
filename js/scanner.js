@@ -3758,7 +3758,8 @@ async function loadScanHistory() {
       ["Blocked", linkHealth.blocked ?? 0],
       ["Redirected", linkHealth.redirected ?? 0],
       ["Placeholders", linkHealth.placeholder ?? 0],
-      ["Verification timeouts", linkHealth.verificationTimeout ?? 0],
+      ["Link verification timeouts", linkHealth.verificationTimeout ?? 0],
+      ["Route verification timeouts", routeHealth.verificationTimeout ?? 0],
       ["Route reliability", routeScore]
     ];
 
