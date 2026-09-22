@@ -319,6 +319,13 @@ const cancelScanHistoryButton =
         routeHealth:
           routeHealthSummary,
 
+        linkHealth:
+          homepage.linkHealth ||
+          linkHealth,
+
+        performanceDiagnostics:
+          pageSpeed.diagnostics || [],
+
         scores: {
           ...(scanData.scores || {}),
           routeReliability:
