@@ -4102,9 +4102,66 @@ function aggregateBusinessEvidence(
  */
 
 function buildBusinessChecks(
-  evidence
+  evidence,
+  routeHealthSummary = null
 ) {
   const businessChecks = [];
+
+  /*
+   * CONTACT FORM
+   */
+
+  const failedConversionRoute =
+    routeHealthSummary &&
+    Array.isArray(routeHealthSummary.routes)
+      ? routeHealthSummary.routes.find(
+          route =>
+            route?.status === "broken" &&
+            /\/(?:contact|quote|booking|book|appointment)(?:\/|$)/i.test(
+              route.path || ""
+            )
+        )
+      : null;
+
+  if (
+    evidence.form.length === 0 &&
+    failedConversionRoute
+  ) {
+    businessChecks.push(
+      finding(
+        "Contact form",
+        "No confirmed contact/enquiry form was detected on the pages that could be scanned. The discovered contact/booking route " +
+          failedConversionRoute.path +
+          " also returned HTTP " +
+          (failedConversionRoute.statusCode || "error") +
+          " when tested directly, so that route could not be verified as a working enquiry page.",
+        "warning",
+        15,
+        "medium"
+      )
+    );
+  } else if (
+    evidence.form.length === 0
+  ) {
+    businessChecks.push(
+      finding(
+        "Contact form",
+        "No contact/enquiry form was detected on the pages inspected.",
+        "warning",
+        15,
+        "medium"
+      )
+    );
+  } else {
+    businessChecks.push(
+      finding(
+        "Contact form",
+        "A contact/enquiry form was detected.",
+        "pass",
+        15
+      )
+    );
+  }
 
   /*
    * PHONE
@@ -6453,48 +6510,9 @@ function drawEvidenceMessage(
 
       const businessChecks =
         buildBusinessChecks(
-          businessEvidence
+          businessEvidence,
+          routeHealthSummary
         );
-
-      /*
-       * If no form was found and a discovered contact/booking
-       * route itself failed direct navigation, explain that
-       * limitation rather than implying the scanner proved that
-       * the business has no enquiry mechanism.
-       */
-      if (
-        businessEvidence.form.length === 0
-      ) {
-        const failedConversionRoute =
-          routeHealthSummary.routes.find(
-            route =>
-              route?.status === "broken" &&
-              /\/(?:contact|quote|booking|book|appointment)(?:\/|$)/i.test(
-                route.path || ""
-              )
-          );
-
-        if (
-          failedConversionRoute
-        ) {
-          const contactFormCheck =
-            businessChecks.find(
-              check =>
-                check.title === "Contact form"
-            );
-
-          if (
-            contactFormCheck
-          ) {
-            contactFormCheck.description =
-              "No confirmed contact/enquiry form was detected on the pages that could be scanned. The discovered contact/booking route " +
-              failedConversionRoute.path +
-              " also returned HTTP " +
-              (failedConversionRoute.statusCode || "error") +
-              " when tested directly, so that route could not be verified as a working enquiry page.";
-          }
-        }
-      }
 
       /*
        * --------------------------------------------------
@@ -6590,19 +6608,29 @@ function drawEvidenceMessage(
        * the checks so the displayed score is explainable instead
        * of appearing to contradict the five homepage checks.
        */
+      const scoreableRouteCount =
+        routeHealthSummary.routes.filter(
+          route =>
+            route?.status === "working" ||
+            route?.status === "broken" ||
+            route?.status === "unreachable"
+        ).length;
+
       homepage.technicalChecks.push(
         finding(
           "Route reliability",
           routeReliabilityScore === null
-            ? "Fewer than three scoreable internal routes were available, so route reliability was not included in the Technical score."
-            : `Route reliability is ${routeReliabilityScore}/100 and contributes 50% of the Technical score.`,
+            ? `Fewer than three scoreable internal routes were available (${scoreableRouteCount} found), so route reliability was not included in the Technical score.`
+            : `Route reliability is ${routeReliabilityScore}/100 and contributes 50% of the Technical score. ${routeReliabilityScore < 100 ? "Failed or unreachable internal routes were found." : "No failed or unreachable scoreable internal routes were found."}`,
           routeReliabilityScore === null
             ? "info"
             : routeReliabilityScore === 100
               ? "pass"
-              : "info",
+              : "warning",
           0,
-          "info"
+          routeReliabilityScore === null
+            ? "info"
+            : "medium"
         )
       );
 
