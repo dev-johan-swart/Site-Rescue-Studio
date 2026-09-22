@@ -4333,7 +4333,7 @@ function buildBusinessChecks(
     businessChecks.push(
       finding(
         "Contact form",
-        "No confirmed contact/enquiry form with a working submit mechanism was detected.",
+        "No form was detected on the pages inspected.",
         "warning",
         20,
         "medium"
