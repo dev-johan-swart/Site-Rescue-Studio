@@ -440,7 +440,7 @@ module.exports = async function handler(req, res) {
       responseTime,
       crawlability = null,
       technologies = [],
-    scannedAt,
+      scannedAt,
       _pdfPassword = ""
     } = data;
 
