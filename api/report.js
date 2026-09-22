@@ -438,7 +438,9 @@ module.exports = async function handler(req, res) {
       linkHealth = {},
       routeHealth,
       responseTime,
-      scannedAt,
+      crawlability = null,
+    technologies = [],
+    scannedAt,
       _pdfPassword = ""
     } = data;
 
@@ -640,7 +642,9 @@ module.exports = async function handler(req, res) {
       responseTime,
       checks,
       url,
-      browserInspection
+      browserInspection,
+       crawlability,
+       technologies
     );
 
     /*
@@ -1841,6 +1845,45 @@ function drawPerformancePage(
       );
     }
   );
+
+  const diagnostics =
+    Array.isArray(pageSpeed?.diagnostics)
+      ? pageSpeed.diagnostics
+      : [];
+
+  if (diagnostics.length) {
+    doc.moveDown(1);
+    drawSubheading(
+      doc,
+      "Performance Diagnostics"
+    );
+
+    diagnostics.forEach(
+      diagnostic => {
+        const item = {
+          title:
+            `${diagnostic?.metric || "Performance"} • ${String(diagnostic?.status || "info").toUpperCase()}`,
+          description:
+            diagnostic?.message ||
+            "No additional diagnostic detail was returned.",
+          status:
+            diagnostic?.status === "poor"
+              ? "warning"
+              : "info"
+        };
+
+        ensureSpace(
+          doc,
+          getHealthCheckHeight(doc, item) + 8
+        );
+
+        drawHealthCheck(
+          doc,
+          item
+        );
+      }
+    );
+  }
 
   doc.moveDown(1);
 
@@ -5260,6 +5303,65 @@ function drawWebsiteInformation(
   drawKeyValueRows(
     doc,
     technicalRows
+  );
+
+  doc.moveDown(1);
+
+  /*
+   * CRAWLABILITY & TECHNOLOGY
+   */
+
+  drawSubheading(
+    doc,
+    "Crawlability & Technology"
+  );
+
+  const robots = crawlability?.robots || {};
+  const sitemap = crawlability?.sitemap || {};
+
+  drawKeyValueRows(doc, [
+    [
+      "robots.txt",
+      robots.found
+        ? `Found (HTTP ${robots.status ?? "OK"})`
+        : "Not confirmed"
+    ],
+    [
+      "Target allowed by robots.txt",
+      robots.allowsTarget === true
+        ? "Yes"
+        : robots.allowsTarget === false
+          ? "No"
+          : "Not confirmed"
+    ],
+    [
+      "XML sitemap",
+      sitemap.found
+        ? `Found (HTTP ${sitemap.status ?? "OK"})`
+        : "Not confirmed"
+    ]
+  ]);
+
+  doc.moveDown(0.6);
+
+  const technologyList =
+    Array.isArray(technologies)
+      ? technologies
+      : [];
+
+  const technologyText =
+    technologyList.length
+      ? technologyList
+          .map(item =>
+            `${item?.name || "Technology"}${item?.evidence ? ` — ${item.evidence}` : ""}`
+          )
+          .join("\n")
+      : "No recognised CMS, framework or server technology signatures were confirmed.";
+
+  drawInfoBox(
+    doc,
+    "Technology signatures",
+    technologyText
   );
 
   doc.moveDown(1);
