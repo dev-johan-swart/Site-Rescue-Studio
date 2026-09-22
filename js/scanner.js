@@ -1219,7 +1219,7 @@ renderBrowserInspection(
           attempted: true,
           available: false,
           unavailableReason:
-            "Browser inspection was unavailable."
+            browserData?.error || "Browser inspection endpoint returned an unsuccessful response."
         }
       };
 
@@ -1239,7 +1239,7 @@ renderBrowserInspection(
         attempted: true,
         available: false,
         unavailableReason:
-          "Browser inspection could not be completed."
+          browserError?.message || "Browser inspection could not be completed."
       }
     };
 
@@ -3877,7 +3877,14 @@ async function loadScanHistory() {
         : [];
 
     const routeHealthHtml =
-      routesRequiringReview.length > 0
+      browserInspection?.available === false
+        ? `
+          <div class="browser-inspection-findings">
+            <h3>Route Reliability</h3>
+            <p>Browser-rendered route discovery was not available for this scan, so a complete direct-navigation reliability assessment could not be verified.</p>
+          </div>
+        `
+        : routesRequiringReview.length > 0
         ? `
           <div class="browser-inspection-findings">
             <h3>Route Reliability</h3>
@@ -3927,17 +3934,17 @@ async function loadScanHistory() {
 
         <div>
           <strong>Console errors</strong>
-          <span>${consoleErrors.length}</span>
+          <span>${browserInspection?.available === false ? "Not available" : consoleErrors.length}</span>
         </div>
 
         <div>
           <strong>Browser findings</strong>
-          <span>${findings.length}</span>
+          <span>${browserInspection?.available === false ? "Not available" : findings.length}</span>
         </div>
 
         <div>
           <strong>Confirmed same-origin failures</strong>
-          <span>${sameOriginFailures.length}</span>
+          <span>${browserInspection?.available === false ? "Not available" : sameOriginFailures.length}</span>
         </div>
 
       </div>

@@ -1872,10 +1872,12 @@ function drawBrowserInspectionPage(
       ? "Browser inspection completed"
       : "Browser inspection was attempted but was not fully available";
 
+  const unavailableReason = browserInspection?.available ? "" : browserInspection?.unavailableReason || "The browser inspection could not be completed.";
+
   drawInfoBox(
     doc,
     "Inspection status",
-    status
+    browserInspection?.available ? status : status + ". Reason: " + unavailableReason
   );
 
   const consoleErrors =
@@ -1957,51 +1959,35 @@ function drawBrowserInspectionPage(
     ],
     [
       "Console errors",
-      String(
-        consoleErrors.length
-      )
+      browserInspection?.available === false ? "Not available" : String(consoleErrors.length)
     ],
     [
       "Failed browser requests",
-      String(
-        failedResources.length
-      )
+      browserInspection?.available === false ? "Not available" : String(failedResources.length)
     ],
     [
       "Browser findings",
-      String(
-        findings.length
-      )
+      browserInspection?.available === false ? "Not available" : String(findings.length)
     ],
     [
       "Rendered forms",
-      String(
-        renderedForms.length
-      )
+      browserInspection?.available === false ? "Not available" : String(renderedForms.length)
     ],
     [
       "Rendered buttons",
-      String(
-        renderedButtons.length
-      )
+      browserInspection?.available === false ? "Not available" : String(renderedButtons.length)
     ],
     [
       "Rendered contact links",
-      String(
-        renderedContactLinks.length
-      )
+      browserInspection?.available === false ? "Not available" : String(renderedContactLinks.length)
     ],
     [
       "Rendered headings",
-      String(
-        renderedHeadings.length
-      )
+      browserInspection?.available === false ? "Not available" : String(renderedHeadings.length)
     ],
     [
       "Horizontal overflow",
-      overflow
-        ? "Detected"
-        : "Not detected"
+      browserInspection?.available === false ? "Not available" : (overflow ? "Detected" : "Not detected")
     ]
   ];
 
