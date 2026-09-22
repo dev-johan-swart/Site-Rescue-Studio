@@ -1448,9 +1448,9 @@ function recalculateScoresAfterBusinessMerge(scanData) {
 
   const routeReliabilityScore =
     Number.isFinite(
-      Number(scanData?.routeHealth?.reliabilityScore)
+      scanData?.routeHealth?.reliabilityScore
     )
-      ? Number(scanData.routeHealth.reliabilityScore)
+      ? scanData.routeHealth.reliabilityScore
       : null;
 
   const technicalScore =
