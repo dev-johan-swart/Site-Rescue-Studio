@@ -5157,6 +5157,8 @@ module.exports =
       });
     }
 
+    let scanStage = "request validation";
+
     try {
       const {
         url
@@ -5267,19 +5269,41 @@ module.exports =
        * --------------------------------------------------
        */
 
-      const response =
-        await fetchPublicUrl(
-          targetUrl.href,
-          {
-            headers: {
-              "User-Agent":
-                USER_AGENT,
+      scanStage = "homepage fetch";
 
-              Accept:
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      let response;
+
+      try {
+        response =
+          await fetchPublicUrl(
+            targetUrl.href,
+            {
+              headers: {
+                "User-Agent":
+                  USER_AGENT,
+
+                Accept:
+                  "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+              }
             }
-          }
-        );
+          );
+      } catch (error) {
+        console.error("Homepage fetch failed:", {
+          name: error?.name || "Error",
+          message: error?.message || "Unknown error",
+          url: targetUrl.href
+        });
+
+        return res.status(
+          error?.name === "AbortError" ? 408 : 502
+        ).json({
+          success: false,
+          error:
+            error?.name === "AbortError"
+              ? "The website took too long to respond."
+              : "The website could not be reached from the scanner. The site may be unavailable, blocking automated requests, or experiencing a network connection problem."
+        });
+      }
 
         debugTiming(
           "Homepage fetch complete",
@@ -5366,6 +5390,8 @@ console.log(
  * ANALYSE HOMEPAGE
  * --------------------------------------------------
  */
+
+scanStage = "homepage analysis";
 
 const homepageAnalysisStarted =
   Date.now();
@@ -6584,12 +6610,40 @@ function drawEvidenceMessage(
        * PageSpeed, or vice versa.
        */
       const [
-        crawlability,
-        pageSpeed
-      ] = await Promise.all([
+        crawlabilityResult,
+        pageSpeedResult
+      ] = await Promise.allSettled([
         analyzeCrawlability(finalUrl),
         runPageSpeed(finalUrl)
       ]);
+
+      const crawlability =
+        crawlabilityResult.status === "fulfilled"
+          ? crawlabilityResult.value
+          : {
+              robots: {
+                found: false,
+                url: new URL("/robots.txt", finalUrl).href,
+                status: null,
+                allowsTarget: null,
+                sitemapReferences: [],
+                reason: crawlabilityResult.reason?.message || "Crawlability could not be verified."
+              },
+              sitemap: {
+                found: false,
+                url: null,
+                status: null,
+                reason: crawlabilityResult.reason?.message || "Sitemap could not be verified."
+              }
+            };
+
+      const pageSpeed =
+        pageSpeedResult.status === "fulfilled"
+          ? pageSpeedResult.value
+          : {
+              success: false,
+              error: pageSpeedResult.reason?.message || "PageSpeed could not be reached."
+            };
 
       debugTiming(
         "Crawlability analysis complete",
@@ -7416,6 +7470,7 @@ const opportunity =
       console.error(
         "Scanner V3 error:",
         {
+          stage: scanStage,
           name: error?.name || "Error",
           message: error?.message || "Unknown error",
           stack: error?.stack || null
