@@ -5181,6 +5181,8 @@ module.exports =
         });
       }
 
+      const hostnameValidationStarted = Date.now();
+
       if (
         !(await isPublicHostname(
           targetUrl.hostname
@@ -5198,6 +5200,11 @@ module.exports =
 
       const started =
         Date.now();
+
+      debugTiming(
+        "Public-hostname validation complete",
+        hostnameValidationStarted
+      );
 
       /*
        * --------------------------------------------------
@@ -6488,10 +6495,17 @@ function drawEvidenceMessage(
 
 }
 
+      const crawlabilityStarted = Date.now();
+
       const crawlability =
         await analyzeCrawlability(
           finalUrl
         );
+
+      debugTiming(
+        "Crawlability analysis complete",
+        crawlabilityStarted
+      );
 
       const technologies =
         detectTechnologies(
@@ -7320,7 +7334,11 @@ const opportunity =
     } catch (error) {
       console.error(
         "Scanner V3 error:",
-        error
+        {
+          name: error?.name || "Error",
+          message: error?.message || "Unknown error",
+          stack: error?.stack || null
+        }
       );
 
       return res.status(
