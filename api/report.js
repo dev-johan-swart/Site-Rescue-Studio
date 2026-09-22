@@ -2018,7 +2018,10 @@ function drawBrowserInspectionPage(
    * ----------------------------------------------------------
    */
 
-  if (
+  if (browserInspection?.available === false) {
+    doc.moveDown(1);
+    drawInfoBox(doc, "Browser findings", "Browser inspection was not available, so browser-specific findings could not be verified for this scan.");
+  } else if (
     findings.length > 0
   ) {
 

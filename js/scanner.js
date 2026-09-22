@@ -238,8 +238,24 @@ const cancelScanHistoryButton =
         routes: mergedRouteResults
       };
 
+      const rawLinkResults = Array.isArray(scanData.linkResults) ? scanData.linkResults : [];
+      const sourceLinkHealth = scanData.linkHealth && typeof scanData.linkHealth === "object" ? scanData.linkHealth : {};
+      const mergedLinkHealth = rawLinkResults.length > 0 ? {
+        total: rawLinkResults.length,
+        tested: rawLinkResults.filter(link => ["working","broken","unreachable","blocked"].includes(link?.status)).length,
+        working: rawLinkResults.filter(link => link?.status === "working").length,
+        broken: rawLinkResults.filter(link => link?.status === "broken" && link?.type !== "anchor").length,
+        placeholder: rawLinkResults.filter(link => link?.status === "placeholder").length,
+        blocked: rawLinkResults.filter(link => link?.status === "blocked").length,
+        unreachable: rawLinkResults.filter(link => link?.status === "unreachable").length,
+        redirected: rawLinkResults.filter(link => link?.redirected).length,
+        internal: rawLinkResults.filter(link => link?.type === "internal").length,
+        external: rawLinkResults.filter(link => link?.type === "external").length,
+        anchors: rawLinkResults.filter(link => link?.type === "anchor").length
+      } : sourceLinkHealth;
       const mergedScanData = {
         ...scanData,
+        linkHealth: mergedLinkHealth,
         routeHealth:
           routeHealthSummary,
 
@@ -801,7 +817,7 @@ const cancelScanHistoryButton =
         " with " +
         (contactForm?.fields || 0) +
         " field(s). The form was inspected only and was not submitted.",
-      "No confirmed contact/enquiry form with a working submit mechanism was detected."
+      "No contact/enquiry form was detected on the pages inspected."
     );
 
     updateBusinessCheck(
@@ -3958,7 +3974,11 @@ async function loadScanHistory() {
       </div>
 
       ${
-        findings.length > 0
+        browserInspection?.available === false
+          ? `
+            <p>Browser inspection was not available, so browser-specific findings could not be verified for this scan.</p>
+          `
+          : findings.length > 0
           ? `
             <div class="browser-inspection-findings">
               ${findings
