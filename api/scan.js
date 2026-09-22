@@ -21,6 +21,8 @@ const MAX_LINKS_TO_TEST = 30;
  */
 const MAX_ROUTE_HEALTH_CHECKS = 12;
 const ROUTE_HEALTH_FETCH_TIMEOUT = 8000;
+const DISCOVERY_FETCH_TIMEOUT = 5000;
+const MAX_SITEMAP_CANDIDATES = 3;
 
 function debugTiming(label, startedAt) {
   console.log(
@@ -3657,7 +3659,7 @@ async function fetchDiscoveryResource(finalUrl, pathname) {
     const resource = new URL(pathname, finalUrl);
     const base = new URL(finalUrl);
     if (resource.origin !== base.origin) return { available:false,status:null,text:"",url:resource.href,reason:"cross-origin-resource" };
-    const response = await fetchPublicUrl(resource.href,{headers:{"User-Agent":USER_AGENT,"Accept":"text/plain,application/xml,text/xml,*/*;q=0.8"}},10000,3);
+    const response = await fetchPublicUrl(resource.href,{headers:{"User-Agent":USER_AGENT,"Accept":"text/plain,application/xml,text/xml,*/*;q=0.8"}},DISCOVERY_FETCH_TIMEOUT,3);
     return { available:response.ok,status:response.status,text:await response.text(),url:response.url||resource.href,reason:response.ok?"":"HTTP "+response.status };
   } catch(error) {
     return { available:false,status:null,text:"",url:new URL(pathname,finalUrl).href,reason:error?.message||"Resource could not be reached." };
@@ -3686,10 +3688,10 @@ async function analyzeCrawlability(finalUrl) {
   const analysis=robots.available?analyzeRobotsText(robots.text,finalUrl):null;
   const candidates=[...(analysis?.sitemapReferences||[]),new URL("/sitemap.xml",finalUrl).href];
   let sitemap={found:false,url:null,status:null,reason:"No XML sitemap could be confirmed."};
-  for(const candidate of Array.from(new Set(candidates)).slice(0,5)){
+  for(const candidate of Array.from(new Set(candidates)).slice(0,MAX_SITEMAP_CANDIDATES)){
     try{
       const parsed=new URL(candidate,finalUrl); if(parsed.origin!==new URL(finalUrl).origin) continue;
-      const response=await fetchPublicUrl(parsed.href,{headers:{"User-Agent":USER_AGENT,"Accept":"application/xml,text/xml,text/plain,*/*;q=0.8"}},10000,3);
+      const response=await fetchPublicUrl(parsed.href,{headers:{"User-Agent":USER_AGENT,"Accept":"application/xml,text/xml,text/plain,*/*;q=0.8"}},DISCOVERY_FETCH_TIMEOUT,3);
       const text=await response.text();
       if(response.ok&&/<sitemapindex\b|<urlset\b/i.test(text)){sitemap={found:true,url:response.url||parsed.href,status:response.status,reason:""};break;}
       if(sitemap.status===null){sitemap.status=response.status;sitemap.reason=response.ok?"A sitemap resource was reached, but XML sitemap content was not confirmed.":"HTTP "+response.status;}
@@ -6521,15 +6523,30 @@ function drawEvidenceMessage(
 }
 
       const crawlabilityStarted = Date.now();
+      const pageSpeedStarted = Date.now();
 
-      const crawlability =
-        await analyzeCrawlability(
-          finalUrl
-        );
+      /*
+       * These two analyses are independent once the homepage
+       * response is available. Run them together so a slow
+       * robots/sitemap check cannot unnecessarily wait for
+       * PageSpeed, or vice versa.
+       */
+      const [
+        crawlability,
+        pageSpeed
+      ] = await Promise.all([
+        analyzeCrawlability(finalUrl),
+        runPageSpeed(finalUrl)
+      ]);
 
       debugTiming(
         "Crawlability analysis complete",
         crawlabilityStarted
+      );
+
+      debugTiming(
+        "PageSpeed complete",
+        pageSpeedStarted
       );
 
       const technologies =
@@ -6582,19 +6599,6 @@ function drawEvidenceMessage(
        * PAGESPEED
        * --------------------------------------------------
        */
-
-      const pageSpeedStarted =
-        Date.now();
-
-      const pageSpeed =
-        await runPageSpeed(
-          finalUrl
-        );
-
-      debugTiming(
-        "PageSpeed complete",
-        pageSpeedStarted
-      );
 
       pageSpeed.diagnostics =
         buildPerformanceDiagnostics(
