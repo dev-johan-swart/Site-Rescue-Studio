@@ -3687,11 +3687,17 @@ async function loadScanHistory() {
           )
         : [];
 
-    const routeReliabilityAvailable =
+    const routeReliabilityValue =
       routeHealth &&
       routeHealth.reliabilityScore !== null &&
-      routeHealth.reliabilityScore !== undefined &&
-      Number.isFinite(Number(routeHealth.reliabilityScore));
+      routeHealth.reliabilityScore !== undefined
+        ? routeHealth.reliabilityScore
+        : data?.scores?.routeReliability;
+
+    const routeReliabilityAvailable =
+      routeReliabilityValue !== null &&
+      routeReliabilityValue !== undefined &&
+      Number.isFinite(Number(routeReliabilityValue));
 
     const technicalRouteCheck =
       Array.isArray(data?.checks?.technical)
@@ -3708,7 +3714,7 @@ async function loadScanHistory() {
 
     const routeScore =
       routeReliabilityAvailable
-        ? `${Number(routeHealth.reliabilityScore)}/100`
+        ? `${Number(routeReliabilityValue)}/100`
         : hasRouteProblems
           ? "Problems detected — insufficient scoreable routes for a reliability score"
           : (
