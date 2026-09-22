@@ -457,6 +457,62 @@ const cancelScanHistoryButton =
         }
       }
 
+    const browserFormEmbedFailures =
+      Array.isArray(
+        mergedScanData.browserInspection?.formEmbedFailures
+      )
+        ? mergedScanData.browserInspection.formEmbedFailures
+        : [];
+
+    if (browserFormEmbedFailures.length) {
+      const embedIssueIds = new Set([
+        "browser-form-embed-failure",
+        "contact-form-embed-failure"
+      ]);
+
+      mergedScanData.issues =
+        (Array.isArray(mergedScanData.issues)
+          ? mergedScanData.issues
+          : []
+        ).filter(
+          issue =>
+            !embedIssueIds.has(issue?.id)
+        );
+
+      mergedScanData.issues.push({
+        id: "contact-form-embed-failure",
+        category: "Business",
+        title: "Broken third-party form embed detected",
+        description:
+          "The browser-rendered page showed a recognised third-party form provider together with a provider failure state indicating that the embedded form is missing, unavailable or could not be loaded. The scanner did not submit or interact with the form.",
+        status: "fail",
+        severity: "high",
+        evidence: browserFormEmbedFailures
+      });
+
+      if (!Array.isArray(mergedScanData.recommendations)) {
+        mergedScanData.recommendations = [];
+      }
+
+      mergedScanData.recommendations =
+        mergedScanData.recommendations.filter(
+          recommendation =>
+            recommendation?.title !==
+            "Broken third-party form embed detected"
+        );
+
+      mergedScanData.recommendations.push({
+        title: "Broken third-party form embed detected",
+        severity: "high",
+        status: "fail",
+        why:
+          "A visibly unavailable embedded form can prevent customers from sending enquiries or completing an important website action.",
+        action:
+          "Review the third-party form provider, embed code and published form status, then verify the form loads normally in a browser.",
+        service: "Website Rescue"
+      });
+    }
+
     const browserFormFailures =
       Array.isArray(
         mergedScanData.browserInspection?.formReliability
@@ -3590,10 +3646,16 @@ async function loadScanHistory() {
       routeHealth.reliabilityScore !== undefined &&
       Number.isFinite(Number(routeHealth.reliabilityScore))
         ? `${Number(routeHealth.reliabilityScore)}/100`
-        : "Not available";
+        : (
+            routeHealth &&
+            Number(routeHealth.tested || 0) > 0 &&
+            scanData.browserInspection?.available !== false
+              ? "No confirmed problems"
+              : "Not available"
+          );
 
     const stats = [
-      ["Links found", linkHealth.total ?? 0],
+      ["Links with destinations", linkHealth.total ?? 0],
       ["Links tested", linkHealth.tested ?? 0],
       ["Working", linkHealth.working ?? 0],
       ["Broken", linkHealth.broken ?? 0],
@@ -3633,7 +3695,11 @@ async function loadScanHistory() {
         routeHealth.reliabilityScore !== undefined &&
         Number.isFinite(Number(routeHealth.reliabilityScore))
           ? "No link or direct-route problems were returned by the scan."
-          : "No confirmed route reliability score is available for this scan.";
+          : routeHealth &&
+            Number(routeHealth.tested || 0) > 0 &&
+            browserInspection?.available !== false
+              ? "No confirmed internal route reliability problems were identified."
+              : "Internal route reliability could not be verified for this scan.";
       content.appendChild(cleanMessage);
       section.hidden = false;
       return;
