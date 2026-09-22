@@ -1461,6 +1461,50 @@ function recalculateScoresAfterBusinessMerge(scanData) {
           routeReliabilityScore * 0.5
         );
 
+  /*
+   * Keep the displayed Technical check explanation synchronized
+   * with the final browser-merged score. The server-side check is
+   * created before browser route discovery, so its original
+   * "fewer than three routes" message can become stale after
+   * browser evidence is merged.
+   */
+  const routeReliabilityCheck =
+    technicalChecks.find(
+      check =>
+        check &&
+        check.title === "Route reliability"
+    );
+
+  if (routeReliabilityCheck) {
+    const scoreableRouteCount =
+      Array.isArray(scanData?.routeHealth?.routes)
+        ? scanData.routeHealth.routes.filter(
+            route =>
+              route?.status === "working" ||
+              route?.status === "broken" ||
+              route?.status === "unreachable"
+          ).length
+        : 0;
+
+    if (routeReliabilityScore === null) {
+      routeReliabilityCheck.status = "info";
+      routeReliabilityCheck.severity = "info";
+      routeReliabilityCheck.description =
+        `Fewer than three scoreable internal routes were available (${scoreableRouteCount} found), so route reliability was not included in the Technical score.`;
+    } else {
+      routeReliabilityCheck.status =
+        routeReliabilityScore === 100
+          ? "pass"
+          : "warning";
+      routeReliabilityCheck.severity =
+        routeReliabilityScore === 100
+          ? "info"
+          : "medium";
+      routeReliabilityCheck.description =
+        `Route reliability is ${routeReliabilityScore}/100 and contributes 50% of the Technical score. ${routeReliabilityScore < 100 ? "Failed or unreachable internal routes were found." : "No failed or unreachable scoreable internal routes were found."}`;
+    }
+  }
+
   const performanceScore =
     currentScores.performance;
 
@@ -3640,19 +3684,28 @@ async function loadScanHistory() {
           )
         : [];
 
-    const routeScore =
+    const routeReliabilityAvailable =
       routeHealth &&
       routeHealth.reliabilityScore !== null &&
       routeHealth.reliabilityScore !== undefined &&
-      Number.isFinite(Number(routeHealth.reliabilityScore))
+      Number.isFinite(Number(routeHealth.reliabilityScore));
+
+    const hasRouteProblems =
+      routeProblems.length > 0 ||
+      Number(routeHealth?.failed || 0) > 0;
+
+    const routeScore =
+      routeReliabilityAvailable
         ? `${Number(routeHealth.reliabilityScore)}/100`
-        : (
-            routeHealth &&
-            Number(routeHealth.tested || 0) > 0 &&
-            data?.browserInspection?.available !== false
-              ? "No confirmed problems"
-              : "Not available"
-          );
+        : hasRouteProblems
+          ? "Problems detected — insufficient scoreable routes for a reliability score"
+          : (
+              routeHealth &&
+              Number(routeHealth.tested || 0) > 0 &&
+              data?.browserInspection?.available !== false
+                ? "No confirmed problems"
+                : "Not available"
+            );
 
     const stats = [
       ["Links with destinations", linkHealth.total ?? 0],
@@ -3690,16 +3743,15 @@ async function loadScanHistory() {
     if (problemLinks.length === 0 && routeProblems.length === 0) {
       const cleanMessage = document.createElement("p");
       cleanMessage.textContent =
-        routeHealth &&
-        routeHealth.reliabilityScore !== null &&
-        routeHealth.reliabilityScore !== undefined &&
-        Number.isFinite(Number(routeHealth.reliabilityScore))
+        routeReliabilityAvailable
           ? "No link or direct-route problems were returned by the scan."
-          : routeHealth &&
-            Number(routeHealth.tested || 0) > 0 &&
-            browserInspection?.available !== false
-              ? "No confirmed internal route reliability problems were identified."
-              : "Internal route reliability could not be verified for this scan.";
+          : hasRouteProblems
+            ? "Internal route problems were detected, but fewer than three scoreable routes were available for a reliability score."
+            : routeHealth &&
+              Number(routeHealth.tested || 0) > 0 &&
+              data?.browserInspection?.available !== false
+                ? "No confirmed internal route reliability problems were identified."
+                : "Internal route reliability could not be verified for this scan.";
       content.appendChild(cleanMessage);
       section.hidden = false;
       return;
@@ -3729,11 +3781,21 @@ async function loadScanHistory() {
           item.path || item.url || "Route or link";
 
         const description = document.createElement("p");
+        const statusLabel =
+          String(item.status || "review").toUpperCase();
+
         description.textContent =
-          `${String(item.status || "review").toUpperCase()} — ` +
-          (item.statusCode
-            ? `HTTP ${item.statusCode}`
-            : "Review in the detailed report");
+          item.statusCode
+            ? `${statusLabel} — HTTP ${item.statusCode}`
+            : statusLabel === "BROKEN"
+              ? "BROKEN — Direct route/link test returned an unsuccessful response. See the detailed report for the affected URL and evidence."
+              : statusLabel === "UNREACHABLE"
+                ? "UNREACHABLE — Direct route/link test could not be completed. See the detailed report for the affected URL and evidence."
+                : statusLabel === "BLOCKED"
+                  ? "BLOCKED — The scanner could not verify this route/link. This is not confirmation that the destination is broken."
+                  : statusLabel === "REDIRECTED"
+                    ? "REDIRECTED — The route/link reached another URL. A redirect is not automatically a broken link."
+                    : `${statusLabel} — See the detailed report for the affected URL and evidence.`;
 
         body.appendChild(heading);
         body.appendChild(description);
