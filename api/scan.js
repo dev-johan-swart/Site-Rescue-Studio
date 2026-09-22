@@ -6015,6 +6015,13 @@ if (
               "unreachable"
           ).length,
 
+        verificationTimeout:
+          routeHealth.filter(
+            route =>
+              route.status ===
+              "verification_timeout"
+          ).length,
+
         failed:
           routeHealth.filter(
             route =>
