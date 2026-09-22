@@ -385,10 +385,20 @@ const cancelScanHistoryButton =
         Array.isArray(
           mergedScanData.browserInspection
             .renderedContactLinks
-        )
+        ) &&
+        mergedScanData.browserInspection
+          .renderedContactLinks.length
           ? mergedScanData.browserInspection
               .renderedContactLinks
-          : [];
+          : (
+              Array.isArray(
+                mergedScanData.browserInspection
+                  .renderedLinks
+              )
+                ? mergedScanData.browserInspection
+                    .renderedLinks
+                : []
+            );
 
       const renderedH1Count =
         Number(
@@ -1188,7 +1198,18 @@ try {
     latestScanData
   );
 
-// Recalculate scores after browser business evidence has been merged.
+  /*
+   * Explicitly preserve the existing browser route-health
+   * evidence after the business merge. This reuses the
+   * existing helper; it does not create another route crawler.
+   */
+  latestScanData =
+  mergeBrowserRouteHealth(
+    latestScanData
+  );
+
+// Recalculate scores after browser business and route evidence
+// have been merged.
 latestScanData =
   recalculateScoresAfterBusinessMerge(
     latestScanData
