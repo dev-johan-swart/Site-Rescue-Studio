@@ -547,7 +547,8 @@ const cancelScanHistoryButton =
         source: "browser-rendered",
         href: link.href || "",
         text: link.text || "",
-        type: "phone"
+        type: "phone",
+        clickable: true
       }));
 
     const browserEmailEvidence =
@@ -555,7 +556,8 @@ const cancelScanHistoryButton =
         source: "browser-rendered",
         href: link.href || "",
         text: link.text || "",
-        type: "email"
+        type: "email",
+        clickable: true
       }));
 
     const browserWhatsAppEvidence =
@@ -563,7 +565,8 @@ const cancelScanHistoryButton =
         source: "browser-rendered",
         href: link.href || "",
         text: link.text || "",
-        type: "whatsapp"
+        type: "whatsapp",
+        clickable: true
       }));
 
       const browserCtaEvidence =
@@ -1190,6 +1193,33 @@ latestScanData =
   recalculateScoresAfterBusinessMerge(
     latestScanData
   );
+
+function mergeBrowserRouteHealth(scanData) {
+  if (!scanData || typeof scanData !== "object") return scanData;
+  const browserRoutes = Array.isArray(scanData.browserInspection?.routeHealth) ? scanData.browserInspection.routeHealth : [];
+  if (!browserRoutes.length) return scanData;
+  const existing = Array.isArray(scanData.routeHealth?.routes) ? scanData.routeHealth.routes : [];
+  const byUrl = new Map();
+  existing.forEach(route => { if (route?.url) byUrl.set(route.url, route); });
+  browserRoutes.forEach(route => { if (route?.url) byUrl.set(route.url, route); });
+  const routes = Array.from(byUrl.values());
+  const scoreable = routes.filter(route => ["working","broken","unreachable"].includes(route?.status));
+  const reliabilityScore = scoreable.length >= 3 ? Math.round((scoreable.filter(route => route.status === "working").length / scoreable.length) * 100) : null;
+  return {
+    ...scanData,
+    routeHealth: {
+      tested: routes.length,
+      working: routes.filter(route => route.status === "working").length,
+      broken: routes.filter(route => route.status === "broken").length,
+      redirected: routes.filter(route => route.status === "redirected").length,
+      blocked: routes.filter(route => route.status === "blocked").length,
+      unreachable: routes.filter(route => route.status === "unreachable").length,
+      failed: routes.filter(route => route.status === "broken" || route.status === "unreachable").length,
+      routes,
+      reliabilityScore
+    }
+  };
+}
 
 if (data.archiveToken) {
   try {

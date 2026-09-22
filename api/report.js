@@ -5245,9 +5245,15 @@ function drawWebsiteInformation(
         "Not available"
     ],
     [
-      "Links",
+      "HTML links",
       counts.links ??
         "Not available"
+    ],
+    [
+      "Rendered links",
+      Number.isFinite(Number(browserInspection?.renderedLinkCount))
+        ? Number(browserInspection.renderedLinkCount)
+        : "Not available"
     ]
   ];
 

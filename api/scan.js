@@ -3645,6 +3645,84 @@ console.log(
 
 /*
  * --------------------------------------------------------
+ * CRAWLABILITY / DISCOVERY
+ * --------------------------------------------------------
+ */
+async function fetchDiscoveryResource(finalUrl, pathname) {
+  try {
+    const resource = new URL(pathname, finalUrl);
+    const base = new URL(finalUrl);
+    if (resource.origin !== base.origin) return { available:false,status:null,text:"",url:resource.href,reason:"cross-origin-resource" };
+    const response = await fetchPublicUrl(resource.href,{headers:{"User-Agent":USER_AGENT,"Accept":"text/plain,application/xml,text/xml,*/*;q=0.8"}},10000,3);
+    return { available:response.ok,status:response.status,text:await response.text(),url:response.url||resource.href,reason:response.ok?"":"HTTP "+response.status };
+  } catch(error) {
+    return { available:false,status:null,text:"",url:new URL(pathname,finalUrl).href,reason:error?.message||"Resource could not be reached." };
+  }
+}
+function analyzeRobotsText(text,targetUrl) {
+  const lines=String(text||"").split(/\r?\n/).map(line=>line.replace(/#.*$/,"").trim()).filter(Boolean);
+  let active=false; const disallow=[]; const allow=[]; const sitemaps=[];
+  for(const line of lines){
+    const colon=line.indexOf(":"); if(colon<0) continue;
+    const key=line.slice(0,colon).trim().toLowerCase(), value=line.slice(colon+1).trim();
+    if(key==="user-agent"){active=value==="*";continue;}
+    if(key==="sitemap"){sitemaps.push(value);continue;}
+    if(!active) continue;
+    if(key==="disallow"&&value) disallow.push(value);
+    if(key==="allow"&&value) allow.push(value);
+  }
+  const path=new URL(targetUrl).pathname||"/";
+  const matches=rule=>{const clean=String(rule||"").trim();if(!clean)return false;if(clean==="/")return true;if(clean.endsWith("*"))return path.startsWith(clean.slice(0,-1));return path.startsWith(clean);};
+  const blocked=disallow.filter(matches).sort((a,b)=>b.length-a.length)[0]||"";
+  const allowed=allow.filter(matches).sort((a,b)=>b.length-a.length)[0]||"";
+  return {allowsTarget:!blocked||allowed.length>blocked.length,sitemapReferences:Array.from(new Set(sitemaps)).slice(0,10)};
+}
+async function analyzeCrawlability(finalUrl) {
+  const robots=await fetchDiscoveryResource(finalUrl,"/robots.txt");
+  const analysis=robots.available?analyzeRobotsText(robots.text,finalUrl):null;
+  const candidates=[...(analysis?.sitemapReferences||[]),new URL("/sitemap.xml",finalUrl).href];
+  let sitemap={found:false,url:null,status:null,reason:"No XML sitemap could be confirmed."};
+  for(const candidate of Array.from(new Set(candidates)).slice(0,5)){
+    try{
+      const parsed=new URL(candidate,finalUrl); if(parsed.origin!==new URL(finalUrl).origin) continue;
+      const response=await fetchPublicUrl(parsed.href,{headers:{"User-Agent":USER_AGENT,"Accept":"application/xml,text/xml,text/plain,*/*;q=0.8"}},10000,3);
+      const text=await response.text();
+      if(response.ok&&/<sitemapindex\b|<urlset\b/i.test(text)){sitemap={found:true,url:response.url||parsed.href,status:response.status,reason:""};break;}
+      if(sitemap.status===null){sitemap.status=response.status;sitemap.reason=response.ok?"A sitemap resource was reached, but XML sitemap content was not confirmed.":"HTTP "+response.status;}
+    }catch(error){if(sitemap.status===null)sitemap.reason=error?.message||"Sitemap could not be reached.";}
+  }
+  return {robots:{found:robots.available,url:robots.url,status:robots.status,allowsTarget:analysis?.allowsTarget??null,sitemapReferences:analysis?.sitemapReferences||[],reason:robots.available?"":robots.reason},sitemap};
+}
+function detectTechnologies(html,response) {
+  const source=String(html||""), lower=source.toLowerCase(), results=[];
+  const add=(name,evidence)=>{if(!results.some(item=>item.name===name))results.push({name,evidence});};
+  const server=response?.headers?.get("server")||"", poweredBy=response?.headers?.get("x-powered-by")||"";
+  if(/wp-content|wp-includes|wordpress/i.test(source))add("WordPress","WordPress asset or markup signature detected.");
+  if(/elementor/i.test(lower))add("Elementor","Elementor asset or markup signature detected.");
+  if(/shopify/i.test(lower))add("Shopify","Shopify asset or markup signature detected.");
+  if(/wixstatic|_wix_browser_sess/i.test(lower))add("Wix","Wix asset or runtime signature detected.");
+  if(/squarespace/i.test(lower))add("Squarespace","Squarespace asset or markup signature detected.");
+  if(/webflow/i.test(lower))add("Webflow","Webflow asset or markup signature detected.");
+  if(/drupalsettings|sites\/default\/files/i.test(lower))add("Drupal","Drupal asset or runtime signature detected.");
+  if(/joomla/i.test(lower))add("Joomla","Joomla asset or markup signature detected.");
+  if(/__next_data__|next\/static/i.test(lower))add("Next.js","Next.js runtime signature detected.");
+  if(/_nuxt\/|__nuxt__/i.test(lower))add("Nuxt","Nuxt runtime signature detected.");
+  if(server)add("Server","Response header Server: "+server);
+  if(poweredBy)add("X-Powered-By","Response header X-Powered-By: "+poweredBy);
+  return results;
+}
+function buildPerformanceDiagnostics(pageSpeed) {
+  if(!pageSpeed?.success)return [];
+  const vitals=pageSpeed.vitals||{}, numeric=value=>{const match=String(value||"").match(/[0-9]+(?:\.[0-9]+)?/);return match?Number(match[0]):null;};
+  const diagnostics=[], lcp=numeric(vitals.lcp), fcp=numeric(vitals.fcp), cls=numeric(vitals.cls), tbt=numeric(vitals.tbt);
+  if(lcp!==null)diagnostics.push({metric:"LCP",status:lcp<=2.5?"good":lcp<=4?"warning":"poor",message:lcp>4?"Largest Contentful Paint is above 4 seconds.":lcp>2.5?"Largest Contentful Paint is above the commonly used 2.5-second target.":"Largest Contentful Paint is within the commonly used target range."});
+  if(fcp!==null)diagnostics.push({metric:"FCP",status:fcp<=1.8?"good":fcp<=3?"warning":"poor",message:fcp>3?"First Contentful Paint is above 3 seconds.":fcp>1.8?"First Contentful Paint is above the commonly used 1.8-second target.":"First Contentful Paint is within the commonly used target range."});
+  if(cls!==null)diagnostics.push({metric:"CLS",status:cls<=0.1?"good":cls<=0.25?"warning":"poor",message:cls>0.25?"Cumulative Layout Shift is high.":cls>0.1?"Cumulative Layout Shift is above the commonly used 0.1 target.":"Cumulative Layout Shift is within the commonly used target range."});
+  if(tbt!==null)diagnostics.push({metric:"TBT",status:tbt<=200?"good":tbt<=600?"warning":"poor",message:tbt>600?"Total Blocking Time is high.":tbt>200?"Total Blocking Time is elevated.":"Total Blocking Time is within the commonly used target range."});
+  return diagnostics;
+}
+/*
+ * --------------------------------------------------------
  * PAGESPEED
  * --------------------------------------------------------
  */
@@ -6350,6 +6428,17 @@ function drawEvidenceMessage(
 
 }
 
+      const crawlability =
+        await analyzeCrawlability(
+          finalUrl
+        );
+
+      const technologies =
+        detectTechnologies(
+          html,
+          response
+        );
+
       const analyzedPages =
         pages.filter(
           page =>
@@ -6406,6 +6495,11 @@ function drawEvidenceMessage(
         "PageSpeed complete",
         pageSpeedStarted
       );
+
+      pageSpeed.diagnostics =
+        buildPerformanceDiagnostics(
+          pageSpeed
+        );
 
       const seoScore =
         pageSpeed.success
@@ -6921,6 +7015,17 @@ const opportunity =
          */
 
         businessEvidence,
+
+        crawlability,
+        technologies,
+
+        evidenceSummary: {
+          keyProblems,
+          potentialServices,
+          highestSeverity,
+          routeFailures: routeHealthSummary.failed,
+          routeRedirects: routeHealthSummary.redirected
+        },
 
         /*
          * LINK HEALTH
