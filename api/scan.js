@@ -3049,20 +3049,16 @@ console.log(
     title:
       "Flexible layout",
     passed:
-      hasFlexibleLayout,
+      true,
     status:
-      hasFlexibleLayout
-        ? "pass"
-        : "warning",
+      "pass",
     weight: 10,
     severity:
-      hasFlexibleLayout
-        ? "info"
-        : "low",
+      "info",
     description:
       hasFlexibleLayout
         ? "Flexbox or CSS Grid layout was detected."
-        : "No obvious Flexbox or Grid layout was detected."
+        : "No obvious Flexbox or Grid layout was detected; this heuristic does not by itself establish a mobile layout problem."
   });
 
   const hasResponsiveUnits =
@@ -3074,20 +3070,16 @@ console.log(
     title:
       "Responsive sizing",
     passed:
-      hasResponsiveUnits,
+      true,
     status:
-      hasResponsiveUnits
-        ? "pass"
-        : "warning",
+      "pass",
     weight: 10,
     severity:
-      hasResponsiveUnits
-        ? "info"
-        : "low",
+      "info",
     description:
       hasResponsiveUnits
         ? "Responsive or scalable CSS units were detected."
-        : "No obvious responsive CSS units were detected."
+        : "No obvious responsive CSS units were detected; this heuristic does not by itself establish a mobile layout problem."
   });
 
   const hasTinyTextRisk =
@@ -3385,20 +3377,16 @@ console.log(
     title:
       "Responsive typography",
     passed:
-      hasResponsiveFontSizing,
+      true,
     status:
-      hasResponsiveFontSizing
-        ? "pass"
-        : "warning",
+      "pass",
     weight: 5,
     severity:
-      hasResponsiveFontSizing
-        ? "info"
-        : "low",
+      "info",
     description:
       hasResponsiveFontSizing
         ? "Responsive font sizing was detected."
-        : "No obvious responsive font sizing was detected."
+        : "No obvious responsive font sizing was detected; this heuristic does not by itself establish a typography problem."
   });
 
   const mobileHtmlScore =
@@ -5512,14 +5500,14 @@ if (
        */
 
       for (
-        const candidate of candidates
+        const candidate of candidates.slice(
+          0,
+          MAX_LINKS_TO_TEST
+        )
       ) {
-        if (
-          pages.length >=
-          MAX_CRAWL_PAGES + 1
-        ) {
-          break;
-        }
+        const shouldCrawlPage =
+          pages.length <
+          MAX_CRAWL_PAGES + 1;
 
         const normalized =
           normalizeUrl(
@@ -5671,6 +5659,18 @@ if (
             anchorText:
               candidate.anchorText
           });
+
+          /*
+           * Route reliability is tested for every selected
+           * internal candidate, but full page analysis remains
+           * capped by MAX_CRAWL_PAGES.
+           */
+
+          if (
+            !shouldCrawlPage
+          ) {
+            continue;
+          }
 
           /*
            * We only analyse successful HTML pages.
@@ -6457,6 +6457,46 @@ function drawEvidenceMessage(
         );
 
       /*
+       * If no form was found and a discovered contact/booking
+       * route itself failed direct navigation, explain that
+       * limitation rather than implying the scanner proved that
+       * the business has no enquiry mechanism.
+       */
+      if (
+        businessEvidence.form.length === 0
+      ) {
+        const failedConversionRoute =
+          routeHealthSummary.routes.find(
+            route =>
+              route?.status === "broken" &&
+              /\/(?:contact|quote|booking|book|appointment)(?:\/|$)/i.test(
+                route.path || ""
+              )
+          );
+
+        if (
+          failedConversionRoute
+        ) {
+          const contactFormCheck =
+            businessChecks.find(
+              check =>
+                check.title === "Contact form"
+            );
+
+          if (
+            contactFormCheck
+          ) {
+            contactFormCheck.description =
+              "No confirmed contact/enquiry form was detected on the pages that could be scanned. The discovered contact/booking route " +
+              failedConversionRoute.path +
+              " also returned HTTP " +
+              (failedConversionRoute.statusCode || "error") +
+              " when tested directly, so that route could not be verified as a working enquiry page.";
+          }
+        }
+      }
+
+      /*
        * --------------------------------------------------
        * PAGE-LEVEL SCORES
        * --------------------------------------------------
@@ -6543,6 +6583,28 @@ function drawEvidenceMessage(
        * TECHNICAL SCORE
        * --------------------------------------------------
        */
+
+      /*
+       * Route reliability is intentionally a 50% component of
+       * the Technical score. Keep that contribution explicit in
+       * the checks so the displayed score is explainable instead
+       * of appearing to contradict the five homepage checks.
+       */
+      homepage.technicalChecks.push(
+        finding(
+          "Route reliability",
+          routeReliabilityScore === null
+            ? "Fewer than three scoreable internal routes were available, so route reliability was not included in the Technical score."
+            : `Route reliability is ${routeReliabilityScore}/100 and contributes 50% of the Technical score.`,
+          routeReliabilityScore === null
+            ? "info"
+            : routeReliabilityScore === 100
+              ? "pass"
+              : "info",
+          0,
+          "info"
+        )
+      );
 
       const technicalScore =
         routeReliabilityScore === null
