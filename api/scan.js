@@ -14,6 +14,14 @@ const MAX_CRAWL_PAGES = 8;
 const MAX_DISCOVERED_LINKS = 80;
 const MAX_LINKS_TO_TEST = 30;
 
+/*
+ * Route reliability is broader than page crawling, but it must
+ * remain bounded so a website with many slow internal URLs
+ * cannot make the main scan spend minutes waiting on routes.
+ */
+const MAX_ROUTE_HEALTH_CHECKS = 12;
+const ROUTE_HEALTH_FETCH_TIMEOUT = 8000;
+
 function debugTiming(label, startedAt) {
   console.log(
     `[V3 TIMING] ${label} — ${Date.now() - startedAt}ms`
@@ -5554,7 +5562,7 @@ if (
       for (
         const candidate of candidates.slice(
           0,
-          MAX_LINKS_TO_TEST
+          MAX_ROUTE_HEALTH_CHECKS
         )
       ) {
         const shouldCrawlPage =
@@ -5636,7 +5644,7 @@ if (
                     "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
                 }
               },
-              12000
+              ROUTE_HEALTH_FETCH_TIMEOUT
             );
 
             debugTiming(
