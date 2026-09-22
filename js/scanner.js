@@ -299,7 +299,7 @@ const cancelScanHistoryButton =
             }
           : mergedLinkResults.length > 0
             ? {
-                total: browserRenderedLinks.length || mergedLinkResults.length,
+                total: mergedLinkResults.length,
                 tested: mergedLinkResults.filter(link => ["working","broken","unreachable","blocked"].includes(link?.status)).length,
                 working: mergedLinkResults.filter(link => link?.status === "working").length,
                 broken: mergedLinkResults.filter(link => link?.status === "broken").length,
@@ -935,6 +935,17 @@ const cancelScanHistoryButton =
       form => form && form.contactIntent && form.hasSubmit
     );
     const hasContactForm = Boolean(contactForm);
+    const detectedForms = Array.isArray(mergedEvidence.form)
+      ? mergedEvidence.form
+      : [];
+
+    let contactFormDescription =
+      "No form was detected on the pages inspected.";
+
+    if (!hasContactForm && detectedForms.length > 0) {
+      contactFormDescription =
+        "A form was detected on the pages inspected, but it could not be confidently classified as a contact/enquiry form with clear submission intent. The scanner did not submit the form.";
+    }
 
     updateBusinessCheck(
       "Contact form",
@@ -946,7 +957,7 @@ const cancelScanHistoryButton =
         " with " +
         (contactForm?.fields || 0) +
         " field(s). The form was inspected only and was not submitted.",
-      "No contact/enquiry form was detected on the pages inspected."
+      contactFormDescription
     );
 
     updateBusinessCheck(
