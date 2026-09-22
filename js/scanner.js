@@ -520,7 +520,20 @@ const cancelScanHistoryButton =
         ? mergedScanData.browserInspection.formReliability
         : [];
 
-    if (browserFormFailures.length) {
+    const confirmedBrowserFormFailures =
+      browserFormFailures.filter(
+        form =>
+          form?.reason === "insecure-http-action" ||
+          (
+            form?.method === "GET" &&
+            (
+              form?.reason === "get-endpoint-failure" ||
+              form?.reason === "get-endpoint-unreachable"
+            )
+          )
+      );
+
+    if (confirmedBrowserFormFailures.length) {
       const formIssueIds = new Set([
         "browser-form-reliability",
         "contact-form-reliability"
@@ -536,7 +549,7 @@ const cancelScanHistoryButton =
         );
 
       const hasInsecureFormAction =
-        browserFormFailures.some(
+        confirmedBrowserFormFailures.some(
           form =>
             form?.reason ===
             "insecure-http-action"
