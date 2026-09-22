@@ -2323,12 +2323,20 @@ async function testLinks(
     } catch (
       error
     ) {
-      link.status =
-        "unreachable";
+      if (error?.name === "AbortError") {
+        link.status =
+          "verification_timeout";
 
-      link.error =
-        error.message ||
-        "Request failed.";
+        link.note =
+          "The scanner stopped waiting before the destination could be verified. This is not confirmation that the link is broken.";
+      } else {
+        link.status =
+          "unreachable";
+
+        link.error =
+          error.message ||
+          "Request failed.";
+      }
     }
   }
 
@@ -5428,6 +5436,12 @@ if (
           link.status === "blocked"
       ).length,
 
+    verificationTimeout:
+      homepage.linkResults.filter(
+        link =>
+          link.status === "verification_timeout"
+      ).length,
+
     working:
       homepage.linkResults.filter(
         link =>
@@ -5887,6 +5901,9 @@ if (
 
           await sleep(100);
         } catch (error) {
+          const isVerificationTimeout =
+            error?.name === "AbortError";
+
           routeHealth.push({
             url:
               normalized,
@@ -5897,7 +5914,9 @@ if (
               ),
 
             status:
-              "unreachable",
+              isVerificationTimeout
+                ? "verification_timeout"
+                : "unreachable",
 
             statusCode:
               null,
@@ -5915,32 +5934,38 @@ if (
               candidate.anchorText,
 
             error:
-              error.message ||
-              "Route could not be reached."
+              isVerificationTimeout
+                ? "The scanner stopped waiting before this route could be verified. This is not confirmation that the route is broken."
+                : (
+                    error.message ||
+                    "Route could not be reached."
+                  )
           });
 
-          pages.push({
-            url:
-              normalized,
+          if (!isVerificationTimeout) {
+            pages.push({
+              url:
+                normalized,
 
-            path:
-              getPathname(
-                normalized
-              ),
+              path:
+                getPathname(
+                  normalized
+                ),
 
-            type:
-              "internal",
+              type:
+                "internal",
 
-            score:
-              candidate.score,
+              score:
+                candidate.score,
 
-            scanned:
-              false,
+              scanned:
+                false,
 
-            error:
-              error.message ||
-              "Page could not be scanned."
-          });
+              error:
+                error.message ||
+                "Page could not be scanned."
+            });
+          }
         }
       }
 
