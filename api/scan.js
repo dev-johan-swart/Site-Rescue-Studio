@@ -649,6 +649,31 @@ function getPathname(url) {
   }
 }
 
+function analyzeCanonicalDomain(pageUrl, canonical) {
+  try {
+    const publicUrl = new URL(pageUrl);
+    const canonicalUrl = new URL(canonical, pageUrl);
+    const normalizeHostname = hostname =>
+      String(hostname || "").toLowerCase().replace(/^www\./, "");
+    const publicHostname = normalizeHostname(publicUrl.hostname);
+    const canonicalHostname = normalizeHostname(canonicalUrl.hostname);
+    return {
+      mismatch: Boolean(publicHostname) && Boolean(canonicalHostname) &&
+        publicHostname !== canonicalHostname,
+      publicHostname,
+      canonicalHostname,
+      canonicalUrl: canonicalUrl.href
+    };
+  } catch {
+    return {
+      mismatch: false,
+      publicHostname: "",
+      canonicalHostname: "",
+      canonicalUrl: canonical || null
+    };
+  }
+}
+
 function sleep(ms) {
   return new Promise(resolve =>
     setTimeout(resolve, ms)
@@ -2706,11 +2731,19 @@ console.log(
         )
   );
 
+  const canonicalDomain =
+    analyzeCanonicalDomain(
+      pageUrl,
+      canonical
+    );
+
   seoChecks.push(
     canonical
       ? finding(
           "Canonical URL",
-          "A canonical URL was found.",
+          canonicalDomain.mismatch
+            ? `A canonical URL was found, but it points to a different hostname (${canonicalDomain.canonicalHostname}) than the public website (${canonicalDomain.publicHostname}).`
+            : "A canonical URL was found on the same hostname as the public website.",
           "pass",
           10
         )
@@ -2722,6 +2755,18 @@ console.log(
           "low"
         )
   );
+
+  if (canonicalDomain.mismatch) {
+    seoChecks.push(
+      finding(
+        "Canonical domain mismatch",
+        `The public website hostname is ${canonicalDomain.publicHostname}, but the canonical URL points to ${canonicalDomain.canonicalHostname}. This may be intentional, but the domain and hosting configuration should be reviewed.`,
+        "warning",
+        0,
+        "low"
+      )
+    );
+  }
 
   seoChecks.push(
     hasOpenGraph
