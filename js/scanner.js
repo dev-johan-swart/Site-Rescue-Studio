@@ -4371,6 +4371,25 @@ async function loadScanHistory() {
 
         </div>
 
+        ${Array.isArray(pageSpeed.diagnostics) && pageSpeed.diagnostics.length
+          ? `
+              <div class="check-section performance-diagnostics">
+                <h4>Performance interpretation</h4>
+                ${pageSpeed.diagnostics.map(diagnostic => `
+                  <div class="check">
+                    <div class="check-info">
+                      <strong>${escapeHtml(diagnostic.metric || "Metric")}</strong>
+                      <span>Diagnostic interpretation based on the PageSpeed value.</span>
+                    </div>
+                    <span class="check-status ${escapeHtml(diagnostic.status || "info")}">
+                      ${escapeHtml(diagnostic.message || "Review this metric.")}
+                    </span>
+                  </div>
+                `).join("")}
+              </div>
+            `
+          : ""}
+
       </section>
     `;
   }
