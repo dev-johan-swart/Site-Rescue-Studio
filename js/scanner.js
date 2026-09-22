@@ -580,12 +580,19 @@ const cancelScanHistoryButton =
       });
     }
 
-    const browserFormFailures =
+    const browserFormEvidence =
       Array.isArray(
         mergedScanData.browserInspection?.formReliability
       )
         ? mergedScanData.browserInspection.formReliability
         : [];
+
+    const browserFormFailures =
+      browserFormEvidence.filter(
+        form =>
+          form?.verified === true ||
+          form?.reason === "insecure-http-action"
+      );
 
     if (browserFormFailures.length) {
       const formIssueIds = new Set([
