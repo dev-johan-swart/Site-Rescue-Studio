@@ -7108,7 +7108,12 @@ const opportunity =
           vitals:
             pageSpeed.success
               ? pageSpeed.vitals
-              : null
+              : null,
+
+          diagnostics:
+            pageSpeed.success
+              ? pageSpeed.diagnostics
+              : []
         },
 
         /*
