@@ -2228,6 +2228,16 @@ failedResources.forEach(
         }
       );
 
+  } else if (browserInspection?.available === false) {
+
+    doc.moveDown(1);
+
+    drawInfoBox(
+      doc,
+      "Browser resource check",
+      "Browser inspection was not available, so same-origin browser resource failures could not be verified for this scan."
+    );
+
   } else {
 
     doc.moveDown(1);

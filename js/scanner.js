@@ -3557,7 +3557,7 @@ async function loadScanHistory() {
     const routeScore =
       Number.isFinite(Number(routeHealth.reliabilityScore))
         ? `${Number(routeHealth.reliabilityScore)}/100`
-        : "Not enough confirmed routes";
+        : "Not available";
 
     const stats = [
       ["Links found", linkHealth.total ?? 0],
@@ -3595,7 +3595,9 @@ async function loadScanHistory() {
     if (problemLinks.length === 0 && routeProblems.length === 0) {
       const cleanMessage = document.createElement("p");
       cleanMessage.textContent =
-        "No link or direct-route problems were returned by the scan.";
+        Number.isFinite(Number(routeHealth.reliabilityScore))
+          ? "No link or direct-route problems were returned by the scan."
+          : "No confirmed route reliability score is available for this scan.";
       content.appendChild(cleanMessage);
       section.hidden = false;
       return;
