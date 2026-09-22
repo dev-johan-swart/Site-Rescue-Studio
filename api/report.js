@@ -437,6 +437,8 @@ module.exports = async function handler(req, res) {
       counts = {},
       linkHealth = {},
       routeHealth,
+      crawlability = null,
+      technologies = [],
       responseTime,
       scannedAt,
       _pdfPassword = ""
@@ -640,7 +642,9 @@ module.exports = async function handler(req, res) {
       responseTime,
       checks,
       url,
-      browserInspection
+      browserInspection,
+      crawlability,
+      technologies
     );
 
     /*
@@ -4719,7 +4723,9 @@ function drawWebsiteInformation(
   responseTime,
   checks,
   url,
-  browserInspection
+  browserInspection,
+  crawlability,
+  technologies
 ) {
   metadata =
     metadata || {};
@@ -5287,6 +5293,32 @@ function drawWebsiteInformation(
   drawKeyValueRows(
     doc,
     technicalRows
+  );
+
+  doc.moveDown(1);
+
+  drawSubheading(
+    doc,
+    "Crawlability & Technology"
+  );
+
+  const robots =
+    crawlability?.robots || {};
+  const sitemap =
+    crawlability?.sitemap || {};
+
+  drawKeyValueRows(
+    doc,
+    [
+      ["robots.txt", robots.found ? "Detected" : "Not confirmed"],
+      ["robots.txt status", robots.status ?? "Not available"],
+      ["Sitemap", sitemap.found ? "Confirmed" : "Not confirmed"],
+      ["Sitemap status", sitemap.status ?? "Not available"],
+      ["Detected technologies",
+        Array.isArray(technologies) && technologies.length
+          ? technologies.map(item => item?.name).filter(Boolean).join(", ")
+          : "No recognised technology signatures detected"]
+    ]
   );
 
   doc.moveDown(1);
