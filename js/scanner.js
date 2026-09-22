@@ -229,6 +229,7 @@ const cancelScanHistoryButton =
         broken: mergedRouteResults.filter(route => route.status === "broken").length,
         blocked: mergedRouteResults.filter(route => route.status === "blocked").length,
         unreachable: mergedRouteResults.filter(route => route.status === "unreachable").length,
+        verificationTimeout: mergedRouteResults.filter(route => route.status === "verification_timeout").length,
         failed: mergedRouteResults.filter(
           route =>
             route.status === "broken" ||
@@ -249,6 +250,7 @@ const cancelScanHistoryButton =
         blocked: rawLinkResults.filter(link => link?.status === "blocked").length,
         unreachable: rawLinkResults.filter(link => link?.status === "unreachable").length,
         redirected: rawLinkResults.filter(link => link?.redirected).length,
+        verificationTimeout: rawLinkResults.filter(link => link?.status === "verification_timeout").length,
         internal: rawLinkResults.filter(link => link?.type === "internal").length,
         external: rawLinkResults.filter(link => link?.type === "external").length,
         anchors: rawLinkResults.filter(link => link?.type === "anchor").length
@@ -3756,6 +3758,7 @@ async function loadScanHistory() {
       ["Blocked", linkHealth.blocked ?? 0],
       ["Redirected", linkHealth.redirected ?? 0],
       ["Placeholders", linkHealth.placeholder ?? 0],
+      ["Verification timeouts", linkHealth.verificationTimeout ?? 0],
       ["Route reliability", routeScore]
     ];
 
