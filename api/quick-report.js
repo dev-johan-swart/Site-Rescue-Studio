@@ -237,9 +237,44 @@ module.exports =
         });
       }
 
+      const browserInspection = data?.browserInspection;
+      const browserFailures =
+        Array.isArray(browserInspection?.failedResources)
+          ? browserInspection.failedResources.filter(
+              item => item?.classification === "same-origin"
+            )
+          : [];
+
+      if (browserInspection?.available === true && browserFailures.length > 0) {
+        ensureSpace(doc, 70);
+        drawInfoBox(
+          doc,
+          "Browser-rendered alert",
+          "The rendered website produced confirmed same-origin browser request failures. The detailed report includes the affected resources and evidence."
+        );
+      }
+
+      const performanceDiagnostics =
+        Array.isArray(data?.pageSpeed?.diagnostics)
+          ? data.pageSpeed.diagnostics.filter(
+              item => item?.status === "warning" || item?.status === "poor"
+            )
+          : [];
+
+      if (performanceDiagnostics.length > 0) {
+        ensureSpace(doc, 70);
+        drawInfoBox(
+          doc,
+          "Performance alert",
+          performanceDiagnostics
+            .slice(0, 2)
+            .map(item => String(item?.metric || "Performance metric") + ": " + String(item?.message || "Review this metric."))
+            .join(" ")
+        );
+      }
+
       const topIssues =
-        [...issues]
-          .sort(
+        [...issues]          .sort(
             (a, b) =>
               severityRank(b?.severity) -
               severityRank(a?.severity)
