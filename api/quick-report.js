@@ -1003,12 +1003,37 @@ function drawInfoBox(
   text
 ) {
 
+  const startY =
+    doc.y;
+
+  doc
+    .font(
+      "Helvetica"
+    )
+    .fontSize(9.5);
+
+  const textHeight =
+    doc.heightOfString(
+      String(text || ""),
+      {
+        width:
+          PAGE.width - 30,
+        lineGap: 2
+      }
+    );
+
+  const boxHeight =
+    Math.max(
+      80,
+      58 + textHeight
+    );
+
   doc
     .roundedRect(
       PAGE.left,
-      doc.y,
+      startY,
       PAGE.width,
-      80,
+      boxHeight,
       10
     )
     .fillColor(
@@ -1027,7 +1052,11 @@ function drawInfoBox(
     .text(
       title,
       PAGE.left + 15,
-      doc.y + 15
+      startY + 15,
+      {
+        width:
+          PAGE.width - 30
+      }
     );
 
   doc
@@ -1041,15 +1070,18 @@ function drawInfoBox(
     .text(
       text,
       PAGE.left + 15,
-      doc.y + 38,
+      startY + 38,
       {
         width:
-          PAGE.width - 30
+          PAGE.width - 30,
+        lineGap: 2
       }
     );
 
-  doc.y +=
-    100;
+  doc.y =
+    startY +
+    boxHeight +
+    20;
 }
 
 
@@ -1176,10 +1208,13 @@ function ensureSpace(
   height
 ) {
 
+  const footerReserve =
+    PAGE.bottom + 28;
+
   if (
     doc.y + height >
     doc.page.height -
-      PAGE.bottom
+      footerReserve
   ) {
 
     addPage(
