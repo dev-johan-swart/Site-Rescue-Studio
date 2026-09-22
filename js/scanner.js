@@ -305,7 +305,7 @@ const cancelScanHistoryButton =
             "Website reliability issue",
 
           description:
-            "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a likely refresh/direct-navigation routing issue. The affected routes and response evidence are included in the detailed report.",
+            "One or more discovered internal website routes returned an unsuccessful response when requested directly. On routes that are intended to be valid pages, this may indicate a likely refresh/direct-navigation routing issue. Automated verification timeouts are not counted as confirmed route failures. The affected routes and response evidence are included in the detailed report.",
 
           status:
             "warning",
