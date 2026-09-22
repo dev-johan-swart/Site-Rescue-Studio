@@ -3555,6 +3555,9 @@ async function loadScanHistory() {
         : [];
 
     const routeScore =
+      routeHealth &&
+      routeHealth.reliabilityScore !== null &&
+      routeHealth.reliabilityScore !== undefined &&
       Number.isFinite(Number(routeHealth.reliabilityScore))
         ? `${Number(routeHealth.reliabilityScore)}/100`
         : "Not available";
@@ -3595,6 +3598,9 @@ async function loadScanHistory() {
     if (problemLinks.length === 0 && routeProblems.length === 0) {
       const cleanMessage = document.createElement("p");
       cleanMessage.textContent =
+        routeHealth &&
+        routeHealth.reliabilityScore !== null &&
+        routeHealth.reliabilityScore !== undefined &&
         Number.isFinite(Number(routeHealth.reliabilityScore))
           ? "No link or direct-route problems were returned by the scan."
           : "No confirmed route reliability score is available for this scan.";

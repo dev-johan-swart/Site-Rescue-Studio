@@ -6930,7 +6930,8 @@ const opportunity =
          */
 
         linkHealth:
-          homepage.linkHealth,
+          homepage.linkHealth ||
+          linkHealth,
 
         linkResults:
           homepage.linkResults,
