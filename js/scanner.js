@@ -240,22 +240,82 @@ const cancelScanHistoryButton =
 
       const rawLinkResults = Array.isArray(scanData.linkResults) ? scanData.linkResults : [];
       const sourceLinkHealth = scanData.linkHealth && typeof scanData.linkHealth === "object" ? scanData.linkHealth : {};
-      const mergedLinkHealth = rawLinkResults.length > 0 ? {
-        total: rawLinkResults.length,
-        tested: rawLinkResults.filter(link => ["working","broken","unreachable","blocked"].includes(link?.status)).length,
-        working: rawLinkResults.filter(link => link?.status === "working").length,
-        broken: rawLinkResults.filter(link => link?.status === "broken" && link?.type !== "anchor").length,
-        placeholder: rawLinkResults.filter(link => link?.status === "placeholder").length,
-        blocked: rawLinkResults.filter(link => link?.status === "blocked").length,
-        unreachable: rawLinkResults.filter(link => link?.status === "unreachable").length,
-        redirected: rawLinkResults.filter(link => link?.redirected).length,
-        internal: rawLinkResults.filter(link => link?.type === "internal").length,
-        external: rawLinkResults.filter(link => link?.type === "external").length,
-        anchors: rawLinkResults.filter(link => link?.type === "anchor").length
-      } : sourceLinkHealth;
+
+      /*
+       * Browser-rendered sites can legitimately expose navigation links
+       * that do not exist in the server HTML. When that happens, the
+       * server-side link tester has no links to test even though the
+       * browser has already discovered and tested internal destinations.
+       *
+       * Use the browser route results as link-health evidence only when
+       * the server-side link population is empty. This avoids double
+       * counting normal HTML links while still making JavaScript-rendered
+       * broken links visible in the Link Health section.
+       */
+      let mergedLinkResults = rawLinkResults;
+
+      if (
+        rawLinkResults.length === 0 &&
+        Array.isArray(
+          scanData.browserInspection?.routeHealth
+        )
+      ) {
+        mergedLinkResults =
+          scanData.browserInspection.routeHealth
+            .filter(route => route?.url)
+            .map(route => ({
+              url: route.url,
+              finalUrl: route.finalUrl || route.url,
+              type: "internal",
+              status: route.status,
+              statusCode: route.statusCode ?? null,
+              redirected: Boolean(route.redirected),
+              error: route.error || null,
+              anchorText: route.anchorText || ""
+            }));
+      }
+
+      const browserRenderedLinks =
+        Array.isArray(
+          scanData.browserInspection?.renderedLinks
+        )
+          ? scanData.browserInspection.renderedLinks
+          : [];
+
+      const mergedLinkHealth =
+        rawLinkResults.length > 0
+          ? {
+              total: rawLinkResults.length,
+              tested: rawLinkResults.filter(link => ["working","broken","unreachable","blocked"].includes(link?.status)).length,
+              working: rawLinkResults.filter(link => link?.status === "working").length,
+              broken: rawLinkResults.filter(link => link?.status === "broken" && link?.type !== "anchor").length,
+              placeholder: rawLinkResults.filter(link => link?.status === "placeholder").length,
+              blocked: rawLinkResults.filter(link => link?.status === "blocked").length,
+              unreachable: rawLinkResults.filter(link => link?.status === "unreachable").length,
+              redirected: rawLinkResults.filter(link => link?.redirected).length,
+              internal: rawLinkResults.filter(link => link?.type === "internal").length,
+              external: rawLinkResults.filter(link => link?.type === "external").length,
+              anchors: rawLinkResults.filter(link => link?.type === "anchor").length
+            }
+          : mergedLinkResults.length > 0
+            ? {
+                total: browserRenderedLinks.length || mergedLinkResults.length,
+                tested: mergedLinkResults.filter(link => ["working","broken","unreachable","blocked"].includes(link?.status)).length,
+                working: mergedLinkResults.filter(link => link?.status === "working").length,
+                broken: mergedLinkResults.filter(link => link?.status === "broken").length,
+                placeholder: 0,
+                blocked: mergedLinkResults.filter(link => link?.status === "blocked").length,
+                unreachable: mergedLinkResults.filter(link => link?.status === "unreachable").length,
+                redirected: mergedLinkResults.filter(link => link?.redirected).length,
+                internal: mergedLinkResults.length,
+                external: 0,
+                anchors: 0
+              }
+            : sourceLinkHealth;
       const mergedScanData = {
         ...scanData,
         linkHealth: mergedLinkHealth,
+        linkResults: mergedLinkResults,
         routeHealth:
           routeHealthSummary,
 
