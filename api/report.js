@@ -439,7 +439,7 @@ module.exports = async function handler(req, res) {
       routeHealth,
       responseTime,
       crawlability = null,
-    technologies = [],
+      technologies = [],
     scannedAt,
       _pdfPassword = ""
     } = data;
@@ -643,8 +643,8 @@ module.exports = async function handler(req, res) {
       checks,
       url,
       browserInspection,
-       crawlability,
-       technologies
+      crawlability,
+      technologies
     );
 
     /*
@@ -4735,7 +4735,9 @@ function drawWebsiteInformation(
   responseTime,
   checks,
   url,
-  browserInspection
+  browserInspection,
+  crawlability,
+  technologies
 ) {
   metadata =
     metadata || {};
