@@ -3649,7 +3649,7 @@ async function loadScanHistory() {
         : (
             routeHealth &&
             Number(routeHealth.tested || 0) > 0 &&
-            scanData.browserInspection?.available !== false
+            data?.browserInspection?.available !== false
               ? "No confirmed problems"
               : "Not available"
           );
