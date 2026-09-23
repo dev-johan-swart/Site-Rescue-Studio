@@ -83,12 +83,17 @@ module.exports = async function handler(req, res) {
       const qualification = qualifyProspect(scanData);
       counts.scannedCount++;
 
+      const qualificationResult = {
+        ...qualification,
+        historyId: scanData.historyId ?? null
+      };
+
       if (qualification.priority === "high") counts.highCount++;
       else if (qualification.priority === "moderate") counts.moderateCount++;
       else if (qualification.priority === "healthy") counts.healthyCount++;
       else counts.failedCount++;
 
-      await completeQueueItem(item.id, qualification);
+      await completeQueueItem(item.id, qualificationResult);
 
       if (qualification.priority === "high" || qualification.priority === "moderate") {
         await addShortlistItem(
