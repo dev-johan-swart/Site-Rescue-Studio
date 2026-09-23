@@ -9,7 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync:excel": "node lib/neonToExcel.js",
     "sync:excel:scheduled": "node lib/neonToExcel.js --scheduled",
-    "test:automation": "node --test lib/prospectQualification.test.js lib/automationStore.test.js"
+    "test:automation": "node --test lib/prospectQualification.test.js lib/automationStore.test.js lib/prospectDiscovery.test.js"
   },
   "repository": {
     "type": "git",
