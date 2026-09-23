@@ -1,7 +1,8 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWebsites } = require("../../lib/prospectDiscovery");
+const { discoverWithProviders } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
+  getDiscoveryProviderState, reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
@@ -56,13 +57,20 @@ module.exports = async function handler(req, res) {
 
   let discoverySummary = null;
   try {
-    const discovery = await discoverWebsites();
+    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
+    const discovery = await discoverWithProviders({
+      maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
+      isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
+      recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
+      recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
+    });
     const discovered = await enqueueWebsites(
       discovery.candidates.map(candidate => candidate.website),
-      "openstreetmap"
+      discovery.provider
     );
     discoverySummary = {
-      source: discovery.source,
+      source: discovery.provider,
+      failoverUsed: discovery.failoverUsed,
       candidateCount: discovery.candidateCount,
       newlyQueued: discovered.filter(item => item.status === "queued").length
     };

@@ -2,6 +2,12 @@
 -- Phase A: additive, non-destructive Neon schema.
 -- This file does not modify or delete existing scanner tables.
 
+CREATE TABLE IF NOT EXISTS automation_discovery_provider_state (
+  provider TEXT PRIMARY KEY, day_key DATE NOT NULL, request_count INTEGER NOT NULL DEFAULT 0,
+  consecutive_failures INTEGER NOT NULL DEFAULT 0, cooldown_until TIMESTAMPTZ, last_error TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS automation_runs (
   id BIGSERIAL PRIMARY KEY,
   run_key TEXT NOT NULL UNIQUE,
