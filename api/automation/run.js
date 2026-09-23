@@ -1,4 +1,5 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
+const { discoverWebsites } = require("../../lib/prospectDiscovery");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
@@ -64,6 +65,22 @@ module.exports = async function handler(req, res) {
 
   await recoverStaleQueueItems();
   await markExhaustedFailures();
+
+  if (process.env.GOOGLE_PLACES_API_KEY) {
+    try {
+      const discovery = await discoverWebsites();
+      const discovered = await require("../../lib/automationStore").enqueueWebsites(
+        discovery.candidates.map(candidate => candidate.website),
+        "google_places"
+      );
+      errors.push(
+        `Discovery: ${discovery.candidateCount} candidate website(s), ${discovered.filter(item => item.status === "queued").length} newly queued.`
+      );
+    } catch (error) {
+      errors.push(`Discovery failed: ${error?.message || error}`);
+    }
+  }
+
   await addDueFollowUps(run.id);
 
   for (let i = 0; i < batchSize; i++) {
