@@ -8,7 +8,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync:excel": "node lib/neonToExcel.js",
-    "sync:excel:scheduled": "node lib/neonToExcel.js --scheduled"
+    "sync:excel:scheduled": "node lib/neonToExcel.js --scheduled",
+    "test:automation": "node --test lib/prospectQualification.test.js"
   },
   "repository": {
     "type": "git",
