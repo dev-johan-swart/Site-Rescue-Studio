@@ -18,19 +18,9 @@ function runScan(url) {
     let statusCode = 200;
     let payload = null;
     const response = {
-      status(code) {
-        statusCode = code;
-        return this;
-      },
-      json(value) {
-        payload = value;
-        resolve({ statusCode, payload });
-        return this;
-      },
-      end() {
-        resolve({ statusCode, payload });
-        return this;
-      }
+      status(code) { statusCode = code; return this; },
+      json(value) { payload = value; resolve({ statusCode, payload }); return this; },
+      end() { resolve({ statusCode, payload }); return this; }
     };
     scanHandler({ method: "POST", body: { url } }, response).catch(reject);
   });
@@ -45,9 +35,7 @@ module.exports = async function handler(req, res) {
   const runKey = new Date().toISOString().slice(0, 10);
   const run = await createRun(runKey);
 
-  if (!run) {
-    return res.status(500).json({ success: false, error: "Automation run could not be created." });
-  }
+  if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
 
   if (run.acquired === false) {
     const message = run.status === "running"
@@ -67,20 +55,19 @@ module.exports = async function handler(req, res) {
   await markExhaustedFailures();
 
   let discoverySummary = null;
-  if (process.env.GOOGLE_PLACES_API_KEY) {
-    try {
-      const discovery = await discoverWebsites();
-      const discovered = await enqueueWebsites(
-        discovery.candidates.map(candidate => candidate.website),
-        "google_places"
-      );
-      discoverySummary = {
-        candidateCount: discovery.candidateCount,
-        newlyQueued: discovered.filter(item => item.status === "queued").length
-      };
-    } catch (error) {
-      errors.push(`Discovery failed: ${error?.message || error}`);
-    }
+  try {
+    const discovery = await discoverWebsites();
+    const discovered = await enqueueWebsites(
+      discovery.candidates.map(candidate => candidate.website),
+      "openstreetmap"
+    );
+    discoverySummary = {
+      source: discovery.source,
+      candidateCount: discovery.candidateCount,
+      newlyQueued: discovered.filter(item => item.status === "queued").length
+    };
+  } catch (error) {
+    errors.push(`Discovery failed: ${error?.message || error}`);
   }
 
   await addDueFollowUps(run.id);
