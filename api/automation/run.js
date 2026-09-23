@@ -3,7 +3,7 @@ const { discoverWebsites } = require("../../lib/prospectDiscovery");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
-  recoverStaleQueueItems, markExhaustedFailures
+  recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
 const scanHandler = require("../scan");
 
@@ -66,16 +66,18 @@ module.exports = async function handler(req, res) {
   await recoverStaleQueueItems();
   await markExhaustedFailures();
 
+  let discoverySummary = null;
   if (process.env.GOOGLE_PLACES_API_KEY) {
     try {
       const discovery = await discoverWebsites();
-      const discovered = await require("../../lib/automationStore").enqueueWebsites(
+      const discovered = await enqueueWebsites(
         discovery.candidates.map(candidate => candidate.website),
         "google_places"
       );
-      errors.push(
-        `Discovery: ${discovery.candidateCount} candidate website(s), ${discovered.filter(item => item.status === "queued").length} newly queued.`
-      );
+      discoverySummary = {
+        candidateCount: discovery.candidateCount,
+        newlyQueued: discovered.filter(item => item.status === "queued").length
+      };
     } catch (error) {
       errors.push(`Discovery failed: ${error?.message || error}`);
     }
@@ -138,6 +140,7 @@ module.exports = async function handler(req, res) {
     runId: run.id,
     counts,
     followUpsIncluded: true,
+    discoverySummary,
     errorSummary
   });
 };
