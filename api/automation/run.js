@@ -48,14 +48,17 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ success: false, error: "Automation run could not be created." });
   }
 
-  if (run.acquired === false && run.status === "running") {
-    return res.status(409).json({ success: false, error: "Another automation run is already in progress.", runId: run.id });
+  if (run.acquired === false) {
+    const message = run.status === "running"
+      ? "Another automation run is already in progress."
+      : "Today's automation run has already been started.";
+    return res.status(409).json({ success: false, error: message, runId: run.id, status: run.status });
   }
 
   const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 3);
-const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 3, 3));
-const startedAt = Date.now();
-const maxRunMs = 45000;
+  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 3, 3));
+  const startedAt = Date.now();
+  const maxRunMs = 45000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
 
