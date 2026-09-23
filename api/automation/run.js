@@ -52,7 +52,10 @@ module.exports = async function handler(req, res) {
     return res.status(409).json({ success: false, error: "Another automation run is already in progress.", runId: run.id });
   }
 
-  const batchSize = Math.max(1, Math.min(Number(process.env.AUTOMATION_BATCH_SIZE || 3), 10));
+  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 3);
+const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 3, 3));
+const startedAt = Date.now();
+const maxRunMs = 45000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
 
@@ -61,6 +64,7 @@ module.exports = async function handler(req, res) {
   await addDueFollowUps(run.id);
 
   for (let i = 0; i < batchSize; i++) {
+    if (Date.now() - startedAt >= maxRunMs) break;
     const item = await claimNextQueueItem(run.id);
     if (!item) break;
     counts.candidateCount++;
@@ -99,6 +103,8 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  const timeBudgetReached = Date.now() - startedAt >= maxRunMs;
+  if (timeBudgetReached) errors.push("Run stopped at the safety time budget; remaining queued sites stay queued.");
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
   await finishRun(run.id, counts, errorSummary);
 
