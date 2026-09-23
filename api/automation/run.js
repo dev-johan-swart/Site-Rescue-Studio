@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getDiscoveryProviderState, reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
+  getQueueDepth, reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
@@ -59,7 +59,7 @@ module.exports = async function handler(req, res) {
   try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
     const discovery = await discoverWithProviders({
-      maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
+      maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 40),
       isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
       recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
       recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
@@ -76,6 +76,17 @@ module.exports = async function handler(req, res) {
     };
   } catch (error) {
     errors.push(`Discovery failed: ${error?.message || error}`);
+  }
+
+  const reserveMinimum = Math.max(3, Math.min(
+    Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 9),
+    30
+  ));
+  const queueDepthAfterDiscovery = await getQueueDepth(sql);
+  if (queueDepthAfterDiscovery < reserveMinimum) {
+    errors.push(
+      `Queue reserve is below target (${queueDepthAfterDiscovery}/${reserveMinimum}); queued sites remain protected while discovery providers recover.`
+    );
   }
 
   await addDueFollowUps(run.id);
@@ -130,12 +141,17 @@ module.exports = async function handler(req, res) {
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
   await finishRun(run.id, counts, errorSummary);
 
+  const queueDepth = await getQueueDepth(sql);
+
   return res.status(200).json({
     success: true,
     runId: run.id,
     counts,
     followUpsIncluded: true,
     discoverySummary,
+    queueDepth,
+    queueReserveMinimum: reserveMinimum,
+    queueReserveHealthy: queueDepth >= reserveMinimum,
     errorSummary
   });
 };
