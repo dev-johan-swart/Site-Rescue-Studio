@@ -1,8 +1,9 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWithProviders } = require("../../lib/discoveryProviders");
+const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
+  getQueueDepth, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog,
+  reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
@@ -56,39 +57,45 @@ module.exports = async function handler(req, res) {
   await markExhaustedFailures();
 
   let discoverySummary = null;
+  const reserveMinimum = Math.max(3, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 9), 30));
   try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
-    const discovery = await discoverWithProviders({
-      maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 40),
-      isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
-      recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
-      recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
-    });
-    const discovered = await enqueueWebsites(
-      discovery.candidates.map(candidate => candidate.website),
-      discovery.provider
-    );
-    discoverySummary = {
-      source: discovery.provider,
-      failoverUsed: discovery.failoverUsed,
-      candidateCount: discovery.candidateCount,
-      newlyQueued: discovered.filter(item => item.status === "queued").length
-    };
+    const currentStageId = await getDiscoveryStageState(sql);
+    const currentStage = getDiscoveryStage(currentStageId);
+    const beforeDepth = await getQueueDepth(sql);
+    const backlogSites = await drainDiscoveryBacklog(sql, Math.max(reserveMinimum - beforeDepth, 0));
+    if (backlogSites.length) await enqueueWebsites(backlogSites, "discovery_backlog");
+    const stages = [currentStage];
+    const index = DISCOVERY_STAGES.findIndex(item => item.id === currentStage.id);
+    if (beforeDepth + backlogSites.length < reserveMinimum && index >= 0 && index < DISCOVERY_STAGES.length - 1) stages.push(DISCOVERY_STAGES[index + 1]);
+    for (const stage of stages) {
+      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {
+        errors.push("International discovery is approaching but remains disabled pending pricing, currency, service-area and business-workflow review.");
+        break;
+      }
+      try {
+        const discovery = await discoverWithProviders({
+          stage,
+          queries: providerQueries(new Date(), stage.queries),
+          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 40),
+          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
+          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
+          recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
+        });
+        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
+        const available = await drainDiscoveryBacklog(sql, 40);
+        const discovered = await enqueueWebsites(available, "discovery_backlog");
+        const newlyQueued = discovered.filter(item => item.status === "queued").length;
+        discoverySummary = { source: discovery.provider, failoverUsed: discovery.failoverUsed, stage: stage.id, stageLabel: stage.label, candidateCount: discovery.candidateCount, newlyQueued };
+        if (stage.id !== currentStage.id && newlyQueued > 0) await setDiscoveryStageState(sql, stage.id);
+        break;
+      } catch (error) {
+        errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
+      }
+    }
   } catch (error) {
-    errors.push(`Discovery failed: ${error?.message || error}`);
+    errors.push(`Discovery orchestration failed: ${error?.message || error}`);
   }
-
-  const reserveMinimum = Math.max(3, Math.min(
-    Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 9),
-    30
-  ));
-  const queueDepthAfterDiscovery = await getQueueDepth(sql);
-  if (queueDepthAfterDiscovery < reserveMinimum) {
-    errors.push(
-      `Queue reserve is below target (${queueDepthAfterDiscovery}/${reserveMinimum}); queued sites remain protected while discovery providers recover.`
-    );
-  }
-
   await addDueFollowUps(run.id);
 
   for (let i = 0; i < batchSize; i++) {
