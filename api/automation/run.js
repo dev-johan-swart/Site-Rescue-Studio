@@ -88,7 +88,7 @@ module.exports = async function handler(req, res) {
         const newlyQueued = discovered.filter(item => item.status === "queued").length;
         discoverySummary = { source: discovery.provider, failoverUsed: discovery.failoverUsed, stage: stage.id, stageLabel: stage.label, candidateCount: discovery.candidateCount, newlyQueued };
         if (stage.id !== currentStage.id && newlyQueued > 0) await setDiscoveryStageState(sql, stage.id);
-        break;
+        if (newlyQueued > 0 || stage === stages[stages.length - 1]) break;
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
       }
