@@ -14,12 +14,6 @@ module.exports = async function handler(req, res) {
   if (!authorised(req)) {
     return res.status(401).json({ success: false, error: "Unauthorized." });
   }
-  if (!process.env.GOOGLE_PLACES_API_KEY) {
-    return res.status(503).json({
-      success: false,
-      error: "Automated discovery is not configured."
-    });
-  }
 
   try {
     const body = req.body || {};
@@ -33,12 +27,12 @@ module.exports = async function handler(req, res) {
     });
     const enqueueResults = await enqueueWebsites(
       discovery.candidates.map(candidate => candidate.website),
-      "google_places"
+      "openstreetmap"
     );
 
     return res.status(200).json({
       success: true,
-      source: "google_places",
+      source: discovery.source,
       candidateCount: discovery.candidateCount,
       queries: discovery.queries,
       enqueueResults
