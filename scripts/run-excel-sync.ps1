@@ -6,7 +6,7 @@ try {
   $locked = $mutex.WaitOne(0)
   if (-not $locked) { exit 0 }
   Push-Location $repoRoot
-  & npm run sync:excel:scheduled
+  & "C:\Program Files\nodejs\npm.cmd" run sync:excel:scheduled
   if ($LASTEXITCODE -ne 0) { throw "Excel sync exited with code $LASTEXITCODE." }
 }
 finally {
