@@ -46,18 +46,20 @@ module.exports = async function handler(req, res) {
     return res.status(409).json({ success: false, error: message, runId: run.id, status: run.status });
   }
 
-  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 3);
-  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 3, 3));
+  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 10);
+  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 10, 10));
   const startedAt = Date.now();
-  const maxRunMs = 45000;
+  // Keep enough headroom for a 10-site production batch while staying below Vercel's 300s Hobby function limit.
+  const maxRunMs = 240000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
 
-  await recoverStaleQueueItems();
-  await markExhaustedFailures();
+  try {
+    await recoverStaleQueueItems();
+    await markExhaustedFailures();
 
   let discoverySummary = null;
-  const reserveMinimum = Math.max(3, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 9), 30));
+  const reserveMinimum = Math.max(10, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 12), 30));
   try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
     const currentStageId = await getDiscoveryStageState(sql);
@@ -161,4 +163,20 @@ module.exports = async function handler(req, res) {
     queueReserveHealthy: queueDepth >= reserveMinimum,
     errorSummary
   });
+  } catch (error) {
+    const message = String(error?.message || error || "Unexpected automation failure.");
+    const errorSummary = [...errors, message].join(" | ").slice(0, 4000);
+    try {
+      await finishRun(run.id, counts, errorSummary);
+    } catch (finishError) {
+      console.error("Automation run finalization failed:", finishError);
+    }
+    console.error("Automation run failed:", error);
+    return res.status(500).json({
+      success: false,
+      runId: run.id,
+      counts,
+      errorSummary
+    });
+  }
 };
