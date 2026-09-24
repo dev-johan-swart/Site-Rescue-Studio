@@ -1,7 +1,9 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWebsites } = require("../../lib/prospectDiscovery");
+const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
+  getQueueDepth, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog,
+  reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
@@ -18,19 +20,9 @@ function runScan(url) {
     let statusCode = 200;
     let payload = null;
     const response = {
-      status(code) {
-        statusCode = code;
-        return this;
-      },
-      json(value) {
-        payload = value;
-        resolve({ statusCode, payload });
-        return this;
-      },
-      end() {
-        resolve({ statusCode, payload });
-        return this;
-      }
+      status(code) { statusCode = code; return this; },
+      json(value) { payload = value; resolve({ statusCode, payload }); return this; },
+      end() { resolve({ statusCode, payload }); return this; }
     };
     scanHandler({ method: "POST", body: { url } }, response).catch(reject);
   });
@@ -45,9 +37,7 @@ module.exports = async function handler(req, res) {
   const runKey = new Date().toISOString().slice(0, 10);
   const run = await createRun(runKey);
 
-  if (!run) {
-    return res.status(500).json({ success: false, error: "Automation run could not be created." });
-  }
+  if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
 
   if (run.acquired === false) {
     const message = run.status === "running"
@@ -56,33 +46,58 @@ module.exports = async function handler(req, res) {
     return res.status(409).json({ success: false, error: message, runId: run.id, status: run.status });
   }
 
-  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 3);
-  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 3, 3));
+  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 10);
+  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 10, 10));
   const startedAt = Date.now();
-  const maxRunMs = 45000;
+  // Keep enough headroom for a 10-site production batch while staying below Vercel's 300s Hobby function limit.
+  const maxRunMs = 240000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
 
-  await recoverStaleQueueItems();
-  await markExhaustedFailures();
+  try {
+    await recoverStaleQueueItems();
+    await markExhaustedFailures();
 
   let discoverySummary = null;
-  if (process.env.GOOGLE_PLACES_API_KEY) {
-    try {
-      const discovery = await discoverWebsites();
-      const discovered = await enqueueWebsites(
-        discovery.candidates.map(candidate => candidate.website),
-        "google_places"
-      );
-      discoverySummary = {
-        candidateCount: discovery.candidateCount,
-        newlyQueued: discovered.filter(item => item.status === "queued").length
-      };
-    } catch (error) {
-      errors.push(`Discovery failed: ${error?.message || error}`);
+  const reserveMinimum = Math.max(10, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 12), 30));
+  try {
+    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
+    const currentStageId = await getDiscoveryStageState(sql);
+    const currentStage = getDiscoveryStage(currentStageId);
+    const beforeDepth = await getQueueDepth(sql);
+    const backlogSites = await drainDiscoveryBacklog(sql, Math.max(reserveMinimum - beforeDepth, 0));
+    if (backlogSites.length) await enqueueWebsites(backlogSites, "discovery_backlog");
+    const stages = [currentStage];
+    const index = DISCOVERY_STAGES.findIndex(item => item.id === currentStage.id);
+    if (beforeDepth + backlogSites.length < reserveMinimum && index >= 0 && index < DISCOVERY_STAGES.length - 1) stages.push(DISCOVERY_STAGES[index + 1]);
+    for (const stage of stages) {
+      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {
+        errors.push("International discovery is approaching but remains disabled pending pricing, currency, service-area and business-workflow review.");
+        break;
+      }
+      try {
+        const discovery = await discoverWithProviders({
+          stage,
+          queries: providerQueries(new Date(), stage.queries),
+          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 40),
+          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
+          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
+          recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
+        });
+        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
+        const available = await drainDiscoveryBacklog(sql, 40);
+        const discovered = await enqueueWebsites(available, "discovery_backlog");
+        const newlyQueued = discovered.filter(item => item.status === "queued").length;
+        discoverySummary = { source: discovery.provider, failoverUsed: discovery.failoverUsed, stage: stage.id, stageLabel: stage.label, candidateCount: discovery.candidateCount, newlyQueued };
+        if (stage.id !== currentStage.id && newlyQueued > 0) await setDiscoveryStageState(sql, stage.id);
+        if (newlyQueued > 0 || stage === stages[stages.length - 1]) break;
+      } catch (error) {
+        errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
+      }
     }
+  } catch (error) {
+    errors.push(`Discovery orchestration failed: ${error?.message || error}`);
   }
-
   await addDueFollowUps(run.id);
 
   for (let i = 0; i < batchSize; i++) {
@@ -135,12 +150,33 @@ module.exports = async function handler(req, res) {
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
   await finishRun(run.id, counts, errorSummary);
 
+  const queueDepth = await getQueueDepth(sql);
+
   return res.status(200).json({
     success: true,
     runId: run.id,
     counts,
     followUpsIncluded: true,
     discoverySummary,
+    queueDepth,
+    queueReserveMinimum: reserveMinimum,
+    queueReserveHealthy: queueDepth >= reserveMinimum,
     errorSummary
   });
+  } catch (error) {
+    const message = String(error?.message || error || "Unexpected automation failure.");
+    const errorSummary = [...errors, message].join(" | ").slice(0, 4000);
+    try {
+      await finishRun(run.id, counts, errorSummary);
+    } catch (finishError) {
+      console.error("Automation run finalization failed:", finishError);
+    }
+    console.error("Automation run failed:", error);
+    return res.status(500).json({
+      success: false,
+      runId: run.id,
+      counts,
+      errorSummary
+    });
+  }
 };
