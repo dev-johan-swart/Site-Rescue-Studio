@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog,
+  getQueueDepth, getDailyScannedCount, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog,
   reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
@@ -34,7 +34,10 @@ module.exports = async function handler(req, res) {
   const sql = getSql();
   await ensureAutomationSchema(sql);
 
-  const runKey = new Date().toISOString().slice(0, 10);
+  // Each scheduled batch gets its own durable run record. This allows five
+  // 10-site workers to complete the 50-site daily target without weakening
+  // same-slot duplicate protection.
+  const runKey = new Date().toISOString().slice(0, 16);
   const run = await createRun(runKey);
 
   if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
@@ -48,6 +51,10 @@ module.exports = async function handler(req, res) {
 
   const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 10);
   const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 10, 10));
+  const dailyTarget = Math.max(1, Math.min(Number(process.env.AUTOMATION_DAILY_SCAN_TARGET || 50), 50));
+  const dailyScannedBeforeRun = await getDailyScannedCount(sql);
+  const remainingDailyScans = Math.max(0, dailyTarget - dailyScannedBeforeRun);
+  const effectiveBatchSize = Math.min(batchSize, remainingDailyScans);
   const startedAt = Date.now();
   // Keep enough headroom for a 10-site production batch while staying below Vercel's 300s Hobby function limit.
   const maxRunMs = 240000;
@@ -100,7 +107,7 @@ module.exports = async function handler(req, res) {
   }
   await addDueFollowUps(run.id);
 
-  for (let i = 0; i < batchSize; i++) {
+  for (let i = 0; i < effectiveBatchSize; i++) {
     if (Date.now() - startedAt >= maxRunMs) break;
     const item = await claimNextQueueItem(run.id);
     if (!item) break;
@@ -151,11 +158,16 @@ module.exports = async function handler(req, res) {
   await finishRun(run.id, counts, errorSummary);
 
   const queueDepth = await getQueueDepth(sql);
+  const dailyScannedTotal = await getDailyScannedCount(sql);
 
   return res.status(200).json({
     success: true,
     runId: run.id,
     counts,
+    dailyTarget,
+    dailyScannedBeforeRun,
+    dailyScannedTotal,
+    dailyTargetReached: dailyScannedTotal >= dailyTarget,
     followUpsIncluded: true,
     discoverySummary,
     queueDepth,
