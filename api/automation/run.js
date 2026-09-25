@@ -37,7 +37,8 @@ module.exports = async function handler(req, res) {
   // Each scheduled batch gets its own durable run record. This allows five
   // 10-site workers to complete the 50-site daily target without weakening
   // same-slot duplicate protection.
-  const runKey = new Date().toISOString().slice(0, 16);
+  const requestedBatch = String(req.query?.batch || "single").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "single";
+  const runKey = `${new Date().toISOString().slice(0, 10)}:${requestedBatch}`;
   const run = await createRun(runKey);
 
   if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
