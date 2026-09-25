@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getDailyScannedCount, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog,
+  getQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
   reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
@@ -34,26 +34,24 @@ module.exports = async function handler(req, res) {
   const sql = getSql();
   await ensureAutomationSchema(sql);
 
-  // Each scheduled batch gets its own durable run record. This allows five
-  // 10-site workers to complete the 50-site daily target without weakening
-  // same-slot duplicate protection.
-  const requestedBatch = String(req.query?.batch || "single").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "single";
-
+  // Every daily trigger claims the next unfinished 10-site batch atomically.
+  // This keeps batches sequential even when Hobby Cron invokes multiple daily
+  // triggers close together, while allowing extra trigger opportunities to
+  // recover from scheduler jitter or an earlier failed invocation.
   const localDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
-  const localHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Johannesburg", hour: "2-digit", hour12: false }).format(new Date()));
-  const cycleDate = localHour < 8
-    ? new Date(Date.parse(localDate + "T00:00:00Z") - 86400000).toISOString().slice(0, 10)
-    : localDate;
-  const runKey = String(cycleDate) + ":" + requestedBatch;
-  const run = await createRun(runKey);
+  const cycleDate = localDate;
+  await recoverStaleAutomationRuns(sql);
+  const run = await claimNextDailyRun(sql, cycleDate, 5);
 
-  if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
-
-  if (run.acquired === false) {
-    const message = run.status === "running"
-      ? "Another automation run is already in progress."
-      : "Today's automation run has already been started.";
-    return res.status(409).json({ success: false, error: message, runId: run.id, status: run.status });
+  if (!run) {
+    const dailyScanned = await getDailyScannedCount(sql);
+    return res.status(200).json({
+      success: true,
+      noBatchClaimed: true,
+      dailyTarget: 50,
+      dailyScannedTotal: dailyScanned,
+      dailyTargetReached: dailyScanned >= 50
+    });
   }
 
   const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 10);
@@ -79,8 +77,12 @@ module.exports = async function handler(req, res) {
     const currentStageId = await getDiscoveryStageState(sql);
     const currentStage = getDiscoveryStage(currentStageId);
     const beforeDepth = await getQueueDepth(sql);
-    const backlogSites = await drainDiscoveryBacklog(sql, Math.max(reserveMinimum - beforeDepth, 0));
-    if (backlogSites.length) await enqueueWebsites(backlogSites, "discovery_backlog");
+    const backlogItems = await drainDiscoveryBacklog(sql, Math.max(reserveMinimum - beforeDepth, 0));
+    const backlogSites = backlogItems.map(item => item.website);
+    if (backlogSites.length) {
+      const enqueueResults = await enqueueWebsites(backlogSites, "discovery_backlog");
+      await markDiscoveryBacklogResults(sql, backlogItems, enqueueResults);
+    }
     const stages = [currentStage];
     const index = DISCOVERY_STAGES.findIndex(item => item.id === currentStage.id);
     if (beforeDepth + backlogSites.length < reserveMinimum && index >= 0 && index < DISCOVERY_STAGES.length - 1) stages.push(DISCOVERY_STAGES[index + 1]);
