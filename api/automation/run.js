@@ -38,7 +38,40 @@ module.exports = async function handler(req, res) {
   // 10-site workers to complete the 50-site daily target without weakening
   // same-slot duplicate protection.
   const requestedBatch = String(req.query?.batch || "single").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "single";
-  const runKey = `${new Date().toISOString().slice(0, 10)}:${requestedBatch}`;
+
+  // Keep the daily dispatcher inside this existing Function so the Hobby
+  // deployment does not gain another Serverless Function.
+  if (requestedBatch === "dispatch") {
+    if (!req.headers?.host) return res.status(500).json({ success: false, error: "Production host is unavailable." });
+    const origin = String(req.headers?.["x-forwarded-proto"] || "https") + "://" + req.headers.host;
+    const secret = process.env.CRON_SECRET;
+    const batches = await Promise.all(
+      Array.from({ length: 5 }, (_, index) => {
+        const batch = index + 1;
+        return fetch(origin + "/api/automation/run?batch=" + batch, {
+          method: "GET",
+          headers: { Authorization: "Bearer " + secret }
+        }).then(async response => ({
+          batch,
+          status: response.status,
+          body: await response.json().catch(() => null)
+        })).catch(error => ({
+          batch,
+          status: 599,
+          body: { success: false, error: String(error?.message || error) }
+        }));
+      })
+    );
+    const failed = batches.filter(item => item.status < 200 || item.status >= 300);
+    return res.status(failed.length ? 207 : 200).json({
+      success: failed.length === 0,
+      batches,
+      batchCount: 5,
+      failedBatchCount: failed.length
+    });
+  }
+
+  const runKey = String(new Date().toISOString().slice(0, 10)) + ":" + requestedBatch;
   const run = await createRun(runKey);
 
   if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
