@@ -6,9 +6,10 @@
     }
   },
   "crons": [
-    {
-      "path": "/api/automation/run?batch=dispatch",
-      "schedule": "0 1 * * *"
-    }
+    { "path": "/api/automation/run?batch=1", "schedule": "0 1 * * *" },
+    { "path": "/api/automation/run?batch=2", "schedule": "0 2 * * *" },
+    { "path": "/api/automation/run?batch=3", "schedule": "0 3 * * *" },
+    { "path": "/api/automation/run?batch=4", "schedule": "0 4 * * *" },
+    { "path": "/api/automation/run?batch=5", "schedule": "0 5 * * *" }
   ]
 }
