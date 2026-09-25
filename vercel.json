@@ -3,11 +3,14 @@
   "functions": {
     "api/automation/run.js": {
       "maxDuration": 300
+    },
+    "api/automation/dispatch.js": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
-      "path": "/api/automation/run",
+      "path": "/api/automation/dispatch",
       "schedule": "0 1 * * *"
     }
   ]
