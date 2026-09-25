@@ -39,39 +39,12 @@ module.exports = async function handler(req, res) {
   // same-slot duplicate protection.
   const requestedBatch = String(req.query?.batch || "single").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "single";
 
-  // Keep the daily dispatcher inside this existing Function so the Hobby
-  // deployment does not gain another Serverless Function.
-  if (requestedBatch === "dispatch") {
-    if (!req.headers?.host) return res.status(500).json({ success: false, error: "Production host is unavailable." });
-    const origin = String(req.headers?.["x-forwarded-proto"] || "https") + "://" + req.headers.host;
-    const secret = process.env.CRON_SECRET;
-    const batches = await Promise.all(
-      Array.from({ length: 5 }, (_, index) => {
-        const batch = index + 1;
-        return fetch(origin + "/api/automation/run?batch=" + batch, {
-          method: "GET",
-          headers: { Authorization: "Bearer " + secret }
-        }).then(async response => ({
-          batch,
-          status: response.status,
-          body: await response.json().catch(() => null)
-        })).catch(error => ({
-          batch,
-          status: 599,
-          body: { success: false, error: String(error?.message || error) }
-        }));
-      })
-    );
-    const failed = batches.filter(item => item.status < 200 || item.status >= 300);
-    return res.status(failed.length ? 207 : 200).json({
-      success: failed.length === 0,
-      batches,
-      batchCount: 5,
-      failedBatchCount: failed.length
-    });
-  }
-
-  const runKey = String(new Date().toISOString().slice(0, 10)) + ":" + requestedBatch;
+  const localDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
+  const localHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Johannesburg", hour: "2-digit", hour12: false }).format(new Date()));
+  const cycleDate = localHour < 8
+    ? new Date(Date.parse(localDate + "T00:00:00Z") - 86400000).toISOString().slice(0, 10)
+    : localDate;
+  const runKey = String(cycleDate) + ":" + requestedBatch;
   const run = await createRun(runKey);
 
   if (!run) return res.status(500).json({ success: false, error: "Automation run could not be created." });
@@ -100,7 +73,7 @@ module.exports = async function handler(req, res) {
     await markExhaustedFailures();
 
   let discoverySummary = null;
-  const reserveMinimum = Math.max(10, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 12), 30));
+  const reserveMinimum = Math.max(20, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 20), 50));
   try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
     const currentStageId = await getDiscoveryStageState(sql);
@@ -120,13 +93,13 @@ module.exports = async function handler(req, res) {
         const discovery = await discoverWithProviders({
           stage,
           queries: providerQueries(new Date(), stage.queries),
-          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 40),
+          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 80),
           isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
         await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
-        const available = await drainDiscoveryBacklog(sql, 40);
+        const available = await drainDiscoveryBacklog(sql, 80);
         const discovered = await enqueueWebsites(available, "discovery_backlog");
         const newlyQueued = discovered.filter(item => item.status === "queued").length;
         discoverySummary = { source: discovery.provider, failoverUsed: discovery.failoverUsed, stage: stage.id, stageLabel: stage.label, candidateCount: discovery.candidateCount, newlyQueued };
