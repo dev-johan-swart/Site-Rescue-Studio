@@ -86,7 +86,7 @@ module.exports = async function handler(req, res) {
   const remainingDailyScans = Math.max(0, dailyTarget - dailyScannedBeforeRun);
   const effectiveBatchSize = Math.min(batchSize, remainingDailyScans);
   const startedAt = Date.now();
-  // Keep enough headroom for a 10-site production batch while staying below Vercel's 300s Hobby function limit.
+  // Keep enough headroom for a 5-site production batch while staying below Vercel's configured function limit.
   const maxRunMs = 240000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
@@ -102,7 +102,6 @@ module.exports = async function handler(req, res) {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const currentStageId = await getDiscoveryStageState(sql);
     const currentStage = getDiscoveryStage(currentStageId);
-    const beforeDepth = await getQueueDepth(sql);
     const backlogItems = await drainDiscoveryBacklog(sql, Math.max(reserveMinimum - beforeDepth, 0));
     const backlogSites = backlogItems.map(item => item.website);
     if (backlogSites.length) {
