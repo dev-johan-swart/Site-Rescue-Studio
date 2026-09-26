@@ -99,7 +99,7 @@ module.exports = async function handler(req, res) {
   const beforeDepth = await getQueueDepth(sql);
   const reserveMinimum = Math.max(20, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 20), 50));
   if (beforeDepth < reserveMinimum) try {
-    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
+    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const currentStageId = await getDiscoveryStageState(sql);
     const currentStage = getDiscoveryStage(currentStageId);
     const beforeDepth = await getQueueDepth(sql);
@@ -109,14 +109,10 @@ module.exports = async function handler(req, res) {
       const enqueueResults = await enqueueWebsites(backlogSites, "discovery_backlog");
       await markDiscoveryBacklogResults(sql, backlogItems, enqueueResults);
     }
-    const stages = [currentStage];
-    const index = DISCOVERY_STAGES.findIndex(item => item.id === currentStage.id);
-    if (beforeDepth + backlogSites.length < reserveMinimum && index >= 0 && index < DISCOVERY_STAGES.length - 1) stages.push(DISCOVERY_STAGES[index + 1]);
-    for (const stage of stages) {
-      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {
-        errors.push("International discovery is approaching but remains disabled pending pricing, currency, service-area and business-workflow review.");
-        break;
-      }
+    const stage = currentStage;
+    if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {
+      errors.push("International discovery is staged but remains disabled pending pricing, currency, service-area and business-workflow review.");
+    } else {
       try {
         const discovery = await discoverWithProviders({
           stage,
@@ -129,10 +125,16 @@ module.exports = async function handler(req, res) {
         await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
         const available = await drainDiscoveryBacklog(sql, 80);
         const discovered = await enqueueWebsites(available, "discovery_backlog");
+        await markDiscoveryBacklogResults(sql, available, discovered);
         const newlyQueued = discovered.filter(item => item.status === "queued").length;
-        discoverySummary = { source: discovery.provider, failoverUsed: discovery.failoverUsed, stage: stage.id, stageLabel: stage.label, candidateCount: discovery.candidateCount, newlyQueued };
-        if (stage.id !== currentStage.id && newlyQueued > 0) await setDiscoveryStageState(sql, stage.id);
-        if (newlyQueued > 0 || stage === stages[stages.length - 1]) break;
+        discoverySummary = {
+          source: discovery.provider,
+          failoverUsed: discovery.failoverUsed,
+          stage: stage.id,
+          stageLabel: stage.label,
+          candidateCount: discovery.candidateCount,
+          newlyQueued
+        };
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
       }
