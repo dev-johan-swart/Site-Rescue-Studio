@@ -29,7 +29,13 @@ function runScan(url) {
 }
 
 module.exports = async function handler(req, res) {
-  if (!authorised(req)) return res.status(401).json({ success: false, error: "Unauthorized." });
+  if (!authorised(req)) {
+    console.warn("Automation cron rejected.", {
+      method: req.method,
+      userAgent: req.headers?.["user-agent"] || null
+    });
+    return res.status(401).json({ success: false, error: "Unauthorized." });
+  }
 
   const sql = getSql();
   await ensureAutomationSchema(sql);
@@ -42,6 +48,13 @@ module.exports = async function handler(req, res) {
   const cycleDate = localDate;
   await recoverStaleAutomationRuns(sql);
   const run = await claimNextDailyRun(sql, cycleDate, 12);
+
+  console.log("Automation cron invoked.", {
+    method: req.method,
+    userAgent: req.headers?.["user-agent"] || null,
+    cycleDate,
+    runKey: run?.run_key || null
+  });
 
   if (!run) {
     const dailyScanned = await getDailyScannedCount(sql);
