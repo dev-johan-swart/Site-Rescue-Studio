@@ -44,8 +44,20 @@ module.exports = async function handler(req, res) {
   // This keeps batches sequential even when Hobby Cron invokes multiple daily
   // triggers close together, while allowing extra trigger opportunities to
   // recover from scheduler jitter or an earlier failed invocation.
-  const localDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
-  const cycleDate = localDate;
+  const localParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Johannesburg",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date()).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const localHour = Number(localParts.hour || 0);
+  const localDate = `${localParts.year}-${localParts.month}-${localParts.day}`;
+  const cycleDate = localHour < 8
+    ? new Date(Date.UTC(
+        Number(localParts.year), Number(localParts.month) - 1, Number(localParts.day) - 1
+      )).toISOString().slice(0, 10)
+    : localDate;
   await recoverStaleAutomationRuns(sql);
   const run = await claimNextDailyRun(sql, cycleDate, 12);
 
@@ -84,6 +96,7 @@ module.exports = async function handler(req, res) {
     await markExhaustedFailures();
 
   let discoverySummary = null;
+  const beforeDepth = await getQueueDepth(sql);
   const reserveMinimum = Math.max(20, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 20), 50));
   if (beforeDepth < reserveMinimum) try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
