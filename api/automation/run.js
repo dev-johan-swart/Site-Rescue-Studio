@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
   const localDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" });
   const cycleDate = localDate;
   await recoverStaleAutomationRuns(sql);
-  const run = await claimNextDailyRun(sql, cycleDate, 5);
+  const run = await claimNextDailyRun(sql, cycleDate, 12);
 
   if (!run) {
     const dailyScanned = await getDailyScannedCount(sql);
@@ -54,8 +54,8 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 10);
-  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 10, 10));
+  const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 5);
+  const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 5, 5));
   const dailyTarget = Math.max(1, Math.min(Number(process.env.AUTOMATION_DAILY_SCAN_TARGET || 50), 50));
   const dailyScannedBeforeRun = await getDailyScannedCount(sql);
   const remainingDailyScans = Math.max(0, dailyTarget - dailyScannedBeforeRun);
@@ -72,7 +72,7 @@ module.exports = async function handler(req, res) {
 
   let discoverySummary = null;
   const reserveMinimum = Math.max(20, Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_MIN || 20), 50));
-  try {
+  if (beforeDepth < reserveMinimum) try {
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 2), 4));
     const currentStageId = await getDiscoveryStageState(sql);
     const currentStage = getDiscoveryStage(currentStageId);
@@ -94,8 +94,8 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries),
-          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 80),
+          queries: providerQueries(new Date(), stage.queries).slice(0, 1),
+          maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
           isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
