@@ -69,7 +69,7 @@ module.exports = async function handler(req, res) {
   });
 
   if (!run) {
-    const dailyScanned = await getDailyScannedCount(sql);
+    const dailyScanned = await getDailyScannedCount(sql, cycleDate);
     return res.status(200).json({
       success: true,
       noBatchClaimed: true,
@@ -82,7 +82,7 @@ module.exports = async function handler(req, res) {
   const configuredBatchSize = Number(process.env.AUTOMATION_BATCH_SIZE || 5);
   const batchSize = Math.max(1, Math.min(Number.isFinite(configuredBatchSize) ? configuredBatchSize : 5, 5));
   const dailyTarget = Math.max(1, Math.min(Number(process.env.AUTOMATION_DAILY_SCAN_TARGET || 50), 50));
-  const dailyScannedBeforeRun = await getDailyScannedCount(sql);
+  const dailyScannedBeforeRun = await getDailyScannedCount(sql, cycleDate);
   const remainingDailyScans = Math.max(0, dailyTarget - dailyScannedBeforeRun);
   const effectiveBatchSize = Math.min(batchSize, remainingDailyScans);
   const startedAt = Date.now();
@@ -117,7 +117,7 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries).slice(0, 1),
           maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
-          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit),
+          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
@@ -194,7 +194,7 @@ module.exports = async function handler(req, res) {
   await finishRun(run.id, counts, errorSummary);
 
   const queueDepth = await getQueueDepth(sql);
-  const dailyScannedTotal = await getDailyScannedCount(sql);
+  const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
 
   return res.status(200).json({
     success: true,
