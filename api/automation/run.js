@@ -1,5 +1,5 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
+const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
   getQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
@@ -115,7 +115,7 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries),
+          queries: providerQueries(new Date(), stage.queries, run.id),
           maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
           isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
@@ -126,6 +126,8 @@ module.exports = async function handler(req, res) {
         const discovered = await enqueueWebsites(available, "discovery_backlog");
         await markDiscoveryBacklogResults(sql, available, discovered);
         const newlyQueued = discovered.filter(item => item.status === "queued").length;
+        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
+        await setDiscoveryStageState(sql, nextStageId);
         discoverySummary = {
           source: discovery.provider,
           failoverUsed: discovery.failoverUsed,
@@ -134,7 +136,8 @@ module.exports = async function handler(req, res) {
           candidateCount: discovery.candidateCount,
           providerAttempts: discovery.attempts || [],
           providerErrors: discovery.errors || [],
-          newlyQueued
+          newlyQueued,
+          nextStage: nextStageId
         };
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
