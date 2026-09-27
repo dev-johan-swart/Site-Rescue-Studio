@@ -5,12 +5,15 @@ on:
     # 16:00-23:00 UTC and 00:00-03:00 UTC = 18:00-05:00 SAST.
     # The Neon worker claims batches sequentially, so scheduler retries
     # cannot cause duplicate scan batches.
-    - cron: "0 16-23 * * *"
-    - cron: "0 0-3 * * *"
+    - cron: "17 16-23 * * *"
+    - cron: "17 0-3 * * *"
   workflow_dispatch:
 
 jobs:
   run-automation:
+    concurrency:
+      group: site-rescue-studio-automation-worker
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
