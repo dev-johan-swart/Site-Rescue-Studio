@@ -1,0 +1,23 @@
+name: Site Rescue Studio Discovery Preparation
+
+on:
+  schedule:
+    # 02:00 SAST (UTC+2): discovery preparation only; no scans.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  prepare-discovery:
+    concurrency:
+      group: site-rescue-studio-discovery-preparation
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Build the fresh 60-site reserve
+        env:
+          CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --show-error --silent             --request GET             --header "Authorization: Bearer $CRON_SECRET"             --header "Cache-Control: no-cache"             "https://site-rescue-studio.vercel.app/api/automation/run?mode=prepare"
