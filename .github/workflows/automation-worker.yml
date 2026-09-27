@@ -2,11 +2,11 @@ name: Site Rescue Studio Automation Worker
 
 on:
   schedule:
-    # 16:00-23:00 UTC and 00:00-03:00 UTC = 18:00-05:00 SAST.
-    # The Neon worker claims batches sequentially, so scheduler retries
-    # cannot cause duplicate scan batches.
-    - cron: "17 16-23 * * *"
-    - cron: "17 0-3 * * *"
+    # 02:00 SAST preparation: discovery only, no scans.
+    - cron: "0 0 * * *"
+    # 03:00-06:40 SAST: twelve 5-site worker opportunities.
+    # 12 x 5 = 60 scan slots, leaving 10 slots of headroom for the 50-site target.
+    - cron: "0,20,40 1-6 * * *"
   workflow_dispatch:
 
 jobs:
@@ -24,3 +24,5 @@ jobs:
           set -euo pipefail
           test -n "$CRON_SECRET"
           curl --fail-with-body --show-error --silent             --request GET             --header "Authorization: Bearer $CRON_SECRET"             --header "Cache-Control: no-cache"             "https://site-rescue-studio.vercel.app/api/automation/run"
+      - name: Note
+        run: echo "Production automation worker invoked."
