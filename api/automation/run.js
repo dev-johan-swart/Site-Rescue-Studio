@@ -8,6 +8,7 @@ const {
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
 const scanHandler = require("../scan");
+const LOCAL_PROSPECT_RESERVE = require("../../data/prospect-reserve.json");
 
 function authorised(req) {
   const expected = process.env.CRON_SECRET;
@@ -59,7 +60,75 @@ module.exports = async function handler(req, res) {
     : localDate;
   await recoverStaleAutomationRuns(sql);
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
-  if (String(req.query?.mode || "").toLowerCase() === "prepare") {\n    const target = 60;\n    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));\n    const maxAttempts = 6;\n    const startedAt = Date.now();\n    let queueDepth = await getFreshQueueDepth(sql);\n    const attempts = [];\n    let stageId = await getDiscoveryStageState(sql);\n    for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {\n      if (Date.now() - startedAt >= 240000) break;\n      const available = await drainDiscoveryBacklog(sql, target - queueDepth);\n      if (available.length) {\n        const results = await enqueueWebsites(available, "discovery_backlog");\n        await markDiscoveryBacklogResults(sql, available, results);\n      }\n      queueDepth = await getFreshQueueDepth(sql);\n      if (queueDepth >= target) break;\n      const stage = getDiscoveryStage(stageId);\n      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {\n        stageId = nextEnabledDiscoveryStageId(stage.id);\n        await setDiscoveryStageState(sql, stageId);\n        continue;\n      }\n      try {\n        const discovery = await discoverWithProviders({\n          stage,\n          queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),\n          maxCandidates: 20,\n          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),\n          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),\n          recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)\n        });\n        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);\n        const availableAfterDiscovery = await drainDiscoveryBacklog(sql, 80);\n        const results = await enqueueWebsites(availableAfterDiscovery, "discovery_backlog");\n        await markDiscoveryBacklogResults(sql, availableAfterDiscovery, results);\n        queueDepth = await getFreshQueueDepth(sql);\n        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: results.filter(item => item.status === "queued").length});\n      } catch (error) {\n        attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});\n      }\n      stageId = nextEnabledDiscoveryStageId(stage.id);\n      await setDiscoveryStageState(sql, stageId);\n    }\n    return res.status(200).json({success: true, preparationOnly: true, queueDepth, target, targetReached: queueDepth >= target, attempts});\n  }\n\n  const run = await claimNextDailyRun(sql, cycleDate, 12);
+  if (String(req.query?.mode || "").toLowerCase() === "prepare") {
+    const target = 60;
+    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
+    const maxAttempts = 6;
+    const startedAt = Date.now();
+    let queueDepth = await getFreshQueueDepth(sql);
+    const attempts = [];
+    let stageId = await getDiscoveryStageState(sql);
+
+    // Seed the durable local reserve first. This is independent of live
+    // discovery providers and uses the same dedupe/backlog path as all other
+    // discovery candidates.
+    const reserveCandidates = (Array.isArray(LOCAL_PROSPECT_RESERVE) ? LOCAL_PROSPECT_RESERVE : [])
+      .map(website => ({ website, name: null, city: null, category: "local_reserve" }))
+      .filter(candidate => candidate.website);
+    if (reserveCandidates.length) {
+      await addDiscoveryBacklogCandidates(sql, reserveCandidates, "local_reserve", "local_reserve");
+      const localAvailable = await drainDiscoveryBacklog(sql, 80);
+      if (localAvailable.length) {
+        const localResults = await enqueueWebsites(localAvailable, "local_reserve");
+        await markDiscoveryBacklogResults(sql, localAvailable, localResults);
+      }
+      queueDepth = await getFreshQueueDepth(sql);
+      attempts.push({
+        source: "local_reserve",
+        candidateCount: reserveCandidates.length,
+        queueDepth
+      });
+    }
+    for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {
+      if (Date.now() - startedAt >= 240000) break;
+      const available = await drainDiscoveryBacklog(sql, target - queueDepth);
+      if (available.length) {
+        const results = await enqueueWebsites(available, "discovery_backlog");
+        await markDiscoveryBacklogResults(sql, available, results);
+      }
+      queueDepth = await getFreshQueueDepth(sql);
+      if (queueDepth >= target) break;
+      const stage = getDiscoveryStage(stageId);
+      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {
+        stageId = nextEnabledDiscoveryStageId(stage.id);
+        await setDiscoveryStageState(sql, stageId);
+        continue;
+      }
+      try {
+        const discovery = await discoverWithProviders({
+          stage,
+          queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
+          maxCandidates: 20,
+          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
+          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
+          recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
+        });
+        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
+        const availableAfterDiscovery = await drainDiscoveryBacklog(sql, 80);
+        const results = await enqueueWebsites(availableAfterDiscovery, "discovery_backlog");
+        await markDiscoveryBacklogResults(sql, availableAfterDiscovery, results);
+        queueDepth = await getFreshQueueDepth(sql);
+        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: results.filter(item => item.status === "queued").length});
+      } catch (error) {
+        attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});
+      }
+      stageId = nextEnabledDiscoveryStageId(stage.id);
+      await setDiscoveryStageState(sql, stageId);
+    }
+    return res.status(200).json({success: true, preparationOnly: true, queueDepth, target, targetReached: queueDepth >= target, attempts});
+  }
+
+  const run = await claimNextDailyRun(sql, cycleDate, 12);
 
   console.log("Automation cron invoked.", {
     method: req.method,
