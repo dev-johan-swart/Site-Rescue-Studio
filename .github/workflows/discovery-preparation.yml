@@ -2,8 +2,10 @@ name: Site Rescue Studio Discovery Preparation
 
 on:
   schedule:
-    # 02:00 SAST (UTC+2): discovery preparation only; no scans.
+    # 02:00, 02:20 and 02:40 SAST (UTC+2): progressive reserve preparation only; no scans.
     - cron: "0 0 * * *"
+    - cron: "20 0 * * *"
+    - cron: "40 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -14,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Build the fresh 60-site reserve
+      - name: Build or top up the fresh 60-site reserve
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
         run: |
