@@ -115,7 +115,7 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries).slice(0, 1),
+          queries: providerQueries(new Date(), stage.queries),
           maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
           isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
@@ -132,10 +132,13 @@ module.exports = async function handler(req, res) {
           stage: stage.id,
           stageLabel: stage.label,
           candidateCount: discovery.candidateCount,
+          providerAttempts: discovery.attempts || [],
+          providerErrors: discovery.errors || [],
           newlyQueued
         };
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
+        discoverySummary = { stage: stage.id, stageLabel: stage.label, providerAttempts: error?.attempts || [], providerErrors: error?.providerErrors || [] };
       }
     }
   } catch (error) {
