@@ -141,7 +141,14 @@ module.exports = async function handler(req, res) {
         };
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
-        discoverySummary = { stage: stage.id, stageLabel: stage.label, providerAttempts: error?.attempts || [], providerErrors: error?.providerErrors || [] };
+        discoverySummary = {
+          stage: stage.id,
+          stageLabel: stage.label,
+          providerAttempts: error?.attempts || [],
+          providerErrors: error?.providerErrors || []
+        };
+        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
+        await setDiscoveryStageState(sql, nextStageId);
       }
     }
   } catch (error) {
