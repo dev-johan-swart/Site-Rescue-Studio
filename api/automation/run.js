@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
+  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
   reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
@@ -113,7 +113,7 @@ module.exports = async function handler(req, res) {
   );
 
   async function refillQueueToReserve() {
-    let queueDepth = await getQueueDepth(sql);
+    let queueDepth = await getFreshQueueDepth(sql);
     const attempts = [];
     let newlyQueuedTotal = 0;
     let stageId = await getDiscoveryStageState(sql);
@@ -134,7 +134,7 @@ module.exports = async function handler(req, res) {
         await markDiscoveryBacklogResults(sql, available, discovered);
       }
 
-      queueDepth = await getQueueDepth(sql);
+      queueDepth = await getFreshQueueDepth(sql);
       if (queueDepth >= queueReserveTarget) break;
 
       const stage = getDiscoveryStage(stageId);
@@ -322,7 +322,7 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const queueDepth = await getQueueDepth(sql);
+  const queueDepth = await getFreshQueueDepth(sql);
   const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
 
   return res.status(200).json({
