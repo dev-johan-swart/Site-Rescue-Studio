@@ -58,7 +58,7 @@ module.exports = async function handler(req, res) {
       )).toISOString().slice(0, 10)
     : localDate;
   await recoverStaleAutomationRuns(sql);
-  const run = await claimNextDailyRun(sql, cycleDate, 12);
+  // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.\n  if (String(req.query?.mode || "").toLowerCase() === "prepare") {\n    const target = 60;\n    const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));\n    const maxAttempts = 6;\n    const startedAt = Date.now();\n    let queueDepth = await getFreshQueueDepth(sql);\n    const attempts = [];\n    let stageId = await getDiscoveryStageState(sql);\n    for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {\n      if (Date.now() - startedAt >= 240000) break;\n      const available = await drainDiscoveryBacklog(sql, target - queueDepth);\n      if (available.length) {\n        const results = await enqueueWebsites(available, "discovery_backlog");\n        await markDiscoveryBacklogResults(sql, available, results);\n      }\n      queueDepth = await getFreshQueueDepth(sql);\n      if (queueDepth >= target) break;\n      const stage = getDiscoveryStage(stageId);\n      if (stage.id === "international" && String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true") {\n        stageId = nextEnabledDiscoveryStageId(stage.id);\n        await setDiscoveryStageState(sql, stageId);\n        continue;\n      }\n      try {\n        const discovery = await discoverWithProviders({\n          stage,\n          queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),\n          maxCandidates: 20,\n          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),\n          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),\n          recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)\n        });\n        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);\n        const availableAfterDiscovery = await drainDiscoveryBacklog(sql, 80);\n        const results = await enqueueWebsites(availableAfterDiscovery, "discovery_backlog");\n        await markDiscoveryBacklogResults(sql, availableAfterDiscovery, results);\n        queueDepth = await getFreshQueueDepth(sql);\n        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: results.filter(item => item.status === "queued").length});\n      } catch (error) {\n        attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});\n      }\n      stageId = nextEnabledDiscoveryStageId(stage.id);\n      await setDiscoveryStageState(sql, stageId);\n    }\n    return res.status(200).json({success: true, preparationOnly: true, queueDepth, target, targetReached: queueDepth >= target, attempts});\n  }\n\n  const run = await claimNextDailyRun(sql, cycleDate, 13);
 
   console.log("Automation cron invoked.", {
     method: req.method,
@@ -300,8 +300,6 @@ module.exports = async function handler(req, res) {
 
   const timeBudgetReached = Date.now() - startedAt >= maxRunMs;
   if (timeBudgetReached) errors.push("Run stopped at the safety time budget; remaining queued sites stay queued.");
-  const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
-  await finishRun(run.id, counts, errorSummary);
 
   // Refill after the scan batch as well. This keeps the active queue near the
   // 60-site reserve instead of waiting for the next scheduled worker.
@@ -321,6 +319,9 @@ module.exports = async function handler(req, res) {
       errors.push(`Post-scan discovery orchestration failed: ${error?.message || error}`);
     }
   }
+
+  const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
+  await finishRun(run.id, counts, errorSummary);
 
   const queueDepth = await getFreshQueueDepth(sql);
   const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
