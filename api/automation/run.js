@@ -1,5 +1,5 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWithProviders, getDiscoveryStage, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
+const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
   getQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
@@ -115,7 +115,7 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries).slice(0, 1),
+          queries: providerQueries(new Date(), stage.queries, run.id),
           maxCandidates: Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20),
           isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
@@ -126,16 +126,22 @@ module.exports = async function handler(req, res) {
         const discovered = await enqueueWebsites(available, "discovery_backlog");
         await markDiscoveryBacklogResults(sql, available, discovered);
         const newlyQueued = discovered.filter(item => item.status === "queued").length;
+        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
+        await setDiscoveryStageState(sql, nextStageId);
         discoverySummary = {
           source: discovery.provider,
           failoverUsed: discovery.failoverUsed,
           stage: stage.id,
           stageLabel: stage.label,
           candidateCount: discovery.candidateCount,
-          newlyQueued
+          providerAttempts: discovery.attempts || [],
+          providerErrors: discovery.errors || [],
+          newlyQueued,
+          nextStage: nextStageId
         };
       } catch (error) {
         errors.push(`Discovery ${stage.label} failed: ${error?.message || error}`);
+        discoverySummary = { stage: stage.id, stageLabel: stage.label, providerAttempts: error?.attempts || [], providerErrors: error?.providerErrors || [] };
       }
     }
   } catch (error) {
