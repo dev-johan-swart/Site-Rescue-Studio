@@ -77,7 +77,7 @@ module.exports = async function handler(req, res) {
       .filter(candidate => candidate.website);
     if (reserveCandidates.length) {
       await addDiscoveryBacklogCandidates(sql, reserveCandidates, "local_reserve", "local_reserve");
-      const localResults = await promoteFreshBacklogToQueue(sql, 80, "local_reserve");
+      const localResults = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "local_reserve");
       queueDepth = await getFreshQueueDepth(sql);
       attempts.push({
         source: "local_reserve",
@@ -106,7 +106,7 @@ module.exports = async function handler(req, res) {
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
         await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
-        const promoted = await promoteFreshBacklogToQueue(sql, 80, "discovery_backlog");
+        const promoted = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "discovery_backlog");
         queueDepth = await getFreshQueueDepth(sql);
         attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: promoted.length});
       } catch (error) {
