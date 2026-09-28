@@ -5,7 +5,6 @@ on:
     # 03:00-06:40 SAST (UTC+2): twelve 5-site scan opportunities.
     # 12 x 5 = 60 scan slots for a 50-site target.
     - cron: "0,20,40 1-4 * * *"
-    - cron: "0,20,40 5-6 * * *"
   workflow_dispatch:
 
 jobs:
