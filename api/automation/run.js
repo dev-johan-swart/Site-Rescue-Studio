@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, drainDiscoveryBacklog, markDiscoveryBacklogResults,
+  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, promoteFreshBacklogToQueue, drainDiscoveryBacklog, markDiscoveryBacklogResults,
   reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
@@ -77,11 +77,7 @@ module.exports = async function handler(req, res) {
       .filter(candidate => candidate.website);
     if (reserveCandidates.length) {
       await addDiscoveryBacklogCandidates(sql, reserveCandidates, "local_reserve", "local_reserve");
-      const localAvailable = await drainDiscoveryBacklog(sql, 80);
-      if (localAvailable.length) {
-        const localResults = await enqueueWebsites(localAvailable, "local_reserve");
-        await markDiscoveryBacklogResults(sql, localAvailable, localResults);
-      }
+      const localResults = await promoteFreshBacklogToQueue(sql, 80, "local_reserve");
       queueDepth = await getFreshQueueDepth(sql);
       attempts.push({
         source: "local_reserve",
@@ -91,11 +87,7 @@ module.exports = async function handler(req, res) {
     }
     for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {
       if (Date.now() - startedAt >= 240000) break;
-      const available = await drainDiscoveryBacklog(sql, target - queueDepth);
-      if (available.length) {
-        const results = await enqueueWebsites(available, "discovery_backlog");
-        await markDiscoveryBacklogResults(sql, available, results);
-      }
+      const promoted = await promoteFreshBacklogToQueue(sql, target - queueDepth, "discovery_backlog");
       queueDepth = await getFreshQueueDepth(sql);
       if (queueDepth >= target) break;
       const stage = getDiscoveryStage(stageId);
@@ -114,11 +106,9 @@ module.exports = async function handler(req, res) {
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
         await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
-        const availableAfterDiscovery = await drainDiscoveryBacklog(sql, 80);
-        const results = await enqueueWebsites(availableAfterDiscovery, "discovery_backlog");
-        await markDiscoveryBacklogResults(sql, availableAfterDiscovery, results);
+        const promoted = await promoteFreshBacklogToQueue(sql, 80, "discovery_backlog");
         queueDepth = await getFreshQueueDepth(sql);
-        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: results.filter(item => item.status === "queued").length});
+        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: promoted.length});
       } catch (error) {
         attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});
       }
@@ -195,14 +185,11 @@ module.exports = async function handler(req, res) {
       // 300-second function ceiling.
       if (Date.now() - startedAt >= maxRunMs - 90000) break;
 
-      const available = await drainDiscoveryBacklog(
+      const promoted = await promoteFreshBacklogToQueue(
         sql,
-        Math.max(queueReserveTarget - queueDepth, 0)
+        Math.max(queueReserveTarget - queueDepth, 0),
+        "discovery_backlog"
       );
-      if (available.length) {
-        const discovered = await enqueueWebsites(available, "discovery_backlog");
-        await markDiscoveryBacklogResults(sql, available, discovered);
-      }
 
       queueDepth = await getFreshQueueDepth(sql);
       if (queueDepth >= queueReserveTarget) break;
@@ -248,22 +235,15 @@ module.exports = async function handler(req, res) {
           stage.id
         );
 
-        const availableAfterDiscovery = await drainDiscoveryBacklog(sql, 80);
-        const discovered = await enqueueWebsites(
-          availableAfterDiscovery,
+        const promoted = await promoteFreshBacklogToQueue(
+          sql,
+          80,
           "discovery_backlog"
         );
-        await markDiscoveryBacklogResults(
-          sql,
-          availableAfterDiscovery,
-          discovered
-        );
 
-        const newlyQueued = discovered.filter(
-          item => item.status === "queued"
-        ).length;
+        const newlyQueued = promoted.length;
         newlyQueuedTotal += newlyQueued;
-        queueDepth = await getQueueDepth(sql);
+        queueDepth = await getFreshQueueDepth(sql);
 
         const nextStageId = nextEnabledDiscoveryStageId(stage.id);
         await setDiscoveryStageState(sql, nextStageId);
