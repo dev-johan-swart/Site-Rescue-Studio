@@ -2,9 +2,10 @@ name: Site Rescue Studio Automation Worker
 
 on:
   schedule:
-    # 03:00-06:40 SAST (UTC+2): twelve 5-site scan opportunities.
+    # 03:05-06:45 SAST (UTC+2): twelve 5-site scan opportunities.
     # 12 x 5 = 60 scan slots for a 50-site target.
-    - cron: "0,20,40 1-4 * * *"
+    # Offset by 5 minutes to reduce GitHub Actions top-of-hour scheduling contention.
+    - cron: "5,25,45 1-4 * * *"
   workflow_dispatch:
 
 jobs:
