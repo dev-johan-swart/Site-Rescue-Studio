@@ -2,16 +2,22 @@ name: Site Rescue Studio Automation Worker
 
 on:
   schedule:
-    # 03:05-06:45 SAST (UTC+2): twelve 5-site scan opportunities.
-    # 12 x 5 = 60 scan slots for a 50-site target.
-    # Offset by 5 minutes to reduce GitHub Actions top-of-hour scheduling contention.
-    - cron: "5,25,45 1-4 * * *"
+    # One daily dispatcher at 02:07 SAST (00:07 UTC).
+    # GitHub scheduled events can be delayed or dropped under load, so we
+    # deliberately use one off-hour trigger instead of twelve independent
+    # scheduled events.
+    - cron: "7 0 * * *"
   workflow_dispatch:
 
 jobs:
   run-automation:
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        slot: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     concurrency:
-      group: site-rescue-studio-automation-worker
+      group: site-rescue-studio-automation-worker-${{ matrix.slot }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 6
@@ -22,4 +28,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CRON_SECRET"
-          curl --fail-with-body --show-error --silent             --request GET             --header "Authorization: Bearer $CRON_SECRET"             --header "Cache-Control: no-cache"             "https://site-rescue-studio.vercel.app/api/automation/run"
+          curl --fail-with-body --show-error --silent \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Cache-Control: no-cache" \
+            "https://site-rescue-studio.vercel.app/api/automation/run"
