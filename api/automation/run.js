@@ -379,7 +379,6 @@ module.exports = async function handler(req, res) {
   }
 
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
-  await finishRun(run.id, counts, errorSummary, pipelineReport);
 
   const queueDepth = await getFreshQueueDepth(sql);
   const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
@@ -395,6 +394,8 @@ module.exports = async function handler(req, res) {
     warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null
   };
   if (pipelineReport.warning) console.warn(pipelineReport.warning);
+
+  await finishRun(run.id, counts, errorSummary, pipelineReport);
 
   return res.status(200).json({
     success: true,
