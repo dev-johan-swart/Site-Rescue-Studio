@@ -167,7 +167,7 @@ module.exports = async function handler(req, res) {
 
   let discoverySummary = null;
   const queueReserveTarget = Math.max(
-    60,
+    110,
     Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 110), 110)
   );
   const dailyLimit = Math.max(
