@@ -61,9 +61,9 @@ module.exports = async function handler(req, res) {
   await recoverStaleAutomationRuns(sql);
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
   if (String(req.query?.mode || "").toLowerCase() === "prepare") {
-    const target = 60;
+    const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
-    const maxAttempts = 6;
+    const maxAttempts = 10;
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
     const attempts = [];
@@ -157,6 +157,9 @@ module.exports = async function handler(req, res) {
   const maxRunMs = 240000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
+  let refillRequested = 0;
+  let refillAdded = 0;
+  let queueDepthBeforeRefill = null;
 
   try {
     await recoverStaleQueueItems();
@@ -165,7 +168,7 @@ module.exports = async function handler(req, res) {
   let discoverySummary = null;
   const queueReserveTarget = Math.max(
     60,
-    Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 60), 60)
+    Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 110), 110)
   );
   const dailyLimit = Math.max(
     1,
@@ -184,6 +187,8 @@ module.exports = async function handler(req, res) {
     let queueDepth = await getFreshQueueDepth(sql);
     const attempts = [];
     let newlyQueuedTotal = 0;
+    refillRequested = Math.max(queueReserveTarget - queueDepth, 0);
+    queueDepthBeforeRefill = queueDepth;
     let stageId = await getDiscoveryStageState(sql);
 
     for (let attemptNumber = 0;
@@ -245,7 +250,7 @@ module.exports = async function handler(req, res) {
 
         const promoted = await promoteFreshBacklogToQueue(
           sql,
-          80,
+          Math.max(queueReserveTarget - queueDepth, 0),
           "discovery_backlog"
         );
 
@@ -288,6 +293,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    refillAdded += newlyQueuedTotal;
     return {
       queueDepth,
       target: queueReserveTarget,
@@ -302,10 +308,13 @@ module.exports = async function handler(req, res) {
   // discovery before claiming the first sites.
   await addDueFollowUps(run.id);
 
-  for (let i = 0; i < effectiveBatchSize; i++) {
+  let attemptsThisBatch = 0;
+  const maxCandidateAttempts = Math.max(effectiveBatchSize + 3, effectiveBatchSize);
+  while (counts.scannedCount < effectiveBatchSize && attemptsThisBatch < maxCandidateAttempts) {
     if (Date.now() - startedAt >= maxRunMs) break;
     const item = await claimNextQueueItem(run.id);
     if (!item) break;
+    attemptsThisBatch++;
     counts.candidateCount++;
 
     try {
@@ -351,7 +360,7 @@ module.exports = async function handler(req, res) {
   if (timeBudgetReached) errors.push("Run stopped at the safety time budget; remaining queued sites stay queued.");
 
   // Refill after the scan batch as well. This keeps the active queue near the
-  // 60-site reserve instead of waiting for the next scheduled worker.
+  // 110-site reserve instead of waiting for the next scheduled worker.
   if (Date.now() - startedAt < maxRunMs - 30000) {
     try {
       const refillAfterScan = await refillQueueToReserve();
@@ -370,10 +379,22 @@ module.exports = async function handler(req, res) {
   }
 
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
-  await finishRun(run.id, counts, errorSummary);
+  await finishRun(run.id, counts, errorSummary, pipelineReport);
 
   const queueDepth = await getFreshQueueDepth(sql);
   const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
+  const queueHealth = queueDepth >= 110 ? "healthy" : queueDepth >= 60 ? "warning" : "critical";
+  const pipelineReport = {
+    freshBeforeRun: queueDepthBeforeRefill ?? queueDepth,
+    scannedThisRun: counts.scannedCount,
+    freshAfterRun: queueDepth,
+    reserveTarget: queueReserveTarget,
+    refillRequested,
+    refillAdded,
+    queueHealth,
+    warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null
+  };
+  if (pipelineReport.warning) console.warn(pipelineReport.warning);
 
   return res.status(200).json({
     success: true,
@@ -388,6 +409,7 @@ module.exports = async function handler(req, res) {
     queueDepth,
     queueReserveTarget,
     queueReserveHealthy: queueDepth >= queueReserveTarget,
+    pipelineReport,
     errorSummary
   });
   } catch (error) {
