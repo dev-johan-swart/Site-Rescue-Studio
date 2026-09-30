@@ -157,6 +157,7 @@ module.exports = async function handler(req, res) {
   const maxRunMs = 240000;
   const counts = { candidateCount: 0, scannedCount: 0, highCount: 0, moderateCount: 0, healthyCount: 0, failedCount: 0 };
   const errors = [];
+  const pipelineWarnings = [];
   let refillRequested = 0;
   let refillAdded = 0;
   let queueDepthBeforeRefill = null;
@@ -285,7 +286,7 @@ module.exports = async function handler(req, res) {
           providerAttempts: error?.attempts || [],
           providerErrors: error?.providerErrors || []
         });
-        errors.push(`Discovery ${stage.label} failed: ${message}`);
+        pipelineWarnings.push(`Discovery ${stage.label} failed: ${message}`);
 
         const nextStageId = nextEnabledDiscoveryStageId(stage.id);
         await setDiscoveryStageState(sql, nextStageId);
@@ -369,7 +370,7 @@ module.exports = async function handler(req, res) {
         afterScan: refillAfterScan
       };
       if (!refillAfterScan.targetReached) {
-        errors.push(
+        pipelineWarnings.push(
           `Post-scan discovery reserve target not reached: ${refillAfterScan.queueDepth}/${refillAfterScan.target} active queued sites.`
         );
       }
@@ -391,7 +392,8 @@ module.exports = async function handler(req, res) {
     refillRequested,
     refillAdded,
     queueHealth,
-    warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null
+    warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null,
+    discoveryWarnings: pipelineWarnings
   };
   if (pipelineReport.warning) console.warn(pipelineReport.warning);
 
