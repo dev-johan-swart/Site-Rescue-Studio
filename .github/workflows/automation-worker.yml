@@ -32,4 +32,4 @@ jobs:
             --request GET \
             --header "Authorization: Bearer $CRON_SECRET" \
             --header "Cache-Control: no-cache" \
-            "https://site-rescue-studio.vercel.app/api/automation/run"
+            "https://site-rescue-studio.vercel.app/api/automation/run?batch=${{ matrix.slot }}"
