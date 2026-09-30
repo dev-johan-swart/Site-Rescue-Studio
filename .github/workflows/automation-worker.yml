@@ -2,34 +2,54 @@ name: Site Rescue Studio Automation Worker
 
 on:
   schedule:
-    # One daily dispatcher at 02:07 SAST (00:07 UTC).
-    # GitHub scheduled events can be delayed or dropped under load, so we
-    # deliberately use one off-hour trigger instead of twelve independent
-    # scheduled events.
+    # Multiple off-hour wake-up opportunities reduce the chance that a single
+    # delayed/dropped GitHub schedule prevents the daily production cycle.
+    # The first successful workflow run executes all 12 production opportunities
+    # sequentially; later wake-ups become no-ops once the 50-site target is met.
     - cron: "7 0 * * *"
+    - cron: "7 1 * * *"
+    - cron: "7 2 * * *"
+    - cron: "7 3 * * *"
+    - cron: "7 4 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: site-rescue-studio-automation-worker
+  cancel-in-progress: false
 
 jobs:
   run-automation:
-    strategy:
-      fail-fast: false
-      max-parallel: 12
-      matrix:
-        slot: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    concurrency:
-      group: site-rescue-studio-automation-worker-${{ matrix.slot }}
-      cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 60
     steps:
-      - name: Invoke production automation worker
+      - name: Invoke production automation batches sequentially
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
+        timeout-minutes: 55
         run: |
-          set -euo pipefail
+          set -u
           test -n "$CRON_SECRET"
-          curl --fail-with-body --show-error --silent \
-            --request GET \
-            --header "Authorization: Bearer $CRON_SECRET" \
-            --header "Cache-Control: no-cache" \
-            "https://site-rescue-studio.vercel.app/api/automation/run?batch=${{ matrix.slot }}"
+
+          failures=0
+
+          for batch in $(seq 1 12); do
+            echo "=== Starting production batch $batch/12 ==="
+
+            response="$(curl               --retry 2               --retry-delay 5               --retry-all-errors               --max-time 330               --fail-with-body               --show-error               --silent               --request GET               --header "Authorization: Bearer $CRON_SECRET"               --header "Cache-Control: no-cache"               --write-out '\nHTTP_STATUS:%{http_code}\n'               "https://site-rescue-studio.vercel.app/api/automation/run?batch=$batch" 2>&1)"
+            curl_status=$?
+
+            echo "$response"
+
+            if [ "$curl_status" -ne 0 ]; then
+              echo "::warning::Production batch $batch invocation returned curl status $curl_status. Continuing to the next batch opportunity."
+              failures=$((failures + 1))
+            fi
+
+            echo "=== Finished production batch $batch/12 ==="
+          done
+
+          if [ "$failures" -gt 0 ]; then
+            echo "::warning::$failures production batch invocation(s) returned transport errors. Review the Neon automation run telemetry; later batches were still attempted."
+          fi
+
+          echo "Sequential production opportunity loop finished. The Neon daily target remains the source of truth.";
