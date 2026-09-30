@@ -118,7 +118,15 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({success: true, preparationOnly: true, queueDepth, target, targetReached: queueDepth >= target, attempts});
   }
 
-  const run = await claimNextDailyRun(sql, cycleDate, 12);
+  const requestedBatchNo = Number(req.query?.batch);
+  const run = await claimNextDailyRun(
+    sql,
+    cycleDate,
+    12,
+    Number.isInteger(requestedBatchNo) && requestedBatchNo >= 1 && requestedBatchNo <= 12
+      ? requestedBatchNo
+      : null
+  );
 
   console.log("Automation cron invoked.", {
     method: req.method,
