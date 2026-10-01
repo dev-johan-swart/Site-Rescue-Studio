@@ -37,6 +37,16 @@ jobs:
               failures=$((failures + 1))
             fi
 
+            if printf '%s' "$response" | grep -q '"dailyTargetReached":true'; then
+              echo "Daily successful-scan target reached. No further production batches will be invoked."
+              break
+            fi
+
+            if printf '%s' "$response" | grep -q '"productionWindowClosed":true'; then
+              echo "Production window is closed. No further production batches will be invoked."
+              break
+            fi
+
             echo "=== Finished production batch $batch/12 ==="
           done
 
