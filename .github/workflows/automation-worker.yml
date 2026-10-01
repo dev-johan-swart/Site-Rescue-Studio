@@ -1,16 +1,8 @@
-name: Site Rescue Studio Automation Worker
-
 on:
   schedule:
-    # Multiple off-hour wake-up opportunities reduce the chance that a single
-    # delayed/dropped GitHub schedule prevents the daily production cycle.
-    # The first successful workflow run executes all 12 production opportunities
-    # sequentially; later wake-ups become no-ops once the 50-site target is met.
+    # One daily off-hour wake-up. GitHub may delay scheduled events, so the
+    # production endpoint also enforces the SAST morning cutoff.
     - cron: "7 0 * * *"
-    - cron: "7 1 * * *"
-    - cron: "7 2 * * *"
-    - cron: "7 3 * * *"
-    - cron: "7 4 * * *"
   workflow_dispatch:
 
 concurrency:
