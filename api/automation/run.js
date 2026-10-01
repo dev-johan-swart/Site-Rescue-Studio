@@ -41,6 +41,28 @@ module.exports = async function handler(req, res) {
   const sql = getSql();
   await ensureAutomationSchema(sql);
 
+  // Production must finish its daily cycle before the morning reporting window.
+  // GitHub schedules are best-effort, so this is enforced at the production
+  // endpoint rather than relying on scheduler timing alone.
+  const cutoffParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Johannesburg",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit",
+    minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date()).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const cutoffHour = Number(cutoffParts.hour || 0);
+  const cutoffMinute = Number(cutoffParts.minute || 0);
+  if (cutoffHour > 7 || (cutoffHour === 7 && cutoffMinute >= 30)) {
+    return res.status(200).json({
+      success: true,
+      productionWindowClosed: true,
+      reason: "Daily production window closed at 07:30 SAST.",
+      dailyTarget: 50
+    });
+  }
+
   // Each worker invocation claims the next unfinished 5-site batch atomically.
   // External scheduling supplies repeated opportunities; the database remains
   // the source of truth for which batch is actually allowed to run.
@@ -352,8 +374,26 @@ module.exports = async function handler(req, res) {
       }
     } catch (error) {
       counts.failedCount++;
-      errors.push(`${item.website}: ${error?.message || error}`);
-      await failQueueItem(item.id, error);
+      const message = String(error?.message || error || "Unknown scanner failure.");
+      const lower = message.toLowerCase();
+      const failureType =
+        /cannot be scanned|invalid (website|url)|invalid url|website address cannot be scanned/.test(lower)
+          ? "INVALID_URL"
+          : /too long to respond|timed out|timeout|timed out/.test(lower)
+            ? "TIMEOUT"
+            : /could not be reached|network connection|econn|enotfound|dns|fetch failed|connection/.test(lower)
+              ? "UNREACHABLE"
+              : "OTHER";
+      const hardFailure = failureType === "INVALID_URL" || failureType === "UNREACHABLE" || failureType === "TIMEOUT";
+      errors.push(item.website + ": [" + failureType + "] " + message);
+      await failQueueItem(item.id, error, {
+        retryable: !hardFailure,
+        failureType,
+        details: {
+          httpStatus: null,
+          scanner: "Site Rescue Studio Website Health Scanner/3.0"
+        }
+      });
     }
   }
 
