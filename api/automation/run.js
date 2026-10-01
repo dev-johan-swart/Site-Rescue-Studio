@@ -122,13 +122,16 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          isProviderAvailable: provider => reserveDiscoveryProvider(
+          isProviderAvailable: provider => {
+            if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
+            return reserveDiscoveryProvider(
               sql,
               provider,
               dailyLimit,
               cycleDate,
               provider === "foursquare" ? 500 : null
-            ),
+            );
+          },
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
