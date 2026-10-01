@@ -54,7 +54,8 @@ module.exports = async function handler(req, res) {
   }, {});
   const cutoffHour = Number(cutoffParts.hour || 0);
   const cutoffMinute = Number(cutoffParts.minute || 0);
-  if (cutoffHour > 7 || (cutoffHour === 7 && cutoffMinute >= 30)) {
+  const isPreparation = String(req.query?.mode || "").toLowerCase() === "prepare";
+  if (!isPreparation && (cutoffHour > 7 || (cutoffHour === 7 && cutoffMinute >= 30))) {
     return res.status(200).json({
       success: true,
       productionWindowClosed: true,
@@ -80,7 +81,7 @@ module.exports = async function handler(req, res) {
   const cycleDate = localDate;
   await recoverStaleAutomationRuns(sql);
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
-  if (String(req.query?.mode || "").toLowerCase() === "prepare") {
+  if (isPreparation) {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const maxAttempts = 10;
