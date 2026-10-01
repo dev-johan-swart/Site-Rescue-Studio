@@ -122,7 +122,13 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          isProviderAvailable: provider => reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
+          isProviderAvailable: provider => reserveDiscoveryProvider(
+              sql,
+              provider,
+              dailyLimit,
+              cycleDate,
+              provider === "foursquare" ? 500 : null
+            ),
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
@@ -256,7 +262,13 @@ module.exports = async function handler(req, res) {
           ),
           maxCandidates: discoveryMaxCandidates,
           isProviderAvailable: provider =>
-            reserveDiscoveryProvider(sql, provider, dailyLimit, cycleDate),
+            reserveDiscoveryProvider(
+              sql,
+              provider,
+              dailyLimit,
+              cycleDate,
+              provider === "foursquare" ? 500 : null
+            ),
           recordSuccess: provider =>
             recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) =>
