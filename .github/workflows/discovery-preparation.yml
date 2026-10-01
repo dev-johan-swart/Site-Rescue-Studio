@@ -2,10 +2,9 @@ name: Site Rescue Studio Discovery Preparation
 
 on:
   schedule:
-    # 02:00, 02:20 and 02:40 SAST (UTC+2): progressive 110-site reserve preparation only; no scans.
-    - cron: "0 0 * * *"
-    - cron: "20 0 * * *"
-    - cron: "40 0 * * *"
+    # Continuous supply-chain check every 20 minutes. The endpoint exits
+    # immediately when the fresh queue is already at the 110-site target.
+    - cron: "*/20 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -16,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Build or top up the fresh 110-site reserve
+      - name: Check and top up the fresh 110-site reserve
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
         run: |
