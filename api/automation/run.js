@@ -75,11 +75,9 @@ module.exports = async function handler(req, res) {
   }, {});
   const localHour = Number(localParts.hour || 0);
   const localDate = `${localParts.year}-${localParts.month}-${localParts.day}`;
-  const cycleDate = localHour < 8
-    ? new Date(Date.UTC(
-        Number(localParts.year), Number(localParts.month) - 1, Number(localParts.day) - 1
-      )).toISOString().slice(0, 10)
-    : localDate;
+  // A production cycle belongs to the SAST calendar day on which it starts.
+  // Midnight SAST begins the new production day; 07:30 SAST is the reporting cutoff.
+  const cycleDate = localDate;
   await recoverStaleAutomationRuns(sql);
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
   if (String(req.query?.mode || "").toLowerCase() === "prepare") {
