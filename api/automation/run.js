@@ -84,7 +84,8 @@ module.exports = async function handler(req, res) {
   if (isPreparation) {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
-    const maxAttempts = 10;
+    const maxAttempts = 1;
+    const maxPreparationMs = 180000;
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
     const attempts = [];
@@ -107,7 +108,7 @@ module.exports = async function handler(req, res) {
       });
     }
     for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {
-      if (Date.now() - startedAt >= 240000) break;
+      if (Date.now() - startedAt >= maxPreparationMs) break;
       const promoted = await promoteFreshBacklogToQueue(sql, target - queueDepth, "discovery_backlog");
       queueDepth = await getFreshQueueDepth(sql);
       if (queueDepth >= target) break;
