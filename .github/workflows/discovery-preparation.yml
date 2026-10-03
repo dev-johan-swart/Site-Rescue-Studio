@@ -4,7 +4,11 @@ on:
   schedule:
     # Continuous supply-chain check every 20 minutes. The endpoint exits
     # immediately when the fresh queue is already at the 110-site target.
-    - cron: "*/20 * * * *"
+    # Production closes at 07:30 SAST (05:30 UTC). Discovery gets the daytime gap
+    # plus the final pre-production refill window, but does not compete with production.
+    - cron: "40 5 * * *"
+    - cron: "0,20,40 6-23 * * *"
+    - cron: "0,20,40 0-1 * * *"
   workflow_dispatch:
 
 jobs:

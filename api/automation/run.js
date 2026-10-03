@@ -1,5 +1,5 @@
 const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES } = require("../../lib/discoveryProviders");
+const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES, PRIMARY_DISCOVERY_PROVIDERS } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
   getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, promoteFreshBacklogToQueue, drainDiscoveryBacklog, markDiscoveryBacklogResults,
@@ -123,6 +123,7 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
+          providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? Math.floor(Date.now() / 1200000) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
           isProviderAvailable: provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
             return reserveDiscoveryProvider(
@@ -265,6 +266,7 @@ module.exports = async function handler(req, res) {
             run.id + attemptNumber
           ),
           maxCandidates: discoveryMaxCandidates,
+          providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? (run.id + attemptNumber) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
           isProviderAvailable: provider =>
             reserveDiscoveryProvider(
               sql,
