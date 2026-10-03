@@ -203,9 +203,12 @@ module.exports = async function handler(req, res) {
     110,
     Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 110), 110)
   );
-  const dailyLimit = Math.max(
+  // Production discovery is only a bounded emergency fallback. Reserve the
+  // majority of each provider's daily request budget for the daytime discovery
+  // workflow, which is responsible for rebuilding the 110-site reserve.
+  const productionDiscoveryDailyLimit = Math.max(
     1,
-    Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12)
+    Math.min(Number(process.env.AUTOMATION_PRODUCTION_DISCOVERY_DAILY_LIMIT || 4), 4)
   );
   const discoveryMaxCandidates = Math.max(
     1,
@@ -271,7 +274,7 @@ module.exports = async function handler(req, res) {
             reserveDiscoveryProvider(
               sql,
               provider,
-              dailyLimit,
+              productionDiscoveryDailyLimit,
               cycleDate,
               provider === "foursquare" ? 500 : null
             ),
