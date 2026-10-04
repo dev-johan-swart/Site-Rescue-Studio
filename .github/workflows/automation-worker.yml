@@ -1,12 +1,16 @@
 on:
   schedule:
-    # One daily off-hour wake-up. GitHub may delay scheduled events, so the
-    # production endpoint also enforces the SAST morning cutoff.
-    - cron: "7 0 * * *"
-    - cron: "27 1 * * *"
-    - cron: "47 2 * * *"
-    - cron: "7 4 * * *"
-    - cron: "27 5 * * *"
+    # Repeated off-hour wake-ups cover the full SAST production window.
+    # Times are deliberately off the top of the hour because GitHub documents
+    # that scheduled workflows can be delayed under high Actions load.
+    # UTC -> SAST: 22:17 -> 00:17, then hourly through 04:17 -> 06:17.
+    - cron: "17 22 * * *"
+    - cron: "17 23 * * *"
+    - cron: "17 0 * * *"
+    - cron: "17 1 * * *"
+    - cron: "17 2 * * *"
+    - cron: "17 3 * * *"
+    - cron: "17 4 * * *"
   workflow_dispatch:
 
 concurrency:
