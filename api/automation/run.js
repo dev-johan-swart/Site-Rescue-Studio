@@ -84,7 +84,7 @@ module.exports = async function handler(req, res) {
   if (isPreparation) {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
-    const maxAttempts = 1;
+    const maxAttempts = 3;
     const maxPreparationMs = 180000;
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
