@@ -137,10 +137,25 @@ module.exports = async function handler(req, res) {
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
-        await addDiscoveryBacklogCandidates(sql, discovery.candidates, discovery.provider, stage.id);
+        const backlogDiagnostics = await addDiscoveryBacklogCandidates(
+          sql,
+          discovery.candidates,
+          discovery.provider,
+          stage.id,
+          true
+        );
         const promoted = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "discovery_backlog");
         queueDepth = await getFreshQueueDepth(sql);
-        attempts.push({stage: stage.id, provider: discovery.provider, candidateCount: discovery.candidateCount, newlyQueued: promoted.length});
+        attempts.push({
+          stage: stage.id,
+          provider: discovery.provider,
+          candidateCount: discovery.candidateCount,
+          extractionTelemetry: discovery.telemetry || null,
+          providerAttempts: discovery.attempts || [],
+          providerErrors: discovery.errors || [],
+          backlogDiagnostics,
+          newlyQueued: promoted.length
+        });
       } catch (error) {
         attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});
       }
@@ -284,11 +299,12 @@ module.exports = async function handler(req, res) {
             recordDiscoveryProviderFailure(sql, provider, error)
         });
 
-        await addDiscoveryBacklogCandidates(
+        const backlogDiagnostics = await addDiscoveryBacklogCandidates(
           sql,
           discovery.candidates,
           discovery.provider,
-          stage.id
+          stage.id,
+          true
         );
 
         const promoted = await promoteFreshBacklogToQueue(
@@ -309,6 +325,8 @@ module.exports = async function handler(req, res) {
           stage: stage.id,
           source: discovery.provider,
           candidateCount: discovery.candidateCount,
+          extractionTelemetry: discovery.telemetry || null,
+          backlogDiagnostics,
           newlyQueued,
           providerAttempts: discovery.attempts || [],
           providerErrors: discovery.errors || [],
