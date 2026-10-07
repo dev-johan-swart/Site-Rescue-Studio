@@ -2,7 +2,7 @@ const { qualifyProspect } = require("../../lib/prospectQualification");
 const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES, PRIMARY_DISCOVERY_PROVIDERS } = require("../../lib/discoveryProviders");
 const {
   getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, addDiscoveryBacklogCandidates, promoteFreshBacklogToQueue, drainDiscoveryBacklog, markDiscoveryBacklogResults,
+  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, getDiscoveryProviderPageState, recordDiscoveryProviderPageResult, addDiscoveryBacklogCandidates, promoteFreshBacklogToQueue, drainDiscoveryBacklog, markDiscoveryBacklogResults,
   reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
