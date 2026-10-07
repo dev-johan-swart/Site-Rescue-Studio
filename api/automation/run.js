@@ -153,6 +153,10 @@ module.exports = async function handler(req, res) {
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
           providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? Math.floor(Date.now() / 1200000) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
+          providerPageOffset: attemptNumber,
+          getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
+          recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
+            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
           isProviderAvailable: provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
             return reserveDiscoveryProvider(
