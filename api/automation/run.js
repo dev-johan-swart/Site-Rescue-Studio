@@ -1,33 +1,90 @@
-const { qualifyProspect } = require("../../lib/prospectQualification");
-const { discoverWithProviders, getDiscoveryStage, nextEnabledDiscoveryStageId, providerQueries, DISCOVERY_STAGES, PRIMARY_DISCOVERY_PROVIDERS } = require("../../lib/discoveryProviders");
-const {
-  getSql, ensureAutomationSchema, createRun, claimNextQueueItem,
-  getQueueDepth, getFreshQueueDepth, getDailyScannedCount, recoverStaleAutomationRuns, claimNextDailyRun, getDiscoveryStageState, setDiscoveryStageState, getDiscoveryProviderPageState, recordDiscoveryProviderPageResult, addDiscoveryBacklogCandidates, promoteFreshBacklogToQueue, drainDiscoveryBacklog, markDiscoveryBacklogResults,
-  reserveDiscoveryProvider, recordDiscoveryProviderSuccess, recordDiscoveryProviderFailure,
-  completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
-  recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
-} = require("../../lib/automationStore");
-
 function authorised(req) {
   const expected = process.env.CRON_SECRET;
   const supplied = req.headers?.authorization || "";
   return Boolean(expected && supplied === `Bearer ${expected}`);
 }
 
-function runScan(url) {
-  return new Promise((resolve, reject) => {
-    let statusCode = 200;
-    let payload = null;
-    const response = {
-      status(code) { statusCode = code; return this; },
-      json(value) { payload = value; resolve({ statusCode, payload }); return this; },
-      end() { resolve({ statusCode, payload }); return this; }
-    };
-    scanHandler({ method: "POST", body: { url } }, response).catch(reject);
-  });
-}
-
 module.exports = async function handler(req, res) {
+  let qualifyProspect;
+  let discoverWithProviders;
+  let getDiscoveryStage;
+  let nextEnabledDiscoveryStageId;
+  let providerQueries;
+  let PRIMARY_DISCOVERY_PROVIDERS;
+  let getSql;
+  let ensureAutomationSchema;
+  let claimNextQueueItem;
+  let getQueueDepth;
+  let getFreshQueueDepth;
+  let getDailyScannedCount;
+  let recoverStaleAutomationRuns;
+  let claimNextDailyRun;
+  let getDiscoveryStageState;
+  let setDiscoveryStageState;
+  let getDiscoveryProviderPageState;
+  let recordDiscoveryProviderPageResult;
+  let addDiscoveryBacklogCandidates;
+  let promoteFreshBacklogToQueue;
+  let reserveDiscoveryProvider;
+  let recordDiscoveryProviderSuccess;
+  let recordDiscoveryProviderFailure;
+  let completeQueueItem;
+  let failQueueItem;
+  let addShortlistItem;
+  let addDueFollowUps;
+  let finishRun;
+  let recoverStaleQueueItems;
+  let markExhaustedFailures;
+
+  try {
+    ({ qualifyProspect } = require("../../lib/prospectQualification"));
+    ({
+      discoverWithProviders,
+      getDiscoveryStage,
+      nextEnabledDiscoveryStageId,
+      providerQueries,
+      PRIMARY_DISCOVERY_PROVIDERS
+    } = require("../../lib/discoveryProviders"));
+    ({
+      getSql,
+      ensureAutomationSchema,
+      claimNextQueueItem,
+      getQueueDepth,
+      getFreshQueueDepth,
+      getDailyScannedCount,
+      recoverStaleAutomationRuns,
+      claimNextDailyRun,
+      getDiscoveryStageState,
+      setDiscoveryStageState,
+      getDiscoveryProviderPageState,
+      recordDiscoveryProviderPageResult,
+      addDiscoveryBacklogCandidates,
+      promoteFreshBacklogToQueue,
+      reserveDiscoveryProvider,
+      recordDiscoveryProviderSuccess,
+      recordDiscoveryProviderFailure,
+      completeQueueItem,
+      failQueueItem,
+      addShortlistItem,
+      addDueFollowUps,
+      finishRun,
+      recoverStaleQueueItems,
+      markExhaustedFailures
+    } = require("../../lib/automationStore"));
+  } catch (error) {
+    const message = String(error?.message || error);
+    console.error("Automation module initialization failed.", {
+      message,
+      stack: error?.stack || null
+    });
+    return res.status(200).json({
+      success: false,
+      fatalStage: "module_initialization",
+      error: message,
+      stack: error?.stack || null
+    });
+  }
+
   if (!authorised(req)) {
     console.warn("Automation cron rejected.", {
       method: req.method,
@@ -278,6 +335,16 @@ module.exports = async function handler(req, res) {
 
   try {
     const scanHandler = require("../scan");
+    const runScan = (url) => new Promise((resolve, reject) => {
+      let statusCode = 200;
+      let payload = null;
+      const response = {
+        status(code) { statusCode = code; return this; },
+        json(value) { payload = value; resolve({ statusCode, payload }); return this; },
+        end() { resolve({ statusCode, payload }); return this; }
+      };
+      scanHandler({ method: "POST", body: { url } }, response).catch(reject);
+    });
     await recoverStaleQueueItems();
     await markExhaustedFailures();
 
