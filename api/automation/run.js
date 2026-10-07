@@ -97,15 +97,44 @@ module.exports = async function handler(req, res) {
     const reserveCandidates = (Array.isArray(LOCAL_PROSPECT_RESERVE) ? LOCAL_PROSPECT_RESERVE : [])
       .map(website => ({ website, name: null, city: null, category: "local_reserve" }))
       .filter(candidate => candidate.website);
-    if (reserveCandidates.length) {
-      await addDiscoveryBacklogCandidates(sql, reserveCandidates, "local_reserve", "local_reserve");
-      const localResults = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "local_reserve");
-      queueDepth = await getFreshQueueDepth(sql);
-      attempts.push({
-        source: "local_reserve",
-        candidateCount: reserveCandidates.length,
-        queueDepth
-      });
+
+    if (reserveCandidates.length && queueDepth < target) {
+      try {
+        const localDiagnostics = await addDiscoveryBacklogCandidates(
+          sql,
+          reserveCandidates,
+          "local_reserve",
+          "local_reserve",
+          true
+        );
+        const promoted = await promoteFreshBacklogToQueue(
+          sql,
+          Math.max(target - queueDepth, 0),
+          "local_reserve"
+        );
+        queueDepth = await getFreshQueueDepth(sql);
+        attempts.push({
+          source: "local_reserve",
+          candidateCount: reserveCandidates.length,
+          queueDepth,
+          backlogDiagnostics: localDiagnostics,
+          newlyQueued: promoted.length,
+          status: "success"
+        });
+      } catch (error) {
+        const message = String(error?.message || error);
+        attempts.push({
+          source: "local_reserve",
+          candidateCount: reserveCandidates.length,
+          queueDepth,
+          status: "failed",
+          error: message
+        });
+        console.error("Discovery preparation local reserve failed.", {
+          message,
+          stack: error?.stack || null
+        });
+      }
     }
     for (let attemptNumber = 0; queueDepth < target && attemptNumber < maxAttempts; attemptNumber++) {
       if (Date.now() - startedAt >= maxPreparationMs) break;
@@ -162,7 +191,14 @@ module.exports = async function handler(req, res) {
       stageId = nextEnabledDiscoveryStageId(stage.id);
       await setDiscoveryStageState(sql, stageId);
     }
-    return res.status(200).json({success: true, preparationOnly: true, queueDepth, target, targetReached: queueDepth >= target, attempts});
+    return res.status(200).json({
+      success: true,
+      preparationOnly: true,
+      queueDepth,
+      target,
+      targetReached: queueDepth >= target,
+      attempts
+    });
   }
 
   const requestedBatchNo = Number(req.query?.batch);
