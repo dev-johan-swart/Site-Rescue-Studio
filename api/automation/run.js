@@ -355,11 +355,25 @@ module.exports = async function handler(req, res) {
     }
 
     refillAdded += newlyQueuedTotal;
+    const diagnostic = {
+      attemptedStages: attempts.map(item => ({
+        stage: item.stage || null,
+        source: item.source || item.provider || null,
+        status: item.status || (Number(item.candidateCount || 0) > 0 ? "success" : "empty"),
+        candidateCount: Number(item.candidateCount || 0),
+        newlyQueued: Number(item.newlyQueued || 0),
+        providerAttempts: item.providerAttempts || [],
+        providerErrors: item.providerErrors || [],
+        backlogDiagnostics: item.backlogDiagnostics || null
+      })),
+      noUsableSupply: newlyQueuedTotal === 0 && queueDepth < queueReserveTarget
+    };
     return {
       queueDepth,
       target: queueReserveTarget,
       newlyQueued: newlyQueuedTotal,
       attempts,
+      diagnostic,
       targetReached: queueDepth >= queueReserveTarget
     };
   }
@@ -451,6 +465,9 @@ module.exports = async function handler(req, res) {
         pipelineWarnings.push(
           `Post-scan discovery reserve target not reached: ${refillAfterScan.queueDepth}/${refillAfterScan.target} active queued sites.`
         );
+        if (refillAfterScan.diagnostic?.noUsableSupply) {
+          pipelineWarnings.push("SUPPLY FAILURE: discovery produced no newly queued usable websites. Review providerAttempts, providerErrors and backlogDiagnostics before treating this run as healthy.");
+        }
       }
     } catch (error) {
       errors.push(`Post-scan discovery orchestration failed: ${error?.message || error}`);
@@ -471,7 +488,9 @@ module.exports = async function handler(req, res) {
     refillAdded,
     queueHealth,
     warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null,
-    discoveryWarnings: pipelineWarnings
+    discoveryWarnings: pipelineWarnings,
+    supplyFailure: queueDepth < queueReserveTarget && refillAdded === 0,
+    supplyDiagnostics: discoverySummary?.afterScan?.diagnostic || null
   };
   if (pipelineReport.warning) console.warn(pipelineReport.warning);
 
