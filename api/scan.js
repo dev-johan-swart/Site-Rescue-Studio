@@ -4,6 +4,7 @@ const net = require("net");
 
 const { saveProspect } =
   require("../lib/prospectStore");
+const { runBrowserInspection } = require("../lib/browserInspection");
 
 const USER_AGENT =
   "Site Rescue Studio Website Health Scanner/3.0";
@@ -6668,10 +6669,64 @@ function drawEvidenceMessage(
             page.business
         );
 
-      const businessEvidence =
+      let businessEvidence =
         aggregateBusinessEvidence(
           analyzedPages
         );
+
+      // Keep the normal HTTP scanner fast. Only invoke the browser when
+      // basic contact/form evidence is still missing after the bounded crawl.
+      let browserInspection = null;
+      const needsRenderedVerification =
+        businessEvidence.phone.length === 0 ||
+        businessEvidence.form.length === 0;
+
+      if (needsRenderedVerification) {
+        try {
+          browserInspection = await runBrowserInspection(finalUrl);
+          if (browserInspection?.available) {
+            for (const link of browserInspection.renderedContactLinks || []) {
+              if (link.type === "phone") {
+                businessEvidence.phone.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+              } else if (link.type === "email") {
+                businessEvidence.email.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+              } else if (link.type === "whatsapp") {
+                businessEvidence.whatsapp.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+              } else if (link.type === "contact") {
+                businessEvidence.cta.push({ url: finalUrl, source: "browser-rendered" });
+              }
+            }
+
+            for (const form of browserInspection.renderedForms || []) {
+              if (!form?.contactIntent) continue;
+              businessEvidence.form.push({
+                url: form.url || finalUrl,
+                source: "browser-rendered",
+                type: form.type || "contact",
+                confidence: form.confidence || "medium",
+                fields: Number(form.fields || form.inputCount || 0),
+                fieldTypes: form.fieldTypes || [],
+                fieldLabels: form.fieldLabels || [],
+                hasSubmit: Boolean(form.hasSubmit || form.hasSubmitControl),
+                action: form.action || null,
+                submitText: form.submitText || null,
+                usable: Boolean(form.hasSubmit || form.hasSubmitControl)
+              });
+            }
+
+            const dedupe = (items, keyFn) =>
+              Array.from(new Map(items.map(item => [keyFn(item), item])).values());
+
+            businessEvidence.phone = dedupe(businessEvidence.phone, item => JSON.stringify([item.url, item.clickable]));
+            businessEvidence.email = dedupe(businessEvidence.email, item => JSON.stringify([item.url, item.clickable]));
+            businessEvidence.whatsapp = dedupe(businessEvidence.whatsapp, item => JSON.stringify([item.url, item.clickable]));
+            businessEvidence.form = dedupe(businessEvidence.form, item => JSON.stringify([item.url, item.action, item.type]));
+            businessEvidence.cta = dedupe(businessEvidence.cta, item => item.url);
+          }
+        } catch (browserError) {
+          console.warn("Targeted browser business verification unavailable:", browserError?.message || browserError);
+        }
+      }
 
       const businessChecks =
         buildBusinessChecks(
@@ -7257,6 +7312,18 @@ const opportunity =
          */
 
         businessEvidence,
+
+        browserInspection: browserInspection
+          ? {
+              attempted: true,
+              available: Boolean(browserInspection.available),
+              durationMs: browserInspection.durationMs || null,
+              renderedContactLinks: browserInspection.renderedContactLinks || [],
+              renderedForms: browserInspection.renderedForms || [],
+              formEmbedFailures: browserInspection.formEmbedFailures || [],
+              unavailableReason: browserInspection.unavailableReason || null
+            }
+          : { attempted: false, available: false },
 
         crawlability,
         technologies,
