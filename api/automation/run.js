@@ -89,9 +89,17 @@ module.exports = async function handler(req, res) {
   // A production cycle belongs to the SAST calendar day on which it starts.
   // Midnight SAST begins the new production day; 07:30 SAST is the reporting cutoff.
   const cycleDate = localDate;
-  await recoverStaleAutomationRuns(sql);
+  try {
+    await recoverStaleAutomationRuns(sql);
+  } catch (error) {
+    const message = String(error?.message || error);
+    console.error("Automation stale-run recovery failed.", { message, stack: error?.stack || null });
+    return res.status(200).json({ success: false, fatalStage: "stale_run_recovery", error: message });
+  }
+
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
   if (isPreparation) {
+    try {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const maxAttempts = 3;
@@ -213,6 +221,16 @@ module.exports = async function handler(req, res) {
       targetReached: queueDepth >= target,
       attempts
     });
+    } catch (error) {
+      const message = String(error?.message || error);
+      console.error("Discovery preparation failed.", { message, stack: error?.stack || null });
+      return res.status(200).json({
+        success: false,
+        preparationOnly: true,
+        fatalStage: "preparation_orchestration",
+        error: message
+      });
+    }
   }
 
   const requestedBatchNo = Number(req.query?.batch);
