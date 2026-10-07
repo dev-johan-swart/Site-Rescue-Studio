@@ -24,6 +24,8 @@ const MAX_ROUTE_HEALTH_CHECKS = 12;
 const ROUTE_HEALTH_FETCH_TIMEOUT = 8000;
 const DISCOVERY_FETCH_TIMEOUT = 5000;
 const MAX_SITEMAP_CANDIDATES = 3;
+const MAX_EVIDENCE_ROUTES = 12;
+const EVIDENCE_ROUTE_CONCURRENCY = 4;
 
 function debugTiming(label, startedAt) {
   console.log(
@@ -3813,7 +3815,7 @@ async function discoverEvidenceRoutes({
 
   return [...routes.values()]
     .sort((a, b) => b.score - a.score)
-    .slice(0, 30);
+    .slice(0, MAX_EVIDENCE_ROUTES);
 }
 
 function analyzeCrawlability(finalUrl) {
@@ -6818,64 +6820,71 @@ function drawEvidenceMessage(
             })
           );
 
-          for (const candidate of evidenceRoutes) {
-            if (existingUrls.has(normalizeUrl(candidate.url))) continue;
+          for (let batchStart = 0; batchStart < evidenceRoutes.length; batchStart += EVIDENCE_ROUTE_CONCURRENCY) {
+            const batch = evidenceRoutes.slice(
+              batchStart,
+              batchStart + EVIDENCE_ROUTE_CONCURRENCY
+            );
 
-            try {
-              const pageStarted = Date.now();
-              const pageResponse = await fetchPublicUrl(
-                candidate.url,
-                {
-                  headers: {
-                    "User-Agent": USER_AGENT,
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-                  }
-                },
-                ROUTE_HEALTH_FETCH_TIMEOUT,
-                2
-              );
+            await Promise.all(batch.map(async candidate => {
+              if (existingUrls.has(normalizeUrl(candidate.url))) return;
 
-              const routeFinalUrl = pageResponse.url || candidate.url;
-              if (!pageResponse.ok) continue;
+              try {
+                const pageStarted = Date.now();
+                const pageResponse = await fetchPublicUrl(
+                  candidate.url,
+                  {
+                    headers: {
+                      "User-Agent": USER_AGENT,
+                      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                    }
+                  },
+                  ROUTE_HEALTH_FETCH_TIMEOUT,
+                  2
+                );
 
-              const contentType = pageResponse.headers.get("content-type") || "";
-              if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) continue;
+                const routeFinalUrl = pageResponse.url || candidate.url;
+                if (!pageResponse.ok) return;
 
-              const pageHtml = await pageResponse.text();
-              if (!pageHtml) continue;
+                const contentType = pageResponse.headers.get("content-type") || "";
+                if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) return;
 
-              const access = detectPageAccessIssue(pageHtml, pageResponse);
-              if (access.limited) {
+                const pageHtml = await pageResponse.text();
+                if (!pageHtml) return;
+
+                const access = detectPageAccessIssue(pageHtml, pageResponse);
+                if (access.limited) {
+                  pages.push({
+                    url: candidate.url,
+                    path: getPathname(candidate.url),
+                    type: "evidence-route",
+                    scanned: false,
+                    accessLimited: true,
+                    accessIssue: access.reason
+                  });
+                  return;
+                }
+
+                const page = await analyzePage(
+                  pageHtml,
+                  routeFinalUrl,
+                  pageResponse,
+                  Date.now() - pageStarted
+                );
+
                 pages.push({
-                  url: candidate.url,
-                  path: getPathname(candidate.url),
+                  url: routeFinalUrl,
+                  path: getPathname(routeFinalUrl),
                   type: "evidence-route",
-                  scanned: false,
-                  accessLimited: true,
-                  accessIssue: access.reason
+                  anchorText: candidate.anchorText,
+                  evidenceSource: candidate.source,
+                  scanned: true,
+                  ...page
                 });
-                continue;
-              }
 
-              const page = await analyzePage(
-                pageHtml,
-                routeFinalUrl,
-                pageResponse,
-                Date.now() - pageStarted
-              );
-
-              pages.push({
-                url: routeFinalUrl,
-                path: getPathname(routeFinalUrl),
-                type: "evidence-route",
-                anchorText: candidate.anchorText,
-                evidenceSource: candidate.source,
-                scanned: true,
-                ...page
-              });
-
-              existingUrls.add(normalizeUrl(routeFinalUrl));
-            } catch {}
+                existingUrls.add(normalizeUrl(routeFinalUrl));
+              } catch {}
+            }));
           }
 
           businessEvidence = aggregateBusinessEvidence(
