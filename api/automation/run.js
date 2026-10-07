@@ -7,8 +7,6 @@ const {
   completeQueueItem, failQueueItem, addShortlistItem, addDueFollowUps, finishRun,
   recoverStaleQueueItems, markExhaustedFailures, enqueueWebsites
 } = require("../../lib/automationStore");
-const scanHandler = require("../scan");
-const LOCAL_PROSPECT_RESERVE = require("../../data/prospect-reserve.json");
 
 function authorised(req) {
   const expected = process.env.CRON_SECRET;
@@ -100,6 +98,7 @@ module.exports = async function handler(req, res) {
   // Preparation runs build the fresh reserve before the first scan window without consuming a scan batch.
   if (isPreparation) {
     try {
+    const LOCAL_PROSPECT_RESERVE = require("../../data/prospect-reserve.json");
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const maxAttempts = 3;
@@ -278,6 +277,7 @@ module.exports = async function handler(req, res) {
   let queueDepthBeforeRefill = null;
 
   try {
+    const scanHandler = require("../scan");
     await recoverStaleQueueItems();
     await markExhaustedFailures();
 
