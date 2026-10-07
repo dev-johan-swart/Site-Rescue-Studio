@@ -3729,7 +3729,94 @@ function analyzeRobotsText(text,targetUrl) {
   const allowed=allow.filter(matches).sort((a,b)=>b.length-a.length)[0]||"";
   return {allowsTarget:!blocked||allowed.length>blocked.length,sitemapReferences:Array.from(new Set(sitemaps)).slice(0,10)};
 }
-async function analyzeCrawlability(finalUrl) {
+async function extractSitemapLocs(xml, baseUrl) {
+  const urls = [];
+  const regex = /<loc[^>]*>\\s*([\\s\\S]*?)\\s*<\\/loc>/gi;
+  let match;
+  while ((match = regex.exec(String(xml || "")))) {
+    const value = cleanText(match[1])
+      .replace(/&amp;/gi, "&")
+      .replace(/&#x2F;/gi, "/");
+    try {
+      const parsed = new URL(value, baseUrl);
+      if (["http:", "https:"].includes(parsed.protocol)) {
+        parsed.hash = "";
+        urls.push(parsed.toString());
+      }
+    } catch {}
+  }
+  return [...new Set(urls)];
+}
+
+function scoreEvidenceRoute(url, anchorText = "") {
+  const value = String(url || "") + " " + String(anchorText || "");
+  const scores = [
+    [/contact|contact-us|contactus/i, 100],
+    [/enquir|inquir|quote|quotation/i, 95],
+    [/book|booking|appointment|schedule/i, 90],
+    [/get-in-touch|reach-us|find-us|location|directions/i, 85],
+    [/service|support|about|team/i, 50]
+  ];
+  return scores.reduce((score, [pattern, weight]) => pattern.test(value) ? Math.max(score, weight) : score, 0);
+}
+
+async function discoverEvidenceRoutes({
+  homepageHtml,
+  finalUrl,
+  crawlability,
+  renderedRoutes = []
+} = {}) {
+  const routes = new Map();
+
+  const add = (url, anchorText = "", source = "html") => {
+    try {
+      const parsed = new URL(url, finalUrl);
+      if (parsed.origin !== new URL(finalUrl).origin) return;
+      parsed.hash = "";
+      const normalized = parsed.toString();
+      if (normalized === finalUrl) return;
+      const score = scoreEvidenceRoute(normalized, anchorText);
+      const existing = routes.get(normalized);
+      if (!existing || score > existing.score) {
+        routes.set(normalized, { url: normalized, anchorText, source, score });
+      }
+    } catch {}
+  };
+
+  for (const candidate of discoverInternalPages(homepageHtml, finalUrl)) {
+    if (scoreEvidenceRoute(candidate.url, candidate.anchorText) > 0) {
+      add(candidate.url, candidate.anchorText, "homepage-link");
+    }
+  }
+
+  for (const route of renderedRoutes || []) {
+    if (route?.url) add(route.url, route.text || route.anchorText || "", "browser-rendered");
+  }
+
+  const sitemapUrl = crawlability?.sitemap?.url;
+  if (sitemapUrl) {
+    try {
+      const response = await fetchPublicUrl(
+        sitemapUrl,
+        { headers: { "User-Agent": USER_AGENT, Accept: "application/xml,text/xml,text/plain,*/*;q=0.8" } },
+        DISCOVERY_FETCH_TIMEOUT,
+        2
+      );
+      if (response.ok) {
+        const xml = await response.text();
+        for (const url of extractSitemapLocs(xml, sitemapUrl)) {
+          if (scoreEvidenceRoute(url) > 0) add(url, "", "sitemap");
+        }
+      }
+    } catch {}
+  }
+
+  return [...routes.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 30);
+}
+
+function analyzeCrawlability(finalUrl) {
   const robots=await fetchDiscoveryResource(finalUrl,"/robots.txt");
   const analysis=robots.available?analyzeRobotsText(robots.text,finalUrl):null;
   const candidates=[...(analysis?.sitemapReferences||[]),new URL("/sitemap.xml",finalUrl).href];
@@ -6674,59 +6761,169 @@ function drawEvidenceMessage(
           analyzedPages
         );
 
-      // Keep the normal HTTP scanner fast. Only invoke the browser when
-      // basic contact/form evidence is still missing after the bounded crawl.
+      /*
+       * SITE-WIDE BUSINESS EVIDENCE
+       *
+       * The homepage is only the starting point. If core conversion
+       * evidence is not established there, inspect rendered navigation,
+       * contact/quote/booking routes, and sitemap-listed equivalents.
+       * This is intentionally read-only and bounded; it does not submit
+       * forms or crawl arbitrary third-party domains.
+       */
       let browserInspection = null;
-      const needsRenderedVerification =
-        businessEvidence.phone.length === 0 ||
-        businessEvidence.form.length === 0;
 
-      if (needsRenderedVerification) {
-        try {
-          browserInspection = await runBrowserInspection(finalUrl);
-          if (browserInspection?.available) {
-            for (const link of browserInspection.renderedContactLinks || []) {
-              if (link.type === "phone") {
-                businessEvidence.phone.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
-              } else if (link.type === "email") {
-                businessEvidence.email.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
-              } else if (link.type === "whatsapp") {
-                businessEvidence.whatsapp.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
-              } else if (link.type === "contact") {
-                businessEvidence.cta.push({ url: finalUrl, source: "browser-rendered" });
-              }
+      try {
+        browserInspection = await runBrowserInspection(finalUrl);
+
+        if (browserInspection?.available) {
+          for (const link of browserInspection.renderedContactLinks || []) {
+            if (link.type === "phone") {
+              businessEvidence.phone.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            } else if (link.type === "email") {
+              businessEvidence.email.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            } else if (link.type === "whatsapp") {
+              businessEvidence.whatsapp.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            } else if (link.type === "contact") {
+              businessEvidence.cta.push({ url: finalUrl, source: "browser-rendered" });
             }
-
-            for (const form of browserInspection.renderedForms || []) {
-              if (!form?.contactIntent) continue;
-              businessEvidence.form.push({
-                url: form.url || finalUrl,
-                source: "browser-rendered",
-                type: form.type || "contact",
-                confidence: form.confidence || "medium",
-                fields: Number(form.fields || form.inputCount || 0),
-                fieldTypes: form.fieldTypes || [],
-                fieldLabels: form.fieldLabels || [],
-                hasSubmit: Boolean(form.hasSubmit || form.hasSubmitControl),
-                action: form.action || null,
-                submitText: form.submitText || null,
-                usable: Boolean(form.hasSubmit || form.hasSubmitControl)
-              });
-            }
-
-            const dedupe = (items, keyFn) =>
-              Array.from(new Map(items.map(item => [keyFn(item), item])).values());
-
-            businessEvidence.phone = dedupe(businessEvidence.phone, item => JSON.stringify([item.url, item.clickable]));
-            businessEvidence.email = dedupe(businessEvidence.email, item => JSON.stringify([item.url, item.clickable]));
-            businessEvidence.whatsapp = dedupe(businessEvidence.whatsapp, item => JSON.stringify([item.url, item.clickable]));
-            businessEvidence.form = dedupe(businessEvidence.form, item => JSON.stringify([item.url, item.action, item.type]));
-            businessEvidence.cta = dedupe(businessEvidence.cta, item => item.url);
           }
-        } catch (browserError) {
-          console.warn("Targeted browser business verification unavailable:", browserError?.message || browserError);
+
+          for (const form of browserInspection.renderedForms || []) {
+            if (!form?.contactIntent) continue;
+            businessEvidence.form.push({
+              url: form.url || finalUrl,
+              source: "browser-rendered",
+              type: form.type || "contact",
+              confidence: form.confidence || "medium",
+              fields: Number(form.fields || form.inputCount || 0),
+              fieldTypes: form.fieldTypes || [],
+              fieldLabels: form.fieldLabels || [],
+              hasSubmit: Boolean(form.hasSubmit || form.hasSubmitControl),
+              submitText: form.submitText || null,
+              action: form.action || null,
+              usable: Boolean(form.hasSubmit || form.hasSubmitControl)
+            });
+          }
+
+          const evidenceRoutes = await discoverEvidenceRoutes({
+            homepageHtml: html,
+            finalUrl,
+            crawlability,
+            renderedRoutes: browserInspection.renderedInternalRoutes || []
+          });
+
+          const existingUrls = new Set(
+            pages.map(page => {
+              try { return normalizeUrl(page.url); } catch { return page.url; }
+            })
+          );
+
+          for (const candidate of evidenceRoutes) {
+            if (existingUrls.has(normalizeUrl(candidate.url))) continue;
+
+            try {
+              const pageStarted = Date.now();
+              const pageResponse = await fetchPublicUrl(
+                candidate.url,
+                {
+                  headers: {
+                    "User-Agent": USER_AGENT,
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                  }
+                },
+                ROUTE_HEALTH_FETCH_TIMEOUT,
+                2
+              );
+
+              const routeFinalUrl = pageResponse.url || candidate.url;
+              if (!pageResponse.ok) continue;
+
+              const contentType = pageResponse.headers.get("content-type") || "";
+              if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) continue;
+
+              const pageHtml = await pageResponse.text();
+              if (!pageHtml) continue;
+
+              const access = detectPageAccessIssue(pageHtml, pageResponse);
+              if (access.limited) {
+                pages.push({
+                  url: candidate.url,
+                  path: getPathname(candidate.url),
+                  type: "evidence-route",
+                  scanned: false,
+                  accessLimited: true,
+                  accessIssue: access.reason
+                });
+                continue;
+              }
+
+              const page = await analyzePage(
+                pageHtml,
+                routeFinalUrl,
+                pageResponse,
+                Date.now() - pageStarted
+              );
+
+              pages.push({
+                url: routeFinalUrl,
+                path: getPathname(routeFinalUrl),
+                type: "evidence-route",
+                anchorText: candidate.anchorText,
+                evidenceSource: candidate.source,
+                scanned: true,
+                ...page
+              });
+
+              existingUrls.add(normalizeUrl(routeFinalUrl));
+            } catch {}
+          }
+
+          businessEvidence = aggregateBusinessEvidence(
+            pages.filter(page => page.scanned && page.business)
+          );
+
+          // Merge browser-rendered evidence after the site-wide HTTP pass.
+          for (const link of browserInspection.renderedContactLinks || []) {
+            if (link.type === "phone") businessEvidence.phone.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            else if (link.type === "email") businessEvidence.email.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            else if (link.type === "whatsapp") businessEvidence.whatsapp.push({ url: link.href || finalUrl, clickable: true, source: "browser-rendered" });
+            else if (link.type === "contact") businessEvidence.cta.push({ url: finalUrl, source: "browser-rendered" });
+          }
+
+          for (const form of browserInspection.renderedForms || []) {
+            if (!form?.contactIntent) continue;
+            businessEvidence.form.push({
+              url: form.url || finalUrl,
+              source: "browser-rendered",
+              type: form.type || "contact",
+              confidence: form.confidence || "medium",
+              fields: Number(form.fields || form.inputCount || 0),
+              fieldTypes: form.fieldTypes || [],
+              fieldLabels: form.fieldLabels || [],
+              hasSubmit: Boolean(form.hasSubmit || form.hasSubmitControl),
+              submitText: form.submitText || null,
+              action: form.action || null,
+              usable: Boolean(form.hasSubmit || form.hasSubmitControl)
+            });
+          }
         }
+      } catch (browserError) {
+        console.warn(
+          "Site-wide rendered business verification unavailable:",
+          browserError?.message || browserError
+        );
       }
+
+      const dedupe = (items, keyFn) =>
+        Array.from(new Map(items.map(item => [keyFn(item), item])).values());
+
+      businessEvidence.phone = dedupe(businessEvidence.phone, item => JSON.stringify([item.url, item.clickable]));
+      businessEvidence.email = dedupe(businessEvidence.email, item => JSON.stringify([item.url, item.clickable]));
+      businessEvidence.whatsapp = dedupe(businessEvidence.whatsapp, item => JSON.stringify([item.url, item.clickable]));
+      businessEvidence.form = dedupe(businessEvidence.form, item => JSON.stringify([item.url, item.action, item.type]));
+      businessEvidence.location = dedupe(businessEvidence.location, item => item.url);
+      businessEvidence.cta = dedupe(businessEvidence.cta, item => item.url);
+
 
       const businessChecks =
         buildBusinessChecks(
