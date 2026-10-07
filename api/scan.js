@@ -6774,8 +6774,23 @@ function drawEvidenceMessage(
        */
       let browserInspection = null;
 
+      /*
+       * Browser rendering is an escalation path, not the default scan.
+       * If ordinary HTTP/site-wide HTML already establishes the core
+       * contact/form evidence, avoid the extra Chromium cost entirely.
+       * When evidence is incomplete, rendering is used to find dynamic
+       * navigation/forms that raw HTML cannot see.
+       */
+      const needsRenderedBusinessInspection =
+        !businessEvidence.phone.length ||
+        !businessEvidence.email.length ||
+        !businessEvidence.form.length ||
+        !businessEvidence.cta.length;
+
       try {
-        browserInspection = await runBrowserInspection(finalUrl);
+        if (needsRenderedBusinessInspection) {
+          browserInspection = await runBrowserInspection(finalUrl);
+        }
 
         if (browserInspection?.available) {
           for (const link of browserInspection.renderedContactLinks || []) {
