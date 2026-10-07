@@ -39,7 +39,17 @@ module.exports = async function handler(req, res) {
   }
 
   const sql = getSql();
-  await ensureAutomationSchema(sql);
+  try {
+    await ensureAutomationSchema(sql);
+  } catch (error) {
+    const message = String(error?.message || error);
+    console.error("Automation schema initialization failed.", { message, stack: error?.stack || null });
+    return res.status(200).json({
+      success: false,
+      fatalStage: "schema_initialization",
+      error: message
+    });
+  }
 
   // Production must finish its daily cycle before the morning reporting window.
   // GitHub schedules are best-effort, so this is enforced at the production
@@ -325,6 +335,11 @@ module.exports = async function handler(req, res) {
           ),
           maxCandidates: discoveryMaxCandidates,
           providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? (run.id + attemptNumber) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
+          providerPageOffset: attemptNumber,
+          getProviderPageState: async (provider, pageCount) =>
+            getDiscoveryProviderPageState(sql, provider, pageCount),
+          recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
+            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
           isProviderAvailable: provider =>
             reserveDiscoveryProvider(
               sql,
