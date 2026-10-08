@@ -158,6 +158,23 @@ module.exports = async function handler(req, res) {
     const LOCAL_PROSPECT_RESERVE = require("../../data/prospect-reserve.json");
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
+    const preparationProviderDailyLimits = {
+      pretoriaeast: dailyLimit,
+      ccbc: dailyLimit,
+      openstreetmap: dailyLimit,
+      hotfrog: Math.min(Number(process.env.AUTOMATION_HOTFROG_DAILY_LIMIT || 4), 4),
+      opendi: Math.min(Number(process.env.AUTOMATION_OPENDI_DAILY_LIMIT || 4), 4),
+      pretoriahub: Math.min(Number(process.env.AUTOMATION_PRETORIAHUB_DAILY_LIMIT || 4), 4),
+      mycityinfo: Math.min(Number(process.env.AUTOMATION_MYCITYINFO_DAILY_LIMIT || 4), 4),
+      foursquare: 0,
+      websdocs: Math.min(Number(process.env.AUTOMATION_WEBS_DOCS_DAILY_LIMIT || 8), 8)
+    };
+    const preparationProviderMonthlyLimits = {
+      hotfrog: 100,
+      opendi: 100,
+      pretoriahub: 100,
+      mycityinfo: 100
+    };
     const maxAttempts = 3;
     const maxPreparationMs = 180000;
     const startedAt = Date.now();
@@ -226,19 +243,22 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? Math.floor(Date.now() / 1200000) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
+          providerStartOffset: PREPARATION_PROVIDER_ORDER.length ? Math.floor(Date.now() / 1200000) % PREPARATION_PROVIDER_ORDER.length : 0,
+          providerOrder: PREPARATION_PROVIDER_ORDER,
           providerPageOffset: attemptNumber,
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
           isProviderAvailable: provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
+            const providerLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
+            if (providerLimit <= 0) return false;
             return reserveDiscoveryProvider(
               sql,
               provider,
-              dailyLimit,
+              providerLimit,
               cycleDate,
-              provider === "foursquare" ? 500 : null
+              preparationProviderMonthlyLimits[provider] ?? (provider === "foursquare" ? 500 : null)
             );
           },
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
