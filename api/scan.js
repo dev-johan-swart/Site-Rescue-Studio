@@ -3733,7 +3733,7 @@ function analyzeRobotsText(text,targetUrl) {
 }
 async function extractSitemapLocs(xml, baseUrl) {
   const urls = [];
-  const regex = /<loc[^>]*>\\s*([\\s\\S]*?)\\s*<\\/loc>/gi;
+  const regex = /<loc[^>]*>\s*([\s\S]*?)\s*<\/loc>/gi;
   let match;
   while ((match = regex.exec(String(xml || "")))) {
     const value = cleanText(match[1])
