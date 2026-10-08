@@ -11,6 +11,7 @@ module.exports = async function handler(req, res) {
   let nextEnabledDiscoveryStageId;
   let providerQueries;
   let PRIMARY_DISCOVERY_PROVIDERS;
+  let PREPARATION_PROVIDER_ORDER;
   let getSql;
   let ensureAutomationSchema;
   let claimNextQueueItem;
@@ -43,7 +44,8 @@ module.exports = async function handler(req, res) {
       getDiscoveryStage,
       nextEnabledDiscoveryStageId,
       providerQueries,
-      PRIMARY_DISCOVERY_PROVIDERS
+      PRIMARY_DISCOVERY_PROVIDERS,
+      PREPARATION_PROVIDER_ORDER
     } = require("../../lib/discoveryProviders"));
     ({
       getSql,
