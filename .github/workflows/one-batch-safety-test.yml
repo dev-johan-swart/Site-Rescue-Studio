@@ -1,0 +1,96 @@
+name: Site Rescue Studio One-Batch Safety Test
+
+on:
+  # One controlled preflight at 00:05 SAST on 10 October 2026, ahead of
+  # the regular production worker at 00:17 SAST. The date guard below makes
+  # this a one-night test even though GitHub schedules are recurring.
+  schedule:
+    - cron: "5 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: srs-one-batch-safety-test
+  cancel-in-progress: false
+
+jobs:
+  test-and-one-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out deployed source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run automation unit tests
+        run: npm run test:automation
+
+      - name: Guard the one-night production test window
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          sast_date="$(TZ=Africa/Johannesburg date +%F)"
+          sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
+          echo "SAST date: $sast_date; SAST time: $sast_time"
+
+          if [ "$sast_date" != "2026-10-10" ]; then
+            echo "This is a one-night test for 10 October 2026 only. No production batch invoked."
+            echo "invoke=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$sast_time" -lt 0 ] || [ "$sast_time" -ge 730 ]; then
+            echo "Outside the production window (00:00-07:29 SAST). No production batch invoked."
+            echo "invoke=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "invoke=true" >> "$GITHUB_OUTPUT"
+
+      - name: Invoke exactly production batch 1
+        if: steps.guard.outputs.invoke == 'true'
+        env:
+          CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CRON_SECRET"
+
+          response="$(curl --retry 1 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 330 \
+            --fail-with-body --show-error --silent \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Cache-Control: no-cache" \
+            "https://site-rescue-studio.vercel.app/api/automation/run?batch=1")"
+
+          printf '%s\n' "$response"
+          printf '%s' "$response" | jq -e '
+            (.productionWindowClosed != true) and
+            (.fatalStage == null) and
+            (.counts.scannedCount != null or .noBatchClaimed == true)
+          ' >/dev/null
+
+          scanned="$(printf '%s' "$response" | jq -r '.counts.scannedCount // 0')"
+          candidates="$(printf '%s' "$response" | jq -r '.counts.candidateCount // 0')"
+          errors="$(printf '%s' "$response" | jq -r '.errorSummary // empty')"
+          echo "Test batch candidates: $candidates; scans completed: $scanned"
+          if [ -n "$errors" ]; then
+            echo "::warning::Batch returned an error summary: $errors"
+          fi
+          if [ "$scanned" -lt 1 ]; then
+            echo "::error::The endpoint responded, but no scan completed. Inspect Neon run telemetry before relying on tonight's cycle."
+            exit 1
+          fi
+          echo "At least one scan completed in the controlled production-path test."
