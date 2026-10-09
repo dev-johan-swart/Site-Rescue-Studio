@@ -3731,7 +3731,7 @@ function analyzeRobotsText(text,targetUrl) {
   const allowed=allow.filter(matches).sort((a,b)=>b.length-a.length)[0]||"";
   return {allowsTarget:!blocked||allowed.length>blocked.length,sitemapReferences:Array.from(new Set(sitemaps)).slice(0,10)};
 }
-async function extractSitemapLocs(xml, baseUrl) {
+function extractSitemapLocs(xml, baseUrl) {
   const urls = [];
   const regex = /<loc[^>]*>\s*([\s\S]*?)\s*<\/loc>/gi;
   let match;
@@ -3818,7 +3818,7 @@ async function discoverEvidenceRoutes({
     .slice(0, MAX_EVIDENCE_ROUTES);
 }
 
-function analyzeCrawlability(finalUrl) {
+async function analyzeCrawlability(finalUrl) {
   const robots=await fetchDiscoveryResource(finalUrl,"/robots.txt");
   const analysis=robots.available?analyzeRobotsText(robots.text,finalUrl):null;
   const candidates=[...(analysis?.sitemapReferences||[]),new URL("/sitemap.xml",finalUrl).href];
