@@ -6,6 +6,12 @@ on:
   # this a one-night test even though GitHub schedules are recurring.
   schedule:
     - cron: "5 22 * * *"
+  push:
+    paths:
+      - "lib/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/one-batch-safety-test.yml"
   workflow_dispatch:
 
 permissions:
@@ -40,6 +46,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "Push-triggered validation only. No production batch will be invoked."
+            echo "invoke=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           sast_date="$(TZ=Africa/Johannesburg date +%F)"
           sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
           echo "SAST date: $sast_date; SAST time: $sast_time"
@@ -67,20 +79,34 @@ jobs:
           set -euo pipefail
           test -n "$CRON_SECRET"
 
-          response="$(curl --retry 1 --retry-delay 3 --retry-all-errors \
+          response_file="$RUNNER_TEMP/safety-test-response.json"
+          if http_status="$(curl \
             --connect-timeout 15 --max-time 330 \
             --fail-with-body --show-error --silent \
+            --output "$response_file" --write-out '%{http_code}' \
             --request GET \
             --header "Authorization: Bearer $CRON_SECRET" \
             --header "Cache-Control: no-cache" \
-            "https://site-rescue-studio.vercel.app/api/automation/run?batch=1")"
+            "https://site-rescue-studio.vercel.app/api/automation/run?batch=1")"; then
+            curl_status=0
+          else
+            curl_status=$?
+          fi
 
-          printf '%s\n' "$response"
-          printf '%s' "$response" | jq -e '
-            (.productionWindowClosed != true) and
+          cat "$response_file"
+          echo "HTTP_STATUS:$http_status"
+          if [ "$curl_status" -ne 0 ] || [ "$http_status" != "200" ]; then
+            echo "::error::Safety-test batch request failed at transport/HTTP level; no automatic retry is made to avoid duplicate production work."
+            exit 1
+          fi
+          jq -e '
+            (.success == true) and
             (.fatalStage == null) and
-            (.counts.scannedCount != null or .noBatchClaimed == true)
-          ' >/dev/null
+            (.productionWindowClosed != true) and
+            (.runId != null) and
+            (.counts.scannedCount | type == "number")
+          ' "$response_file" >/dev/null
+          response="$(cat "$response_file")"
 
           scanned="$(printf '%s' "$response" | jq -r '.counts.scannedCount // 0')"
           candidates="$(printf '%s' "$response" | jq -r '.counts.candidateCount // 0')"
