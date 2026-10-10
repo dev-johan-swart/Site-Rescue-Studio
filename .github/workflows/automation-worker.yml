@@ -38,7 +38,8 @@ on:
           - "12"
 
 concurrency:
-  group: site-rescue-studio-automation-worker
+  # Keep each scheduled slot in its own concurrency group so later cron events cannot replace pending batch opportunities.
+  group: site-rescue-studio-automation-worker-${{ github.event.schedule || inputs.batch || 'manual' }}
   cancel-in-progress: false
 
 jobs:
