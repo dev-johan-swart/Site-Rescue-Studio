@@ -1,17 +1,41 @@
+name: Site Rescue Studio Automation Worker
+
 on:
   schedule:
-    # Repeated off-hour wake-ups cover the full SAST production window.
-    # Times are deliberately off the top of the hour because GitHub documents
-    # that scheduled workflows can be delayed under high Actions load.
-    # UTC -> SAST: 22:17 -> 00:17, then hourly through 04:17 -> 06:17.
-    - cron: "17 22 * * *"
-    - cron: "17 23 * * *"
-    - cron: "17 0 * * *"
-    - cron: "17 1 * * *"
-    - cron: "17 2 * * *"
-    - cron: "17 3 * * *"
-    - cron: "17 4 * * *"
+    # Twelve independent 5-site opportunities: 03:05-06:45 SAST (UTC+2).
+    # Each scheduled execution invokes exactly one batch; no 12-request serial loop.
+    - cron: "5 1 * * *"
+    - cron: "25 1 * * *"
+    - cron: "45 1 * * *"
+    - cron: "5 2 * * *"
+    - cron: "25 2 * * *"
+    - cron: "45 2 * * *"
+    - cron: "5 3 * * *"
+    - cron: "25 3 * * *"
+    - cron: "45 3 * * *"
+    - cron: "5 4 * * *"
+    - cron: "25 4 * * *"
+    - cron: "45 4 * * *"
   workflow_dispatch:
+    inputs:
+      batch:
+        description: "Single production batch to invoke (1-12)"
+        required: true
+        default: "1"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
+          - "8"
+          - "9"
+          - "10"
+          - "11"
+          - "12"
 
 concurrency:
   group: site-rescue-studio-automation-worker
@@ -20,46 +44,91 @@ concurrency:
 jobs:
   run-automation:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
-      - name: Invoke production automation batches sequentially
+      - name: Invoke one production batch
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
-        timeout-minutes: 55
+          SCHEDULED_CRON: ${{ github.event.schedule }}
+          MANUAL_BATCH: ${{ inputs.batch || '1' }}
+        timeout-minutes: 8
+        shell: bash
         run: |
-          set -u
+          set -euo pipefail
           test -n "$CRON_SECRET"
 
-          failures=0
+          case "$SCHEDULED_CRON" in
+            "5 1 * * *") batch=1 ;;
+            "25 1 * * *") batch=2 ;;
+            "45 1 * * *") batch=3 ;;
+            "5 2 * * *") batch=4 ;;
+            "25 2 * * *") batch=5 ;;
+            "45 2 * * *") batch=6 ;;
+            "5 3 * * *") batch=7 ;;
+            "25 3 * * *") batch=8 ;;
+            "45 3 * * *") batch=9 ;;
+            "5 4 * * *") batch=10 ;;
+            "25 4 * * *") batch=11 ;;
+            "45 4 * * *") batch=12 ;;
+            *)
+              batch="$MANUAL_BATCH"
+              if ! [[ "$batch" =~ ^([1-9]|1[0-2])$ ]]; then
+                echo "::error::Batch must be an integer from 1 to 12."
+                exit 1
+              fi
+              ;;
+          esac
 
-          for batch in $(seq 1 12); do
-            echo "=== Starting production batch $batch/12 ==="
+          echo "Invoking exactly production batch $batch/12."
+          response_file="$RUNNER_TEMP/automation-response.json"
 
-            response="$(curl               --retry 2               --retry-delay 5               --retry-all-errors               --max-time 330               --fail-with-body               --show-error               --silent               --request GET               --header "Authorization: Bearer $CRON_SECRET"               --header "Cache-Control: no-cache"               --write-out '\nHTTP_STATUS:%{http_code}\n'               "https://site-rescue-studio.vercel.app/api/automation/run?batch=$batch" 2>&1)"
+          if http_status="$(curl \
+            --connect-timeout 15 \
+            --max-time 330 \
+            --fail-with-body \
+            --show-error \
+            --silent \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Cache-Control: no-cache" \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            "https://site-rescue-studio.vercel.app/api/automation/run?batch=$batch")"; then
+            curl_status=0
+          else
             curl_status=$?
-
-            echo "$response"
-
-            if [ "$curl_status" -ne 0 ]; then
-              echo "::warning::Production batch $batch invocation returned curl status $curl_status. Continuing to the next batch opportunity."
-              failures=$((failures + 1))
-            fi
-
-            if printf '%s' "$response" | grep -q '"dailyTargetReached":true'; then
-              echo "Daily successful-scan target reached. No further production batches will be invoked."
-              break
-            fi
-
-            if printf '%s' "$response" | grep -q '"productionWindowClosed":true'; then
-              echo "Production window is closed. No further production batches will be invoked."
-              break
-            fi
-
-            echo "=== Finished production batch $batch/12 ==="
-          done
-
-          if [ "$failures" -gt 0 ]; then
-            echo "::warning::$failures production batch invocation(s) returned transport errors. Review the Neon automation run telemetry; later batches were still attempted."
           fi
 
-          echo "Sequential production opportunity loop finished. The Neon daily target remains the source of truth.";
+          if [ -f "$response_file" ]; then
+            cat "$response_file"
+            echo
+          fi
+          echo "HTTP_STATUS:$http_status"
+
+          if [ "$curl_status" -ne 0 ] || [ "$http_status" != "200" ]; then
+            echo "::error::Production batch $batch failed at the HTTP/transport layer (curl=$curl_status, HTTP=$http_status). No automatic retry is made, to avoid re-invoking a potentially completed production batch."
+            exit 1
+          fi
+
+          if ! jq -e '
+            (.success == true) and
+            (.fatalStage == null) and
+            (
+              .productionWindowClosed == true or
+              .noBatchClaimed == true or
+              ((.runId != null) and (.counts.scannedCount | type == "number"))
+            )
+          ' "$response_file" >/dev/null; then
+            echo "::error::Production endpoint returned HTTP 200 but its JSON did not confirm a valid non-fatal batch result. Inspect the response and Neon telemetry."
+            exit 1
+          fi
+
+          if jq -e '.productionWindowClosed == true' "$response_file" >/dev/null; then
+            echo "Production window closed; no batch work was performed."
+          elif jq -e '.noBatchClaimed == true' "$response_file" >/dev/null; then
+            echo "Batch $batch was already claimed or completed; no duplicate work was started."
+          else
+            scanned="$(jq -r '.counts.scannedCount' "$response_file")"
+            candidates="$(jq -r '.counts.candidateCount' "$response_file")"
+            echo "Batch $batch completed its endpoint path: candidates=$candidates, scans=$scanned."
+          fi
