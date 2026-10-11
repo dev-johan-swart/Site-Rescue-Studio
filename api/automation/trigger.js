@@ -147,3 +147,4 @@ module.exports = async function externalAutomationTrigger(req, res) {
 
 module.exports.getSastClock = getSastClock;
 module.exports.withinSafeStartWindow = withinSafeStartWindow;
+module.exports.constantTimeSecretMatch = constantTimeSecretMatch;
