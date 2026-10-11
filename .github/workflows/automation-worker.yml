@@ -128,13 +128,13 @@ jobs:
 
           sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
           if [ -z "$SCHEDULED_CRON" ]; then
-            if [ "$sast_time" -lt 300 ] || [ "$sast_time" -ge 730 ]; then
-              echo "Manual dispatch outside production window (03:00-07:29 SAST; current SAST HHMM=$sast_time). Skipping."
+            if [ "$sast_time" -lt 300 ] || [ "$sast_time" -ge 725 ]; then
+              echo "Manual dispatch outside safe batch-start window (03:00-07:24 SAST; current SAST HHMM=$sast_time). Skipping."
               exit 0
             fi
           else
-            if [ "$sast_time" -ge 730 ] && [ "$sast_time" -lt 1800 ]; then
-              echo "Outside production window (07:30-17:59 SAST; current SAST HHMM=$sast_time). Skipping without calling production."
+            if [ "$sast_time" -ge 725 ] && [ "$sast_time" -lt 1800 ]; then
+              echo "Outside safe batch-start window (07:25-17:59 SAST; current SAST HHMM=$sast_time). Skipping without calling production."
               exit 0
             fi
 
@@ -156,8 +156,8 @@ jobs:
             while true; do
               now_epoch="$(date +%s)"
               sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
-              if [ "$sast_time" -ge 730 ] && [ "$sast_time" -lt 1800 ]; then
-                echo "Production cutoff reached during today's window (current SAST HHMM=$sast_time). Skipping without calling production."
+              if [ "$sast_time" -ge 725 ] && [ "$sast_time" -lt 1800 ]; then
+                echo "Safe batch-start deadline reached (current SAST HHMM=$sast_time); skipping to preserve the 07:30 finish cutoff."
                 exit 0
               fi
               if [ "$now_epoch" -ge "$target_epoch" ]; then
