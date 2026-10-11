@@ -28,3 +28,37 @@ test("external trigger authorization requires an exact Bearer secret", () => {
   assert.equal(constantTimeSecretMatch("", "Bearer secret-value"), false);
   assert.equal(constantTimeSecretMatch("secret-value", undefined), false);
 });
+
+test("workflow dispatch sends the selected batch without waiting for scan completion", async () => {
+  const { dispatchWorker } = require("./trigger");
+  let captured;
+  const result = await dispatchWorker({
+    token: "test-token",
+    batch: 7,
+    fetchImpl: async (url, options) => {
+      captured = { url, options };
+      return { status: 204 };
+    }
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.status, 204);
+  assert.equal(captured.url, "https://api.github.com/repos/dev-johan-swart/Site-Rescue-Studio/actions/workflows/automation-worker.yml/dispatches");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, "Bearer test-token");
+  assert.deepEqual(JSON.parse(captured.options.body), {
+    ref: "main",
+    inputs: { batch: "7" }
+  });
+});
+
+test("workflow dispatch treats non-204 responses as failures", async () => {
+  const { dispatchWorker } = require("./trigger");
+  await assert.rejects(
+    dispatchWorker({
+      token: "test-token",
+      batch: 1,
+      fetchImpl: async () => ({ status: 403 })
+    }),
+    /HTTP 403/
+  );
+});
