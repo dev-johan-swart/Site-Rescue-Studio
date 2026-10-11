@@ -2,8 +2,23 @@ name: Site Rescue Studio Automation Worker
 
 on:
   schedule:
-    # Twelve independent 5-site opportunities: 03:05-06:45 SAST (UTC+2).
-    # Each scheduled execution invokes exactly one batch; no 12-request serial loop.
+    # Delayed-event fallback opportunities: 21:05-00:45 SAST (19:05-22:45 UTC).
+    # They map to the same batch IDs as the primary slots and are guarded below:
+    # no production work is allowed before 03:00 or at/after 07:30 SAST.
+    - cron: "5 19 * * *"
+    - cron: "25 19 * * *"
+    - cron: "45 19 * * *"
+    - cron: "5 20 * * *"
+    - cron: "25 20 * * *"
+    - cron: "45 20 * * *"
+    - cron: "5 21 * * *"
+    - cron: "25 21 * * *"
+    - cron: "45 21 * * *"
+    - cron: "5 22 * * *"
+    - cron: "25 22 * * *"
+    - cron: "45 22 * * *"
+    # Primary opportunities: 03:05-06:45 SAST (UTC+2).
+    # Each event invokes exactly one bounded batch; database claims prevent duplicates.
     - cron: "5 1 * * *"
     - cron: "25 1 * * *"
     - cron: "45 1 * * *"
@@ -59,17 +74,29 @@ jobs:
           test -n "$CRON_SECRET"
 
           case "$SCHEDULED_CRON" in
+            "5 19 * * *") batch=1 ;;
             "5 1 * * *") batch=1 ;;
+            "25 19 * * *") batch=2 ;;
             "25 1 * * *") batch=2 ;;
+            "45 19 * * *") batch=3 ;;
             "45 1 * * *") batch=3 ;;
+            "5 20 * * *") batch=4 ;;
             "5 2 * * *") batch=4 ;;
+            "25 20 * * *") batch=5 ;;
             "25 2 * * *") batch=5 ;;
+            "45 20 * * *") batch=6 ;;
             "45 2 * * *") batch=6 ;;
+            "5 21 * * *") batch=7 ;;
             "5 3 * * *") batch=7 ;;
+            "25 21 * * *") batch=8 ;;
             "25 3 * * *") batch=8 ;;
+            "45 21 * * *") batch=9 ;;
             "45 3 * * *") batch=9 ;;
+            "5 22 * * *") batch=10 ;;
             "5 4 * * *") batch=10 ;;
+            "25 22 * * *") batch=11 ;;
             "25 4 * * *") batch=11 ;;
+            "45 22 * * *") batch=12 ;;
             "45 4 * * *") batch=12 ;;
             *)
               batch="$MANUAL_BATCH"
@@ -79,6 +106,14 @@ jobs:
               fi
               ;;
           esac
+
+          # GitHub schedule events can be delayed. Fallback events are intentionally
+          # scheduled earlier, but must never consume a production batch outside SAST hours.
+          sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
+          if [ "$sast_time" -lt 300 ] || [ "$sast_time" -ge 730 ]; then
+            echo "Outside production window (03:00-07:29 SAST; current SAST HHMM=$sast_time). Skipping without calling production."
+            exit 0
+          fi
 
           echo "Invoking exactly production batch $batch/12."
           response_file="$RUNNER_TEMP/automation-response.json"
