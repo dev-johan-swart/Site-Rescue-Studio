@@ -1,5 +1,4 @@
 const crypto = require("node:crypto");
-const runAutomation = require("./run");
 
 function constantTimeSecretMatch(expected, suppliedHeader) {
   if (!expected || typeof suppliedHeader !== "string") return false;
@@ -31,14 +30,42 @@ function withinSafeStartWindow(clock) {
   return clock.hhmm >= 300 && clock.hhmm < 725;
 }
 
+async function dispatchWorker({ token, batch, fetchImpl = fetch }) {
+  if (!token) throw new Error("GitHub workflow-dispatch token is not configured.");
+  const response = await fetchImpl(
+    "https://api.github.com/repos/dev-johan-swart/Site-Rescue-Studio/actions/workflows/automation-worker.yml/dispatches",
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      body: JSON.stringify({ ref: "main", inputs: { batch: String(batch) } })
+    }
+  );
+  if (response.status !== 204) {
+    throw new Error(`GitHub workflow dispatch returned HTTP ${response.status}.`);
+  }
+  return { accepted: true, status: response.status };
+}
+
 module.exports = async function externalAutomationTrigger(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed." });
   }
 
-  const expectedSecret = process.env.EXTERNAL_TRIGGER_SECRET;
-  if (!constantTimeSecretMatch(expectedSecret, req.headers?.authorization || "")) {
+  if (!constantTimeSecretMatch(
+    process.env.EXTERNAL_TRIGGER_SECRET,
+    req.headers?.authorization || ""
+  )) {
     return res.status(401).json({ success: false, error: "Unauthorized." });
+  }
+
+  const batch = Number(req.query?.batch);
+  if (!Number.isInteger(batch) || batch < 1 || batch > 12) {
+    return res.status(400).json({ success: false, error: "Batch must be an integer from 1 to 12." });
   }
 
   const clock = getSastClock();
@@ -50,19 +77,12 @@ module.exports = async function externalAutomationTrigger(req, res) {
       success: true,
       dryRun: true,
       authorized: true,
-      internalSecretConfigured: Boolean(process.env.CRON_SECRET),
+      dispatchTokenConfigured: Boolean(process.env.GITHUB_DISPATCH_TOKEN),
       sastTime: clock.display,
       productionWindowOpen: windowOpen,
       allowedStartWindow: "03:00-07:24 SAST",
-      productionBatchInvoked: false
-    });
-  }
-
-  if (!process.env.CRON_SECRET) {
-    return res.status(503).json({
-      success: false,
-      error: "Internal automation secret is not configured.",
-      productionBatchInvoked: false
+      batch,
+      workflowDispatched: false
     });
   }
 
@@ -70,81 +90,44 @@ module.exports = async function externalAutomationTrigger(req, res) {
     return res.status(409).json({
       success: false,
       productionWindowClosed: true,
-      reason: "External trigger may start production only from 03:00 through 07:24 SAST.",
+      reason: "External trigger may dispatch production only from 03:00 through 07:24 SAST.",
       sastTime: clock.display,
-      productionBatchInvoked: false
+      batch,
+      workflowDispatched: false
     });
   }
-
-  const internalReq = {
-    method: "GET",
-    headers: {
-      authorization: `Bearer ${process.env.CRON_SECRET}`,
-      "user-agent": "Site Rescue Studio External Scheduler"
-    },
-    // No explicit batch: Neon atomically claims the next eligible sequential batch.
-    query: {}
-  };
-  const internalRes = {
-    statusCode: 200,
-    body: null,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(body) {
-      this.body = body;
-      return this;
-    }
-  };
 
   try {
-    await runAutomation(internalReq, internalRes);
+    await dispatchWorker({
+      token: process.env.GITHUB_DISPATCH_TOKEN,
+      batch
+    });
   } catch (error) {
-    console.error("External automation trigger failed.", {
-      message: String(error?.message || error)
+    console.error("External scheduler could not dispatch the worker.", {
+      message: String(error?.message || error),
+      batch,
+      sastTime: clock.display
     });
     return res.status(502).json({
       success: false,
-      error: "Internal automation handler failed.",
-      productionBatchInvoked: true
+      error: "GitHub Actions did not confirm workflow dispatch.",
+      batch,
+      workflowDispatched: false
     });
   }
 
-  const result = internalRes.body;
-  if (internalRes.statusCode >= 400) {
-    return res.status(internalRes.statusCode).json(result || {
-      success: false,
-      error: "Internal automation returned an HTTP error."
-    });
-  }
-  if (!result || result.productionWindowClosed === true) {
-    return res.status(409).json(result || {
-      success: false,
-      error: "Internal automation returned no response."
-    });
-  }
-  if (result.success !== true || result.fatalStage) {
-    return res.status(502).json(result);
-  }
-  if (result.noBatchClaimed === true) {
-    return res.status(409).json(result);
-  }
-  if (!result.runId || typeof result.counts?.scannedCount !== "number") {
-    return res.status(502).json({
-      success: false,
-      error: "Internal automation response did not confirm a claimed batch.",
-      internalResponse: result
-    });
-  }
-
-  return res.status(200).json({
-    ...result,
-    externalTrigger: true,
-    sastTriggerTime: clock.display
+  return res.status(202).json({
+    success: true,
+    accepted: true,
+    workflowDispatched: true,
+    workflow: "automation-worker.yml",
+    batch,
+    sastDispatchTime: clock.display,
+    note: "Dispatch accepted; scan completion must be verified in GitHub Actions and Neon."
   });
 };
 
 module.exports.getSastClock = getSastClock;
 module.exports.withinSafeStartWindow = withinSafeStartWindow;
 module.exports.constantTimeSecretMatch = constantTimeSecretMatch;
+module.exports.dispatchWorker = dispatchWorker;
