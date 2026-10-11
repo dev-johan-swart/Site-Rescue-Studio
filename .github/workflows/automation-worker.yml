@@ -156,8 +156,8 @@ jobs:
             while true; do
               now_epoch="$(date +%s)"
               sast_time="$(TZ=Africa/Johannesburg date +%H%M)"
-              if [ "$sast_time" -ge 730 ]; then
-                echo "Production cutoff reached while waiting (current SAST HHMM=$sast_time). Skipping without calling production."
+              if [ "$sast_time" -ge 730 ] && [ "$sast_time" -lt 1800 ]; then
+                echo "Production cutoff reached during today's window (current SAST HHMM=$sast_time). Skipping without calling production."
                 exit 0
               fi
               if [ "$now_epoch" -ge "$target_epoch" ]; then
