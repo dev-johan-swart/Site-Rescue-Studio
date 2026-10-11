@@ -62,3 +62,61 @@ test("workflow dispatch treats non-204 responses as failures", async () => {
     /HTTP 403/
   );
 });
+
+test("authenticated dry-run confirms configuration without dispatching production", async () => {
+  const handler = require("./trigger");
+  const previousSecret = process.env.EXTERNAL_TRIGGER_SECRET;
+  const previousToken = process.env.GITHUB_DISPATCH_TOKEN;
+  const previousFetch = global.fetch;
+  process.env.EXTERNAL_TRIGGER_SECRET = "test-external-secret";
+  process.env.GITHUB_DISPATCH_TOKEN = "test-github-token";
+  global.fetch = async () => { throw new Error("dry-run must not call GitHub"); };
+  const response = {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+  try {
+    await handler({
+      method: "GET",
+      headers: { authorization: "Bearer test-external-secret" },
+      query: { batch: "1", dryRun: "1" }
+    }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.success, true);
+    assert.equal(response.body.dryRun, true);
+    assert.equal(response.body.workflowDispatched, false);
+    assert.equal(response.body.dispatchTokenConfigured, true);
+  } finally {
+    if (previousSecret === undefined) delete process.env.EXTERNAL_TRIGGER_SECRET;
+    else process.env.EXTERNAL_TRIGGER_SECRET = previousSecret;
+    if (previousToken === undefined) delete process.env.GITHUB_DISPATCH_TOKEN;
+    else process.env.GITHUB_DISPATCH_TOKEN = previousToken;
+    global.fetch = previousFetch;
+  }
+});
+
+test("external trigger rejects an unauthorized request without dispatching", async () => {
+  const handler = require("./trigger");
+  const previousSecret = process.env.EXTERNAL_TRIGGER_SECRET;
+  process.env.EXTERNAL_TRIGGER_SECRET = "test-external-secret";
+  const response = {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+  try {
+    await handler({
+      method: "GET",
+      headers: { authorization: "Bearer wrong-secret" },
+      query: { batch: "1" }
+    }, response);
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.success, false);
+  } finally {
+    if (previousSecret === undefined) delete process.env.EXTERNAL_TRIGGER_SECRET;
+    else process.env.EXTERNAL_TRIGGER_SECRET = previousSecret;
+  }
+});
