@@ -5,18 +5,18 @@ on:
     # Delayed-event fallbacks are scheduled 5h50 before their mapped production slots.
     # Each fallback waits for its intended SAST slot, or catches up if delivered late.
     # The production endpoint's 07:30 SAST cutoff remains unchanged.
-    - cron: "5 19 * * *"
-    - cron: "25 19 * * *"
-    - cron: "45 19 * * *"
-    - cron: "5 20 * * *"
-    - cron: "25 20 * * *"
-    - cron: "45 20 * * *"
-    - cron: "5 21 * * *"
-    - cron: "25 21 * * *"
-    - cron: "45 21 * * *"
-    - cron: "5 22 * * *"
-    - cron: "25 22 * * *"
-    - cron: "45 22 * * *"
+    - cron: "15 19 * * *"
+    - cron: "35 19 * * *"
+    - cron: "55 19 * * *"
+    - cron: "15 20 * * *"
+    - cron: "35 20 * * *"
+    - cron: "55 20 * * *"
+    - cron: "15 21 * * *"
+    - cron: "35 21 * * *"
+    - cron: "55 21 * * *"
+    - cron: "15 22 * * *"
+    - cron: "35 22 * * *"
+    - cron: "55 22 * * *"
     # Primary opportunities: 03:05-06:45 SAST (UTC+2).
     # Each event invokes exactly one bounded batch; database claims prevent duplicates.
     - cron: "5 1 * * *"
