@@ -74,13 +74,14 @@ For every job:
 - Enable saving response/history while validating.
 - Keep the request timeout short/default; the GitHub API should accept dispatch quickly and does not wait for scans to finish.
 
-## Step 4 — cautious rollout
+## Step 4 — cautious rollout without duplicate triggers
 
-1. Keep all 12 external jobs disabled until the safe probe is confirmed.
-2. Enable only batch 1 initially. At its next 03:05 SAST time, verify the job's HTTP 204 response, the matching GitHub worker run, the intended batch number in its logs, and the corresponding run/scan records in Neon.
-3. Only after that end-to-end proof, enable the other 11 jobs.
-4. Compare each cron-job.org planned/actual time with the GitHub run creation/start time and Neon records each morning.
-5. If the external schedule proves reliable for several days, consider disabling the native GitHub `schedule` trigger in a separate reviewed change. Do not remove the fallback before evidence, and avoid simultaneous duplicate dispatches during any cutover.
+1. Keep all 12 external production jobs disabled until the safe probe is confirmed.
+2. Configure all 12 production jobs in cron-job.org, but leave them disabled and verify each batch number, time, timezone, headers, and request body.
+3. **Do not enable a production external job while the native GitHub `schedule` trigger is still active.** Both triggers could invoke the same batch. The worker's claim protection is useful, but we should not rely on duplicate dispatches as a rollout strategy.
+4. Once the probe passes and all 12 external jobs are ready, perform a separate reviewed cutover: remove only the native `schedule:` entries from `.github/workflows/automation-worker.yml`, while preserving `workflow_dispatch`, its batch input, the worker steps, and the API cutoff. Merge that surgical change, then enable the 12 external jobs immediately.
+5. For the first production day, compare each cron-job.org planned/actual time with GitHub run creation/start time, batch number in logs, and the matching Neon run/scan records. Treat HTTP acceptance alone as insufficient.
+6. If the external schedule misses a slot or dispatches late, pause further changes and inspect scheduler history, GitHub run timestamps, and Neon before retrying anything. Do not manually replay a batch until confirming it was not already claimed or completed.
 
 ## Safety and limitations
 
