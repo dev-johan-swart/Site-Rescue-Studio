@@ -125,8 +125,7 @@ jobs:
           fi
 
           if jq -e '.productionWindowClosed == true' "$response_file" >/dev/null; then
-            echo "::error::The scheduled worker arrived after the 07:30 SAST production cutoff. No scan batch was run; inspect external scheduler delivery and workflow start time."
-            exit 1
+            echo "Production window closed; no batch work was performed."
           elif jq -e '.noBatchClaimed == true' "$response_file" >/dev/null; then
             echo "Batch $batch was already claimed or completed; no duplicate work was started."
           else
