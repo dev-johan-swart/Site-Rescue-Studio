@@ -1,21 +1,6 @@
 name: Site Rescue Studio Automation Worker
 
 on:
-  schedule:
-    # Twelve independent 5-site opportunities: 03:05-06:45 SAST (UTC+2).
-    # Each scheduled execution invokes exactly one batch; no 12-request serial loop.
-    - cron: "5 1 * * *"
-    - cron: "25 1 * * *"
-    - cron: "45 1 * * *"
-    - cron: "5 2 * * *"
-    - cron: "25 2 * * *"
-    - cron: "45 2 * * *"
-    - cron: "5 3 * * *"
-    - cron: "25 3 * * *"
-    - cron: "45 3 * * *"
-    - cron: "5 4 * * *"
-    - cron: "25 4 * * *"
-    - cron: "45 4 * * *"
   workflow_dispatch:
     inputs:
       batch:
