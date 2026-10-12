@@ -37,7 +37,7 @@ After this document and `.github/workflows/external-scheduler-probe.yml` are mer
 - Set timezone to `Africa/Johannesburg`.
 - For the first test, do **not** schedule it for the production window and do not click any test button that would dispatch the production worker. You can manually trigger this safe probe at any time.
 
-Expected GitHub API response is HTTP 204 (successful dispatch). Then open [the probe workflow runs](https://github.com/dev-johan-swart/Site-Rescue-Studio/actions/workflows/external-scheduler-probe.yml) and confirm a run completes with `SAFE_EXTERNAL_DISPATCH_CONFIRMED`. This probe does not call Vercel or touch Neon.
+GitHub's current REST documentation specifies HTTP 200 for a successful workflow dispatch (with the run ID/URL in the response). Treat only a documented successful response as accepted; if the scheduler reports an error, inspect its history before retrying. Then open [the probe workflow runs](https://github.com/dev-johan-swart/Site-Rescue-Studio/actions/workflows/external-scheduler-probe.yml) and confirm a run completes with `SAFE_EXTERNAL_DISPATCH_CONFIRMED`. This probe does not call Vercel or touch Neon.
 
 Once confirmed, disable/delete the temporary probe job. Keep the token available for the production jobs.
 
