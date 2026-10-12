@@ -1,0 +1,46 @@
+name: External Scheduler Connection Check (Safe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: "Test label only; this workflow never runs a production batch"
+        required: true
+        default: "1"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
+          - "8"
+          - "9"
+          - "10"
+          - "11"
+          - "12"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm safe external dispatch
+        env:
+          BATCH_LABEL: ${{ inputs.batch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$BATCH_LABEL" =~ ^([1-9]|1[0-2])$ ]]; then
+            echo "::error::Invalid test label."
+            exit 1
+          fi
+          echo "SAFE_EXTERNAL_DISPATCH_CONFIRMED"
+          echo "Batch label: $BATCH_LABEL"
+          echo "No Vercel endpoint was called."
+          echo "No scanner, queue, or Neon data was touched."
