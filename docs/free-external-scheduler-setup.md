@@ -10,7 +10,7 @@ GitHub's native `schedule` events remain enabled as a fallback. The external sch
 
 ## Free service and limits
 
-Use [cron-job.org](https://cron-job.org/). Its published FAQ says the service is free, supports custom headers and POST request bodies, and its default daily execution limit is 100 requests. Twelve dispatches per day are within that default. It also states that timing is not guaranteed; monitor its execution history and GitHub Actions.
+Use [cron-job.org](https://cron-job.org/). Its published FAQ says the service is free, supports custom headers and POST request bodies, and does not limit the number of jobs per account (subject to fair use). Its REST API has a separate default quota of 100 API requests per day; that is not the same as the number of scheduled job executions. This plan uses the dashboard to create 12 jobs, each executing once per day. The service does not guarantee exact punctuality, so monitor its execution history and GitHub Actions.
 
 ## Step 1 — create a narrowly scoped GitHub token
 
