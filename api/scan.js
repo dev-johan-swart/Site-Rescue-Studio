@@ -4114,23 +4114,23 @@ async function runPageSpeed(url) {
       mobileAudits
     };
   } catch (error) {
-    console.error(
-      "PageSpeed error:",
-      error
-    );
+    const aborted = error?.name === "AbortError";
+    const message = aborted
+      ? "PageSpeed request timed out."
+      : `PageSpeed could not be reached: ${error?.message || "Unknown error"}`;
+
+    // PageSpeed is an optional external audit. A timeout means that
+    // metric is unavailable for this scan, not that the customer's
+    // website is broken. Keep expected aborts out of the red error log.
+    if (aborted) {
+      console.warn("PageSpeed unavailable for this scan:", message);
+    } else {
+      console.error("PageSpeed error:", message);
+    }
 
     return {
-      success:
-        false,
-
-      error:
-        error.name ===
-        "AbortError"
-          ? "PageSpeed request timed out."
-          : `PageSpeed could not be reached: ${
-              error.message ||
-              "Unknown error"
-            }`
+      success: false,
+      error: message
     };
   }
 }
