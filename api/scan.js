@@ -5285,13 +5285,10 @@ module.exports =
           targetUrl.hostname
         )
       ) {
-        return res.status(
-          400
-        ).json({
-          success:
-            false,
-          error:
-            "That website address cannot be scanned."
+        return res.status(400).json({
+          success: false,
+          error: "That website address cannot be scanned.",
+          failureCode: "BLOCKED_HOSTNAME"
         });
       }
 
