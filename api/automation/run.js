@@ -559,7 +559,9 @@ module.exports = async function handler(req, res) {
       const scanData = result.payload;
 
       if (result.statusCode < 200 || result.statusCode >= 300 || !scanData) {
-        throw new Error(scanData?.error || `Scanner returned HTTP ${result.statusCode}.`);
+        const failureCode = scanData?.failureCode ? `[${scanData.failureCode}] ` : "";
+        const diagnosticCode = scanData?.diagnosticCode ? ` (${scanData.diagnosticCode})` : "";
+        throw new Error(failureCode + (scanData?.error || `Scanner returned HTTP ${result.statusCode}.`) + diagnosticCode);
       }
 
       const qualification = qualifyProspect(scanData);
@@ -591,14 +593,22 @@ module.exports = async function handler(req, res) {
       const message = String(error?.message || error || "Unknown scanner failure.");
       const lower = message.toLowerCase();
       const failureType =
-        /cannot be scanned|invalid (website|url)|invalid url|website address cannot be scanned/.test(lower)
+        /\[malformed_hostname\]|\[invalid_url\]|invalid (website|url)|invalid url/.test(lower)
           ? "INVALID_URL"
-          : /too long to respond|timed out|timeout|timed out/.test(lower)
-            ? "TIMEOUT"
-            : /could not be reached|network connection|econn|enotfound|dns|fetch failed|connection/.test(lower)
-              ? "UNREACHABLE"
-              : "OTHER";
-      const hardFailure = failureType === "INVALID_URL" || failureType === "UNREACHABLE" || failureType === "TIMEOUT";
+          : /\[blocked_hostname\]|\[blocked_private_or_reserved_address\]/.test(lower)
+            ? "SAFETY_REJECTED"
+            : /\[dns_no_addresses\]/.test(lower)
+              ? "DNS_NO_ADDRESSES"
+              : /\[dns_lookup_failed\]/.test(lower)
+                ? "DNS_LOOKUP_FAILED"
+                : /\[dns_lookup_error\]/.test(lower)
+                  ? "DNS_LOOKUP_ERROR"
+                  : /too long to respond|timed out|timeout/.test(lower)
+                    ? "TIMEOUT"
+                    : /could not be reached|network connection|econn|enotfound|dns|fetch failed|connection/.test(lower)
+                      ? "UNREACHABLE"
+                      : "OTHER";
+      const hardFailure = ["INVALID_URL", "SAFETY_REJECTED", "DNS_NO_ADDRESSES", "DNS_LOOKUP_FAILED"].includes(failureType) || failureType === "TIMEOUT";
       errors.push(item.website + ": [" + failureType + "] " + message);
       await failQueueItem(item.id, error, {
         retryable: !hardFailure,
