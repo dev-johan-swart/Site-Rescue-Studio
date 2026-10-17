@@ -5840,23 +5840,24 @@ if (
             "working";
 
           if (
-            pageResponse.status === 403 ||
-            pageResponse.status === 405 ||
-            pageResponse.status === 429
+            [401, 403, 405, 407, 408, 423, 429, 451].includes(pageResponse.status)
           ) {
-            routeStatus =
-              "blocked";
+            routeStatus = "blocked";
+          } else if (
+            pageResponse.status === 404 ||
+            pageResponse.status === 410
+          ) {
+            routeStatus = "broken";
           } else if (
             pageResponse.status >= 400
           ) {
-            routeStatus =
-              "broken";
+            // 4xx/5xx responses other than a missing/gone page
+            // are not proof that a customer-facing route is broken.
+            routeStatus = "verification_inconclusive";
           } else if (
-            routeFinalUrl !==
-            normalized
+            routeFinalUrl !== normalized
           ) {
-            routeStatus =
-              "redirected";
+            routeStatus = "redirected";
           }
 
           routeHealth.push({
