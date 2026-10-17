@@ -599,9 +599,11 @@ module.exports = async function handler(req, res) {
             ? "SAFETY_REJECTED"
             : /\[dns_no_addresses\]/.test(lower)
               ? "DNS_NO_ADDRESSES"
-              : /\[dns_lookup_failed\]/.test(lower)
-                ? "DNS_LOOKUP_FAILED"
-                : /\[dns_lookup_error\]/.test(lower)
+              : /\(eai_again\)/.test(lower)
+                ? "DNS_TEMPORARY_FAILURE"
+                : /\[dns_lookup_failed\]/.test(lower)
+                  ? "DNS_LOOKUP_FAILED"
+                  : /\[dns_lookup_error\]/.test(lower)
                   ? "DNS_LOOKUP_ERROR"
                   : /too long to respond|timed out|timeout/.test(lower)
                     ? "TIMEOUT"
