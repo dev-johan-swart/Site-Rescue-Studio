@@ -732,13 +732,11 @@ async function fetchPublicUrl(
       );
     }
 
-    if (
-      !(await isPublicHostname(
-        parsed.hostname
-      ))
-    ) {
+    const redirectedHostnameCheck = await isPublicHostname(parsed.hostname);
+    if (!redirectedHostnameCheck.ok) {
       throw new Error(
-        "The website redirected to an address that cannot be scanned."
+        "The website redirected to an address that cannot be scanned [" +
+          redirectedHostnameCheck.reason + "]."
       );
     }
 
@@ -2235,7 +2233,11 @@ async function testLinks(
         linkResponse.status ===
           403 ||
         linkResponse.status ===
+          404 ||
+        linkResponse.status ===
           405 ||
+        linkResponse.status ===
+          410 ||
         linkResponse.status ===
           501
       ) {
@@ -2310,44 +2312,23 @@ async function testLinks(
       }
 
       /*
-       * External services often return errors
-       * that do not necessarily mean the destination
-       * is genuinely broken.
+       * Only a repeated 404/410 after retrying with GET is
+       * strong enough to label a destination broken. Other
+       * HTTP errors can reflect authentication, bot controls,
+       * server-side rules, or transient failures, so keep them
+       * inconclusive instead of turning them into sales claims.
        */
 
       else if (
-        link.type ===
-          "external" &&
-        (
-          linkResponse.status ===
-            400 ||
-          linkResponse.status ===
-            401 ||
-          linkResponse.status ===
-            406 ||
-          linkResponse.status ===
-            408 ||
-          linkResponse.status >=
-            500
-        )
+        linkResponse.status === 404 ||
+        linkResponse.status === 410
       ) {
-        link.status =
-          "blocked";
-
-        link.note =
-          `The external service returned HTTP ${linkResponse.status} while automated verification was attempted.`;
-      }
-
-      /*
-       * Genuine HTTP failure.
-       */
-
-      else {
-        link.status =
-          "broken";
-
-        link.error =
-          `HTTP ${linkResponse.status}`;
+        link.status = "broken";
+        link.error = `HTTP ${linkResponse.status} after GET verification`;
+        link.note = "The destination returned a missing/gone status on both the initial check and GET verification. Manually verify before contacting the business.";
+      } else {
+        link.status = "verification_inconclusive";
+        link.note = `Automated verification returned HTTP ${linkResponse.status}; this is not confirmation that the destination is broken.`;
       }
 
     } catch (
@@ -4133,23 +4114,23 @@ async function runPageSpeed(url) {
       mobileAudits
     };
   } catch (error) {
-    console.error(
-      "PageSpeed error:",
-      error
-    );
+    const aborted = error?.name === "AbortError";
+    const message = aborted
+      ? "PageSpeed request timed out."
+      : `PageSpeed could not be reached: ${error?.message || "Unknown error"}`;
+
+    // PageSpeed is an optional external audit. A timeout means that
+    // metric is unavailable for this scan, not that the customer's
+    // website is broken. Keep expected aborts out of the red error log.
+    if (aborted) {
+      console.warn("PageSpeed unavailable for this scan:", message);
+    } else {
+      console.error("PageSpeed error:", message);
+    }
 
     return {
-      success:
-        false,
-
-      error:
-        error.name ===
-        "AbortError"
-          ? "PageSpeed request timed out."
-          : `PageSpeed could not be reached: ${
-              error.message ||
-              "Unknown error"
-            }`
+      success: false,
+      error: message
     };
   }
 }
@@ -4318,7 +4299,7 @@ function buildBusinessChecks(
     businessChecks.push(
       finding(
         "Contact form",
-        "No contact/enquiry form was detected on the accessible pages inspected.",
+        "No contact/enquiry form was detected in the HTML of the accessible pages inspected. Dynamically rendered or embedded forms may not be visible to this check. Form submission was not tested.",
         "warning",
         20,
         "medium"
@@ -5169,56 +5150,42 @@ function isPrivateOrReservedIp(ip) {
 }
 
 async function isPublicHostname(hostname) {
-  const host =
-    String(hostname || "")
-      .trim()
-      .toLowerCase();
+  const host = String(hostname || "").trim().toLowerCase();
 
   if (!host) {
-    return false;
+    return { ok: false, reason: "MALFORMED_HOSTNAME" };
   }
 
-  if (
-    isBlockedHostname(host)
-  ) {
-    return false;
+  if (isBlockedHostname(host)) {
+    return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }
 
-  const literalIp =
-    net.isIP(host);
-
-  if (
-    literalIp &&
-    isPrivateOrReservedIp(host)
-  ) {
-    return false;
+  const literalIp = net.isIP(host);
+  if (literalIp && isPrivateOrReservedIp(host)) {
+    return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
   try {
-    const addresses =
-      await dns.lookup(
-        host,
-        {
-          all: true,
-          verbatim: true
-        }
-      );
+    const addresses = await dns.lookup(host, { all: true, verbatim: true });
 
-    if (
-      !Array.isArray(addresses) ||
-      addresses.length === 0
-    ) {
-      return false;
+    if (!Array.isArray(addresses) || addresses.length === 0) {
+      return { ok: false, reason: "DNS_NO_ADDRESSES" };
     }
 
-    return addresses.every(
-      address =>
-        !isPrivateOrReservedIp(
-          address.address
-        )
-    );
-  } catch {
-    return false;
+    if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
+      return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
+    }
+
+    return { ok: true, reason: null };
+  } catch (error) {
+    const code = String(error?.code || "").toUpperCase();
+    return {
+      ok: false,
+      reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
+        ? "DNS_LOOKUP_FAILED"
+        : "DNS_LOOKUP_ERROR",
+      diagnosticCode: code || "UNKNOWN_DNS_ERROR"
+    };
   }
 }
 
@@ -5318,30 +5285,22 @@ module.exports =
           targetUrl.hostname
         )
       ) {
-        return res.status(
-          400
-        ).json({
-          success:
-            false,
-          error:
-            "That website address cannot be scanned."
+        return res.status(400).json({
+          success: false,
+          error: "That website address cannot be scanned.",
+          failureCode: "BLOCKED_HOSTNAME"
         });
       }
 
       const hostnameValidationStarted = Date.now();
 
-      if (
-        !(await isPublicHostname(
-          targetUrl.hostname
-        ))
-      ) {
-        return res.status(
-          400
-        ).json({
-          success:
-            false,
-          error:
-            "That website address cannot be scanned."
+      const hostnameValidation = await isPublicHostname(targetUrl.hostname);
+      if (!hostnameValidation.ok) {
+        return res.status(400).json({
+          success: false,
+          error: "That website address cannot be scanned.",
+          failureCode: hostnameValidation.reason,
+          diagnosticCode: hostnameValidation.diagnosticCode || null
         });
       }
 
@@ -5596,7 +5555,8 @@ if (
           link.status === "working" ||
           link.status === "broken" ||
           link.status === "unreachable" ||
-          link.status === "blocked"
+          link.status === "blocked" ||
+          link.status === "verification_inconclusive"
       ).length,
 
     verificationTimeout:
@@ -5856,23 +5816,24 @@ if (
             "working";
 
           if (
-            pageResponse.status === 403 ||
-            pageResponse.status === 405 ||
-            pageResponse.status === 429
+            [401, 403, 405, 407, 408, 423, 429, 451].includes(pageResponse.status)
           ) {
-            routeStatus =
-              "blocked";
+            routeStatus = "blocked";
+          } else if (
+            pageResponse.status === 404 ||
+            pageResponse.status === 410
+          ) {
+            routeStatus = "broken";
           } else if (
             pageResponse.status >= 400
           ) {
-            routeStatus =
-              "broken";
+            // 4xx/5xx responses other than a missing/gone page
+            // are not proof that a customer-facing route is broken.
+            routeStatus = "verification_inconclusive";
           } else if (
-            routeFinalUrl !==
-            normalized
+            routeFinalUrl !== normalized
           ) {
-            routeStatus =
-              "redirected";
+            routeStatus = "redirected";
           }
 
           routeHealth.push({
