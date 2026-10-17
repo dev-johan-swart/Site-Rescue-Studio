@@ -732,13 +732,11 @@ async function fetchPublicUrl(
       );
     }
 
-    if (
-      !(await isPublicHostname(
-        parsed.hostname
-      ))
-    ) {
+    const redirectedHostnameCheck = await isPublicHostname(parsed.hostname);
+    if (!redirectedHostnameCheck.ok) {
       throw new Error(
-        "The website redirected to an address that cannot be scanned."
+        "The website redirected to an address that cannot be scanned [" +
+          redirectedHostnameCheck.reason + "]."
       );
     }
 
@@ -5152,56 +5150,42 @@ function isPrivateOrReservedIp(ip) {
 }
 
 async function isPublicHostname(hostname) {
-  const host =
-    String(hostname || "")
-      .trim()
-      .toLowerCase();
+  const host = String(hostname || "").trim().toLowerCase();
 
   if (!host) {
-    return false;
+    return { ok: false, reason: "MALFORMED_HOSTNAME" };
   }
 
-  if (
-    isBlockedHostname(host)
-  ) {
-    return false;
+  if (isBlockedHostname(host)) {
+    return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }
 
-  const literalIp =
-    net.isIP(host);
-
-  if (
-    literalIp &&
-    isPrivateOrReservedIp(host)
-  ) {
-    return false;
+  const literalIp = net.isIP(host);
+  if (literalIp && isPrivateOrReservedIp(host)) {
+    return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
   try {
-    const addresses =
-      await dns.lookup(
-        host,
-        {
-          all: true,
-          verbatim: true
-        }
-      );
+    const addresses = await dns.lookup(host, { all: true, verbatim: true });
 
-    if (
-      !Array.isArray(addresses) ||
-      addresses.length === 0
-    ) {
-      return false;
+    if (!Array.isArray(addresses) || addresses.length === 0) {
+      return { ok: false, reason: "DNS_NO_ADDRESSES" };
     }
 
-    return addresses.every(
-      address =>
-        !isPrivateOrReservedIp(
-          address.address
-        )
-    );
-  } catch {
-    return false;
+    if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
+      return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
+    }
+
+    return { ok: true, reason: null };
+  } catch (error) {
+    const code = String(error?.code || "").toUpperCase();
+    return {
+      ok: false,
+      reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
+        ? "DNS_LOOKUP_FAILED"
+        : "DNS_LOOKUP_ERROR",
+      diagnosticCode: code || "UNKNOWN_DNS_ERROR"
+    };
   }
 }
 
@@ -5313,18 +5297,13 @@ module.exports =
 
       const hostnameValidationStarted = Date.now();
 
-      if (
-        !(await isPublicHostname(
-          targetUrl.hostname
-        ))
-      ) {
-        return res.status(
-          400
-        ).json({
-          success:
-            false,
-          error:
-            "That website address cannot be scanned."
+      const hostnameValidation = await isPublicHostname(targetUrl.hostname);
+      if (!hostnameValidation.ok) {
+        return res.status(400).json({
+          success: false,
+          error: "That website address cannot be scanned.",
+          failureCode: hostnameValidation.reason,
+          diagnosticCode: hostnameValidation.diagnosticCode || null
         });
       }
 
