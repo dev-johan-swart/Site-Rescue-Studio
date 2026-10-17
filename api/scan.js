@@ -2235,7 +2235,11 @@ async function testLinks(
         linkResponse.status ===
           403 ||
         linkResponse.status ===
+          404 ||
+        linkResponse.status ===
           405 ||
+        linkResponse.status ===
+          410 ||
         linkResponse.status ===
           501
       ) {
@@ -2310,44 +2314,23 @@ async function testLinks(
       }
 
       /*
-       * External services often return errors
-       * that do not necessarily mean the destination
-       * is genuinely broken.
+       * Only a repeated 404/410 after retrying with GET is
+       * strong enough to label a destination broken. Other
+       * HTTP errors can reflect authentication, bot controls,
+       * server-side rules, or transient failures, so keep them
+       * inconclusive instead of turning them into sales claims.
        */
 
       else if (
-        link.type ===
-          "external" &&
-        (
-          linkResponse.status ===
-            400 ||
-          linkResponse.status ===
-            401 ||
-          linkResponse.status ===
-            406 ||
-          linkResponse.status ===
-            408 ||
-          linkResponse.status >=
-            500
-        )
+        linkResponse.status === 404 ||
+        linkResponse.status === 410
       ) {
-        link.status =
-          "blocked";
-
-        link.note =
-          `The external service returned HTTP ${linkResponse.status} while automated verification was attempted.`;
-      }
-
-      /*
-       * Genuine HTTP failure.
-       */
-
-      else {
-        link.status =
-          "broken";
-
-        link.error =
-          `HTTP ${linkResponse.status}`;
+        link.status = "broken";
+        link.error = `HTTP ${linkResponse.status} after GET verification`;
+        link.note = "The destination returned a missing/gone status on both the initial check and GET verification. Manually verify before contacting the business.";
+      } else {
+        link.status = "verification_inconclusive";
+        link.note = `Automated verification returned HTTP ${linkResponse.status}; this is not confirmation that the destination is broken.`;
       }
 
     } catch (
@@ -4318,7 +4301,7 @@ function buildBusinessChecks(
     businessChecks.push(
       finding(
         "Contact form",
-        "No contact/enquiry form was detected on the accessible pages inspected.",
+        "No contact/enquiry form was detected in the HTML of the accessible pages inspected. Dynamically rendered or embedded forms may not be visible to this check. Form submission was not tested.",
         "warning",
         20,
         "medium"
@@ -5596,7 +5579,8 @@ if (
           link.status === "working" ||
           link.status === "broken" ||
           link.status === "unreachable" ||
-          link.status === "blocked"
+          link.status === "blocked" ||
+          link.status === "verification_inconclusive"
       ).length,
 
     verificationTimeout:
