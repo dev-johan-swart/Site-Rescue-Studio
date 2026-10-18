@@ -1,0 +1,35 @@
+name: Site Rescue Studio Automation Tests
+
+on:
+  push:
+    branches:
+      - fix/mycityinfo-gauteng-routes
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/**"
+      - "api/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/automation-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  automation-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run automation test suite
+        run: npm run test:automation
