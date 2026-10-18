@@ -5165,28 +5165,34 @@ async function isPublicHostname(hostname) {
     return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
-  try {
-    const addresses = await dns.lookup(host, { all: true, verbatim: true });
-
-    if (!Array.isArray(addresses) || addresses.length === 0) {
-      return { ok: false, reason: "DNS_NO_ADDRESSES" };
+  let lastError = null;
+  // Retry only transient EBUSY resolver contention, with a strict bound.
+  // Any successful lookup still passes through the existing address safety checks.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const addresses = await dns.lookup(host, { all: true, verbatim: true });
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        return { ok: false, reason: "DNS_NO_ADDRESSES" };
+      }
+      if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
+        return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
+      }
+      return { ok: true, reason: null };
+    } catch (error) {
+      lastError = error;
+      const code = String(error?.code || "").toUpperCase();
+      if (code !== "EBUSY" || attempt === 2) break;
+      await sleep(100 * (attempt + 1));
     }
-
-    if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
-      return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
-    }
-
-    return { ok: true, reason: null };
-  } catch (error) {
-    const code = String(error?.code || "").toUpperCase();
-    return {
-      ok: false,
-      reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
-        ? "DNS_LOOKUP_FAILED"
-        : "DNS_LOOKUP_ERROR",
-      diagnosticCode: code || "UNKNOWN_DNS_ERROR"
-    };
   }
+  const code = String(lastError?.code || "").toUpperCase();
+  return {
+    ok: false,
+    reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
+      ? "DNS_LOOKUP_FAILED"
+      : "DNS_LOOKUP_ERROR",
+    diagnosticCode: code || "UNKNOWN_DNS_ERROR"
+  };
 }
 
 /*
