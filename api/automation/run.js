@@ -289,7 +289,13 @@ module.exports = async function handler(req, res) {
           newlyQueued: promoted.length
         });
       } catch (error) {
-        attempts.push({stage: stage.id, status: "failed", message: String(error?.message || error)});
+        attempts.push({
+          stage: stage.id,
+          status: "failed",
+          message: String(error?.message || error),
+          providerAttempts: Array.isArray(error?.attempts) ? error.attempts : [],
+          providerErrors: Array.isArray(error?.providerErrors) ? error.providerErrors : []
+        });
       }
       stageId = nextEnabledDiscoveryStageId(stage.id);
       await setDiscoveryStageState(sql, stageId);
