@@ -24,6 +24,7 @@ module.exports = async function handler(req, res) {
   let setDiscoveryStageState;
   let getDiscoveryProviderPageState;
   let recordDiscoveryProviderPageResult;
+  let filterFreshDiscoveryCandidates;
   let addDiscoveryBacklogCandidates;
   let promoteFreshBacklogToQueue;
   let reserveDiscoveryProvider;
@@ -60,6 +61,7 @@ module.exports = async function handler(req, res) {
       setDiscoveryStageState,
       getDiscoveryProviderPageState,
       recordDiscoveryProviderPageResult,
+      filterFreshDiscoveryCandidates,
       addDiscoveryBacklogCandidates,
       promoteFreshBacklogToQueue,
       reserveDiscoveryProvider,
@@ -251,6 +253,7 @@ module.exports = async function handler(req, res) {
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
+          filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
           isProviderAvailable: provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
             const providerLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
