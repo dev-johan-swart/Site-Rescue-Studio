@@ -456,6 +456,7 @@ module.exports = async function handler(req, res) {
             getDiscoveryProviderPageState(sql, provider, pageCount),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
+          filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
           isProviderAvailable: provider =>
             reserveDiscoveryProvider(
               sql,
