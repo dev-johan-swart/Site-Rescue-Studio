@@ -595,7 +595,8 @@ module.exports = async function handler(req, res) {
           item.website_normalized,
           qualification.priority,
           qualification.reason,
-          qualification.evidence
+          qualification.evidence,
+          qualificationResult.historyId
         );
       }
     } catch (error) {
