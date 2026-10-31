@@ -5166,9 +5166,12 @@ async function isPublicHostname(hostname) {
   }
 
   let lastError = null;
+  let lookupAttempts = 0;
+  const lookupStartedAt = Date.now();
   // Retry only transient EBUSY resolver contention, with a strict bound.
   // Any successful lookup still passes through the existing address safety checks.
   for (let attempt = 0; attempt < 3; attempt++) {
+    lookupAttempts++;
     try {
       const addresses = await dns.lookup(host, { all: true, verbatim: true });
       if (!Array.isArray(addresses) || addresses.length === 0) {
@@ -5191,7 +5194,9 @@ async function isPublicHostname(hostname) {
     reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
       ? "DNS_LOOKUP_FAILED"
       : "DNS_LOOKUP_ERROR",
-    diagnosticCode: code || "UNKNOWN_DNS_ERROR"
+    diagnosticCode: code || "UNKNOWN_DNS_ERROR",
+    diagnosticAttempts: lookupAttempts,
+    diagnosticDurationMs: Date.now() - lookupStartedAt
   };
 }
 
@@ -5306,7 +5311,9 @@ module.exports =
           success: false,
           error: "That website address cannot be scanned.",
           failureCode: hostnameValidation.reason,
-          diagnosticCode: hostnameValidation.diagnosticCode || null
+          diagnosticCode: hostnameValidation.diagnosticCode || null,
+          diagnosticAttempts: hostnameValidation.diagnosticAttempts ?? null,
+          diagnosticDurationMs: hostnameValidation.diagnosticDurationMs ?? null
         });
       }
 
