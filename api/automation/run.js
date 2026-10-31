@@ -564,9 +564,10 @@ module.exports = async function handler(req, res) {
     attemptsThisBatch++;
     counts.candidateCount++;
 
+    let scanData = null;
     try {
       const result = await runScan(item.website);
-      const scanData = result.payload;
+      scanData = result.payload;
 
       if (result.statusCode < 200 || result.statusCode >= 300 || !scanData) {
         const failureCode = scanData?.failureCode ? `[${scanData.failureCode}] ` : "";
@@ -628,7 +629,10 @@ module.exports = async function handler(req, res) {
         failureType,
         details: {
           httpStatus: null,
-          scanner: "Site Rescue Studio Website Health Scanner/3.0"
+          scanner: "Site Rescue Studio Website Health Scanner/3.0",
+          diagnosticCode: scanData?.diagnosticCode || null,
+          diagnosticAttempts: scanData?.diagnosticAttempts ?? null,
+          diagnosticDurationMs: scanData?.diagnosticDurationMs ?? null
         }
       });
     }
