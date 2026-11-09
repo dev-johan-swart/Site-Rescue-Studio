@@ -3,6 +3,7 @@ const dns = require("dns").promises;
 const net = require("net");
 const http = require("node:http");
 const https = require("node:https");
+const zlib = require("node:zlib");
 const { Readable } = require("node:stream");
 const { AsyncLocalStorage } = require("node:async_hooks");
 const scanDeadlineContext = new AsyncLocalStorage();
@@ -757,9 +758,14 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
   const parsed = new URL(url);
   const transport = parsed.protocol === "https:" ? https : http;
   const lookup = createPinnedLookup(addresses);
-  const headers = options.headers && typeof options.headers.forEach === "function"
-    ? Object.fromEntries(options.headers.entries())
-    : (options.headers || {});
+  const headers = {
+    ...(options.headers && typeof options.headers.forEach === "function"
+      ? Object.fromEntries(options.headers.entries())
+      : (options.headers || {}))
+  };
+  if (!Object.keys(headers).some(key => key.toLowerCase() === "accept-encoding")) {
+    headers["Accept-Encoding"] = "gzip, deflate, br";
+  }
   const safeTimeout = Math.max(1, Math.min(Number(timeout) || FETCH_TIMEOUT, remainingMs));
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -767,12 +773,12 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
       method: options.method || "GET",
       headers,
       lookup,
-      ...(parsed.protocol === "https:" && net.isIP(parsed.hostname) === 0
-        ? { servername: parsed.hostname }
+      autoSelectFamily: true,
+      autoSelectFamilyAttemptTimeout: 250,
+      ...(parsed.protocol === "https:" && net.isIP(parsed.hostname.replace(/^\\[|\\]$/g, "")) === 0
+        ? { servername: parsed.hostname.replace(/^\\[|\\]$/g, "") }
         : {})
     }, response => {
-      response.once("end", () => clearTimeout(timer));
-      response.once("close", () => clearTimeout(timer));
       const responseHeaders = new Headers();
       for (const [key, value] of Object.entries(response.headers || {})) {
         if (value !== undefined) {
@@ -782,7 +788,23 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
       }
       settled = true;
       const responseStatus = response.statusCode || 502;
-      const responseBody = [204, 205, 304].includes(responseStatus) ? null : Readable.toWeb(response);
+      let responseStream = response;
+      if (![204, 205, 304].includes(responseStatus)) {
+        const encoding = String(response.headers?.["content-encoding"] || "").toLowerCase();
+        if (encoding === "gzip") responseStream = response.pipe(zlib.createGunzip());
+        else if (encoding === "deflate") responseStream = response.pipe(zlib.createInflate());
+        else if (encoding === "br") responseStream = response.pipe(zlib.createBrotliDecompress());
+        if (responseStream !== response) {
+          responseHeaders.delete("content-encoding");
+          responseHeaders.delete("content-length");
+        }
+        responseStream.once("end", () => clearTimeout(timer));
+        responseStream.once("close", () => clearTimeout(timer));
+      } else {
+        response.resume();
+        clearTimeout(timer);
+      }
+      const responseBody = [204, 205, 304].includes(responseStatus) ? null : Readable.toWeb(responseStream);
       resolve(new Response(responseBody, {
         status: responseStatus,
         statusText: response.statusMessage || "",
