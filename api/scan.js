@@ -1,6 +1,9 @@
 const { URL } = require("url");
 const dns = require("dns").promises;
 const net = require("net");
+const http = require("node:http");
+const https = require("node:https");
+const { Readable } = require("node:stream");
 const { AsyncLocalStorage } = require("node:async_hooks");
 const scanDeadlineContext = new AsyncLocalStorage();
 function getScanRemainingMs() {
@@ -719,6 +722,75 @@ async function fetchWithTimeout(
   }
 }
 
+function createPinnedLookup(addresses) {
+  const safe = (Array.isArray(addresses) ? addresses : [])
+    .filter(item => item && net.isIP(item.address) === Number(item.family))
+    .filter(item => !isPrivateOrReservedIp(item.address));
+  if (!safe.length) throw new Error("No validated public IP address is available for this connection.");
+  return (hostname, options, callback) => {
+    if (options && options.all) return callback(null, safe);
+    const selected = safe[0];
+    return callback(null, selected.address, selected.family);
+  };
+}
+
+async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT, addresses = []) {
+  const remainingMs = getScanRemainingMs();
+  if (remainingMs <= 0) {
+    const error = new Error("Scan hard deadline exceeded.");
+    error.code = "SCAN_DEADLINE_EXCEEDED";
+    throw error;
+  }
+  const parsed = new URL(url);
+  const transport = parsed.protocol === "https:" ? https : http;
+  const lookup = createPinnedLookup(addresses);
+  const headers = options.headers && typeof options.headers.forEach === "function"
+    ? Object.fromEntries(options.headers.entries())
+    : (options.headers || {});
+  const safeTimeout = Math.max(1, Math.min(Number(timeout) || FETCH_TIMEOUT, remainingMs));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const request = transport.request(parsed, {
+      method: options.method || "GET",
+      headers,
+      lookup,
+      ...(parsed.protocol === "https:" && net.isIP(parsed.hostname) === 0
+        ? { servername: parsed.hostname }
+        : {})
+    }, response => {
+      const responseHeaders = new Headers();
+      for (const [key, value] of Object.entries(response.headers || {})) {
+        if (value !== undefined) {
+          if (Array.isArray(value)) value.forEach(item => responseHeaders.append(key, String(item)));
+          else responseHeaders.set(key, String(value));
+        }
+      }
+      settled = true;
+      resolve(new Response(Readable.toWeb(response), {
+        status: response.statusCode || 502,
+        statusText: response.statusMessage || "",
+        headers: responseHeaders
+      }));
+    });
+    const timer = setTimeout(() => {
+      const error = new Error("Website connection exceeded its time budget.");
+      error.code = "SCAN_FETCH_TIMEOUT";
+      request.destroy(error);
+    }, safeTimeout);
+    request.once("error", error => {
+      clearTimeout(timer);
+      if (!settled) reject(error);
+    });
+    request.once("close", () => clearTimeout(timer));
+    if (options.signal) {
+      if (options.signal.aborted) request.destroy(new Error("Website request aborted."));
+      else options.signal.addEventListener("abort", () => request.destroy(new Error("Website request aborted.")), { once: true });
+    }
+    if (options.body !== undefined && options.body !== null) request.write(options.body);
+    request.end();
+  });
+}
+
 async function fetchPublicUrl(
   startUrl,
   options = {},
@@ -754,13 +826,11 @@ async function fetchPublicUrl(
     }
 
     const response =
-      await fetchWithTimeout(
+      await fetchPinnedWithTimeout(
         currentUrl,
-        {
-          ...options,
-          redirect: "manual"
-        },
-        timeout
+        options,
+        timeout,
+        redirectedHostnameCheck.addresses
       );
 
     if (
@@ -5239,16 +5309,17 @@ async function isPublicHostname(hostname) {
     return { ok: false, reason: "MALFORMED_HOSTNAME" };
   }
 
-  if (isBlockedHostname(host)) {
+  const normalizedHost = host.replace(/^\\[|\\]$/g, "");
+  if (isBlockedHostname(host) || isBlockedHostname(normalizedHost)) {
     return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }
 
-  const literalIp = net.isIP(host);
-  if (literalIp && isPrivateOrReservedIp(host)) {
+  const literalIp = net.isIP(normalizedHost);
+  if (literalIp && isPrivateOrReservedIp(normalizedHost)) {
     return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
-  if (literalIp) return { ok: true, reason: null };
+  if (literalIp) return { ok: true, reason: null, addresses: [{ address: normalizedHost, family: literalIp }] };
   const lookupStartedAt = Date.now();
   const resolveFamily = async method => {
     try {
@@ -5268,7 +5339,7 @@ async function isPublicHostname(hostname) {
       return { ok: false, reason: "SCAN_DEADLINE_EXCEEDED", diagnosticCode: "SCAN_DEADLINE_EXCEEDED", diagnosticAttempts: 0, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
     let dnsTimer;
-    const addresses = await Promise.race([
+    const resolvedFamilies = await Promise.race([
       Promise.all([resolveFamily("resolve4"), resolveFamily("resolve6")]),
       new Promise((_, reject) => {
         dnsTimer = setTimeout(() => {
@@ -5278,14 +5349,16 @@ async function isPublicHostname(hostname) {
         }, Math.max(1, Math.min(remainingMs, 12000)));
       })
     ]).finally(() => clearTimeout(dnsTimer));
-    const allAddresses = addresses.flat();
+    const allAddresses = resolvedFamilies.flatMap((familyAddresses, index) =>
+      familyAddresses.map(address => ({ address, family: index === 0 ? 4 : 6 }))
+    );
     if (!allAddresses.length) {
       return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
     if (allAddresses.some(address => isPrivateOrReservedIp(address))) {
       return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
-    return { ok: true, reason: null, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    return { ok: true, reason: null, addresses: allAddresses, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
   } catch (error) {
     const code = String(error?.code || "").toUpperCase();
     return {
@@ -7882,6 +7955,8 @@ const opportunity =
   };
 module.exports.isPublicHostname = isPublicHostname;
 module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
+module.exports.createPinnedLookup = createPinnedLookup;
+module.exports.fetchPinnedWithTimeout = fetchPinnedWithTimeout;
 
 module.exports.extractContactValues = extractContactValues;
 
