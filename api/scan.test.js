@@ -113,3 +113,12 @@ test("bracketed IPv6 literals are normalized before public-address validation", 
   assert.equal(publicIpv6.ok, true);
   assert.equal(publicIpv6.addresses[0].family, 6);
 });
+
+
+test("scan deadlines are capped and expired worker deadlines stay expired", () => {
+  assert.equal(scanner.resolveScanDeadline(undefined, 1000), 181000);
+  assert.equal(scanner.resolveScanDeadline(999999, 1000), 181000);
+  assert.equal(scanner.resolveScanDeadline(51000, 1000), 51000);
+  assert.equal(scanner.resolveScanDeadline(500, 1000), 500);
+  assert.equal(scanner.resolveScanDeadline("invalid", 1000), 1000);
+});
