@@ -12,6 +12,9 @@ test("SSRF guard blocks reserved IPv6 ranges and allows a public IPv6 address", 
   assert.equal(scanner.isPrivateOrReservedIp("fc00::1"), true);
   assert.equal(scanner.isPrivateOrReservedIp("fe80::1"), true);
   assert.equal(scanner.isPrivateOrReservedIp("2001:db8::1"), true);
+  assert.equal(scanner.isPrivateOrReservedIp("2001:200::1"), true);
+  assert.equal(scanner.isPrivateOrReservedIp("2002::1"), true);
+  assert.equal(scanner.isPrivateOrReservedIp("3fff::1"), true);
   assert.equal(scanner.isPrivateOrReservedIp("2606:4700:4700::1111"), false);
 });
 
