@@ -101,3 +101,12 @@ test("contact names are extracted only from explicit ContactPoint or nested Pers
   assert.equal(result.companyName, "Example Services");
   assert.equal(result.contactName, "Customer Support");
 });
+
+
+test("bracketed IPv6 literals are normalized before public-address validation", async () => {
+  assert.equal(scanner.stripIpBrackets("[::1]"), "::1");
+  assert.equal((await scanner.isPublicHostname("[::1]")).ok, false);
+  const publicIpv6 = await scanner.isPublicHostname("[2606:4700:4700::1111]");
+  assert.equal(publicIpv6.ok, true);
+  assert.equal(publicIpv6.addresses[0].family, 6);
+});
