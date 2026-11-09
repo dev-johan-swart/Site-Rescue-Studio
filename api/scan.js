@@ -5340,7 +5340,7 @@ function isPrivateOrReservedIp(ip) {
     // Permit only global-unicast 2000::/3. This also blocks IPv4-mapped,
     // ULA, link-local, multicast, unspecified, loopback and other special ranges.
     if (!Number.isFinite(firstHextet) || firstHextet < 0x2000 || firstHextet > 0x3fff) return true;
-    if (firstHextet === 0x2001 && (secondHextet <= 0x01ff || secondHextet === 0x0db8)) return true;
+    if (firstHextet === 0x2001 && (secondHextet <= 0x03ff || secondHextet === 0x0db8)) return true;
     if (firstHextet === 0x2002 || normalized.startsWith("3fff:")) return true;
     return false;
   }
