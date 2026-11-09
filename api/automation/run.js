@@ -556,9 +556,13 @@ module.exports = async function handler(req, res) {
   await addDueFollowUps(run.id);
 
   let attemptsThisBatch = 0;
+  let stoppedForTimeBudget = false;
   const maxCandidateAttempts = Math.max(effectiveBatchSize + 3, effectiveBatchSize);
   while (counts.scannedCount < effectiveBatchSize && attemptsThisBatch < maxCandidateAttempts) {
-    if (Date.now() - startedAt >= maxRunMs) break;
+    if (Date.now() - startedAt >= maxRunMs - 15000) {
+      stoppedForTimeBudget = true;
+      break;
+    }
     const item = await claimNextQueueItem(run.id);
     if (!item) break;
     attemptsThisBatch++;
@@ -639,7 +643,7 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const timeBudgetReached = Date.now() - startedAt >= maxRunMs;
+  const timeBudgetReached = stoppedForTimeBudget;
   if (timeBudgetReached && counts.scannedCount < effectiveBatchSize) errors.push("Run stopped at the safety time budget before the target batch was completed; remaining queued sites stay queued.");
 
   // Refill after the scan batch as well. This keeps the active queue near the
