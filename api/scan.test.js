@@ -87,3 +87,17 @@ test("pinned socket lookup refuses private and reserved addresses", () => {
     { address: "127.0.0.1", family: 4 }
   ]), /No validated public IP address/);
 });
+
+
+test("contact names are extracted only from explicit ContactPoint or nested Person evidence", () => {
+  const html = '<script type="application/ld+json">' + JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Example Services",
+    "author": { "@type": "Person", "name": "Article Author" },
+    "contactPoint": { "@type": "ContactPoint", "name": "Customer Support" }
+  }) + "</script>";
+  const result = scanner.extractContactValues(html, "https://example.co.za/");
+  assert.equal(result.companyName, "Example Services");
+  assert.equal(result.contactName, "Customer Support");
+});
