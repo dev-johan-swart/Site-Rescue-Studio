@@ -5263,10 +5263,21 @@ async function isPublicHostname(hostname) {
     // resolve4/resolve6 use the asynchronous DNS resolver rather than
     // getaddrinfo's libuv thread-pool path. Query both families and fail
     // closed if either family has a transient resolver error.
-    const addresses = await Promise.all([
-      resolveFamily("resolve4"),
-      resolveFamily("resolve6")
-    ]);
+    const remainingMs = getScanRemainingMs();
+    if (remainingMs <= 0) {
+      return { ok: false, reason: "SCAN_DEADLINE_EXCEEDED", diagnosticCode: "SCAN_DEADLINE_EXCEEDED", diagnosticAttempts: 0, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    let dnsTimer;
+    const addresses = await Promise.race([
+      Promise.all([resolveFamily("resolve4"), resolveFamily("resolve6")]),
+      new Promise((_, reject) => {
+        dnsTimer = setTimeout(() => {
+          const error = new Error("DNS resolution exceeded the scan deadline.");
+          error.code = "SCAN_DEADLINE_EXCEEDED";
+          reject(error);
+        }, Math.max(1, Math.min(remainingMs, 12000)));
+      })
+    ]).finally(() => clearTimeout(dnsTimer));
     const allAddresses = addresses.flat();
     if (!allAddresses.length) {
       return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
