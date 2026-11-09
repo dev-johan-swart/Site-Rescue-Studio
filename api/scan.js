@@ -1914,10 +1914,67 @@ function classifyFormEvidence(
   };
 }
 
+
+function extractContactValues(html, pageUrl) {
+  const result = { companyName: null, contactName: null, emails: [], phones: [] };
+  const add = (kind, raw, source, confidence = "high") => {
+    const value = String(raw || "").trim();
+    if (!value) return;
+    if (kind === "email") {
+      const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (!match) return;
+      const normalized = match[0].toLowerCase();
+      if (!result.emails.some(item => item.normalized === normalized)) result.emails.push({ value: match[0], normalized, url: pageUrl, source, confidence });
+      return;
+    }
+    const match = value.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/);
+    if (!match) return;
+    const normalized = match[0].replace(/[^\d+]/g, "");
+    if (!result.phones.some(item => item.normalized === normalized)) result.phones.push({ value: match[0].trim(), normalized, url: pageUrl, source, confidence });
+  };
+  for (const link of extractElements(String(html || ""), "a")) {
+    const href = getAttribute(link, "href").replace(/&amp;/gi, "&");
+    const email = href.match(/^mailto:([^?]+)/i);
+    const phone = href.match(/^tel:([^?]+)/i);
+    if (email) { try { add("email", decodeURIComponent(email[1]), "mailto"); } catch { add("email", email[1], "mailto"); } }
+    if (phone) { try { add("phone", decodeURIComponent(phone[1]), "tel"); } catch { add("phone", phone[1], "tel"); } }
+    add("email", getAttribute(link, "data-email"), "data-email");
+    add("phone", getAttribute(link, "data-phone"), "data-phone");
+  }
+  const visibleText = String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&");
+  (visibleText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).forEach(value => add("email", value, "visible-text", "medium"));
+  (visibleText.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/g) || []).forEach(value => add("phone", value, "visible-text", "medium"));
+  const visited = new Set();
+  const walk = value => {
+    if (!value || typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    const rawType = value["@type"];
+    const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
+    const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
+    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = value.name.trim().slice(0, 200) || null;
+    if (types.includes("person") && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
+    (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
+    (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
+    Object.keys(value).forEach(key => { if (key !== "@type" && value[key] && typeof value[key] === "object") walk(value[key]); });
+  };
+  for (const script of extractTextBetween(String(html || ""), "script")) {
+    if (!/"@type"\s*:/.test(script)) continue;
+    try { walk(JSON.parse(script)); } catch {}
+  }
+  return result;
+}
+
 function analyzeBusinessSignals(
   html,
   pageUrl
  ) {
+  const contactValues = extractContactValues(html, pageUrl);
   const pageText =
     cleanText(
       html
@@ -2130,6 +2187,7 @@ function analyzeBusinessSignals(
 
   return {
     url: pageUrl,
+    contacts: contactValues,
 
     phone: {
       found: hasPhone,
