@@ -366,7 +366,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const scanHandler = require("../scan");
-    const runScan = (url) => new Promise((resolve, reject) => {
+    const runScan = (url, deadlineAt) => new Promise((resolve, reject) => {
       let statusCode = 200;
       let payload = null;
       const response = {
@@ -374,7 +374,7 @@ module.exports = async function handler(req, res) {
         json(value) { payload = value; resolve({ statusCode, payload }); return this; },
         end() { resolve({ statusCode, payload }); return this; }
       };
-      scanHandler({ method: "POST", body: { url } }, response).catch(reject);
+      scanHandler({ method: "POST", body: { url, deadlineAt } }, response).catch(reject);
     });
     await recoverStaleQueueItems();
     await markExhaustedFailures();
@@ -566,7 +566,8 @@ module.exports = async function handler(req, res) {
 
     let scanData = null;
     try {
-      const result = await runScan(item.website);
+      const scanDeadlineAt = startedAt + maxRunMs - 10000;
+      const result = await runScan(item.website, scanDeadlineAt);
       scanData = result.payload;
 
       if (result.statusCode < 200 || result.statusCode >= 300 || !scanData) {
