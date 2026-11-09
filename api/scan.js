@@ -543,6 +543,10 @@ function calculateRouteReliabilityScore(routeHealthSummary) {
   );
 }
 
+function stripIpBrackets(hostname) {
+  return String(hostname || "").replace(/^\[|\]$/g, "");
+}
+
 function isBlockedHostname(hostname) {
   const host =
     String(hostname || "").toLowerCase();
@@ -775,8 +779,8 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
       lookup,
       autoSelectFamily: true,
       autoSelectFamilyAttemptTimeout: 250,
-      ...(parsed.protocol === "https:" && net.isIP(parsed.hostname.replace(/^\\[|\\]$/g, "")) === 0
-        ? { servername: parsed.hostname.replace(/^\\[|\\]$/g, "") }
+      ...(parsed.protocol === "https:" && net.isIP(stripIpBrackets(parsed.hostname)) === 0
+        ? { servername: stripIpBrackets(parsed.hostname) }
         : {})
     }, response => {
       const responseHeaders = new Headers();
@@ -5360,7 +5364,7 @@ async function isPublicHostname(hostname) {
     return { ok: false, reason: "MALFORMED_HOSTNAME" };
   }
 
-  const normalizedHost = host.replace(/^\\[|\\]$/g, "");
+  const normalizedHost = stripIpBrackets(host);
   if (isBlockedHostname(host) || isBlockedHostname(normalizedHost)) {
     return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }
@@ -8022,6 +8026,7 @@ module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
 module.exports.createPinnedLookup = createPinnedLookup;
 module.exports.fetchPinnedWithTimeout = fetchPinnedWithTimeout;
 module.exports.areResolvedAddressesPublic = areResolvedAddressesPublic;
+module.exports.stripIpBrackets = stripIpBrackets;
 
 module.exports.extractContactValues = extractContactValues;
 
