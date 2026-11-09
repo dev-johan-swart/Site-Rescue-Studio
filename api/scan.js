@@ -12,6 +12,13 @@ function getScanRemainingMs() {
   return Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : Infinity;
 }
 
+function resolveScanDeadline(requestedDeadlineAt, now = Date.now(), maxDurationMs = 180000) {
+  const defaultDeadlineAt = now + maxDurationMs;
+  if (requestedDeadlineAt === undefined || requestedDeadlineAt === null) return defaultDeadlineAt;
+  const requested = Number(requestedDeadlineAt);
+  return Number.isFinite(requested) ? Math.min(requested, defaultDeadlineAt) : now;
+}
+
 const { saveProspect } =
   require("../lib/prospectStore");
 const { runBrowserInspection } = require("../lib/browserInspection");
@@ -5452,11 +5459,7 @@ module.exports =
     }
 
     const scanStartedAt = Date.now();
-    const requestedDeadlineAt = Number(req.body?.deadlineAt);
-    const defaultDeadlineAt = scanStartedAt + 180000;
-    const deadlineAt = Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > scanStartedAt
-      ? Math.min(requestedDeadlineAt, defaultDeadlineAt)
-      : defaultDeadlineAt;
+    const deadlineAt = resolveScanDeadline(req.body?.deadlineAt, scanStartedAt);
     return scanDeadlineContext.run(deadlineAt, async () => {
     let scanStage = "request validation";
 
@@ -8031,3 +8034,4 @@ module.exports.stripIpBrackets = stripIpBrackets;
 module.exports.extractContactValues = extractContactValues;
 
 module.exports.getScanRemainingMs = getScanRemainingMs;
+module.exports.resolveScanDeadline = resolveScanDeadline;
