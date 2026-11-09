@@ -5322,6 +5322,15 @@ function isPrivateOrReservedIp(ip) {
   return true;
 }
 
+function areResolvedAddressesPublic(addresses) {
+  if (!Array.isArray(addresses) || addresses.length === 0) return false;
+  return addresses.every(item =>
+    item &&
+    net.isIP(item.address) === Number(item.family) &&
+    !isPrivateOrReservedIp(item.address)
+  );
+}
+
 async function isPublicHostname(hostname) {
   const host = String(hostname || "").trim().toLowerCase();
 
@@ -5375,7 +5384,7 @@ async function isPublicHostname(hostname) {
     if (!allAddresses.length) {
       return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
-    if (allAddresses.some(item => isPrivateOrReservedIp(item.address))) {
+    if (!areResolvedAddressesPublic(allAddresses)) {
       return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
     return { ok: true, reason: null, addresses: allAddresses, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
@@ -7990,6 +7999,7 @@ module.exports.isPublicHostname = isPublicHostname;
 module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
 module.exports.createPinnedLookup = createPinnedLookup;
 module.exports.fetchPinnedWithTimeout = fetchPinnedWithTimeout;
+module.exports.areResolvedAddressesPublic = areResolvedAddressesPublic;
 
 module.exports.extractContactValues = extractContactValues;
 
