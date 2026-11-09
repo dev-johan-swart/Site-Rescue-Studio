@@ -771,6 +771,8 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
         ? { servername: parsed.hostname }
         : {})
     }, response => {
+      response.once("end", () => clearTimeout(timer));
+      response.once("close", () => clearTimeout(timer));
       const responseHeaders = new Headers();
       for (const [key, value] of Object.entries(response.headers || {})) {
         if (value !== undefined) {
@@ -796,7 +798,9 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
       clearTimeout(timer);
       if (!settled) reject(error);
     });
-    request.once("close", () => clearTimeout(timer));
+    request.once("close", () => {
+      if (!request.res) clearTimeout(timer);
+    });
     if (options.signal) {
       if (options.signal.aborted) request.destroy(new Error("Website request aborted."));
       else options.signal.addEventListener("abort", () => request.destroy(new Error("Website request aborted.")), { once: true });
@@ -5412,10 +5416,12 @@ module.exports =
       });
     }
 
+    const scanStartedAt = Date.now();
     const requestedDeadlineAt = Number(req.body?.deadlineAt);
-    const deadlineAt = Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > Date.now()
-      ? requestedDeadlineAt
-      : Date.now() + 180000;
+    const defaultDeadlineAt = scanStartedAt + 180000;
+    const deadlineAt = Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > scanStartedAt
+      ? Math.min(requestedDeadlineAt, defaultDeadlineAt)
+      : defaultDeadlineAt;
     return scanDeadlineContext.run(deadlineAt, async () => {
     let scanStage = "request validation";
 
