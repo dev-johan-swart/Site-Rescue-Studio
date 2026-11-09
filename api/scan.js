@@ -728,8 +728,21 @@ function createPinnedLookup(addresses) {
     .filter(item => !isPrivateOrReservedIp(item.address));
   if (!safe.length) throw new Error("No validated public IP address is available for this connection.");
   return (hostname, options, callback) => {
-    if (options && options.all) return callback(null, safe);
-    const selected = safe[0];
+    const requestedFamily = typeof options === "number"
+      ? options
+      : Number(options?.family || 0);
+    const compatible = requestedFamily
+      ? safe.filter(item => item.family === requestedFamily)
+      : safe;
+    if (!compatible.length) {
+      const error = new Error("No validated address exists for the requested IP family.");
+      error.code = "ENOTFOUND";
+      return callback(error);
+    }
+    if (options && typeof options === "object" && options.all) {
+      return callback(null, compatible);
+    }
+    const selected = compatible[0];
     return callback(null, selected.address, selected.family);
   };
 }
@@ -839,6 +852,7 @@ async function fetchPublicUrl(
       response.status < 300 ||
       response.status >= 400
     ) {
+      try { Object.defineProperty(response, "url", { value: currentUrl, configurable: true }); } catch {}
       return response;
     }
 
@@ -848,8 +862,10 @@ async function fetchPublicUrl(
       );
 
     if (!location) {
+      try { Object.defineProperty(response, "url", { value: currentUrl, configurable: true }); } catch {}
       return response;
     }
+    try { await response.body?.cancel(); } catch {}
 
     let nextUrl;
 
@@ -5294,7 +5310,7 @@ function isPrivateOrReservedIp(ip) {
     // Permit only global-unicast 2000::/3. This also blocks IPv4-mapped,
     // ULA, link-local, multicast, unspecified, loopback and other special ranges.
     if (!Number.isFinite(firstHextet) || firstHextet < 0x2000 || firstHextet > 0x3fff) return true;
-    if (firstHextet === 0x2001 && secondHextet <= 0x01ff) return true;
+    if (firstHextet === 0x2001 && (secondHextet <= 0x01ff || secondHextet === 0x0db8)) return true;
     if (firstHextet === 0x2002 || normalized.startsWith("3fff:")) return true;
     return false;
   }
@@ -5355,7 +5371,7 @@ async function isPublicHostname(hostname) {
     if (!allAddresses.length) {
       return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
-    if (allAddresses.some(address => isPrivateOrReservedIp(address))) {
+    if (allAddresses.some(item => isPrivateOrReservedIp(item.address))) {
       return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
     }
     return { ok: true, reason: null, addresses: allAddresses, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
