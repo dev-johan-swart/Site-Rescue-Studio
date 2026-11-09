@@ -39,3 +39,12 @@ test("contact extraction reads public visible contact values and Organization JS
   assert.ok(result.phones.some(item => item.value === "012 345 6789"));
   assert.ok(result.phones.some(item => item.value === "+27111222333" && item.source === "json-ld"));
 });
+
+
+test("candidate geographic region is derived from the candidate city, not the discovery stage", () => {
+  const { getCandidateRegion } = require("../lib/discoveryProviders");
+  assert.equal(getCandidateRegion({ city: "Cape Town" }), "western_cape");
+  assert.equal(getCandidateRegion({ city: "Pretoria" }), "gauteng");
+  assert.equal(getCandidateRegion({ city: "South Africa" }), "south_africa");
+  assert.equal(getCandidateRegion({ city: null }), null);
+});
