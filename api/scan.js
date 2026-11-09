@@ -2035,7 +2035,7 @@ function extractContactValues(html, pageUrl) {
   (visibleText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).forEach(value => add("email", value, "visible-text", "medium"));
   (visibleText.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/g) || []).forEach(value => add("phone", value, "visible-text", "medium"));
   const visited = new Set();
-  const walk = value => {
+  const walk = (value, contactContext = false) => {
     if (!value || typeof value !== "object" || visited.has(value)) return;
     visited.add(value);
     if (Array.isArray(value)) { value.forEach(walk); return; }
@@ -2043,10 +2043,14 @@ function extractContactValues(html, pageUrl) {
     const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
     const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
     if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = value.name.trim().slice(0, 200) || null;
-    if (types.includes("person") && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
+    if ((contactContext || types.includes("contactpoint")) && types.includes("person") && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
     (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
     (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
-    Object.keys(value).forEach(key => { if (key !== "@type" && value[key] && typeof value[key] === "object") walk(value[key]); });
+    Object.keys(value).forEach(key => {
+      if (key !== "@type" && value[key] && typeof value[key] === "object") {
+        walk(value[key], contactContext || key.toLowerCase() === "contactpoint");
+      }
+    });
   };
   for (const script of extractTextBetween(String(html || ""), "script")) {
     if (!/"@type"\s*:/.test(script)) continue;
@@ -6881,7 +6885,6 @@ function drawEvidenceMessage(
               error: pageSpeedResult.reason?.message || "PageSpeed could not be reached."
             };
 
-      businessEvidence.diagnostics.pageSpeed.durationMs = Date.now() - pageSpeedStarted;
       debugTiming(
         "Crawlability analysis complete",
         crawlabilityStarted
@@ -6912,8 +6915,8 @@ function drawEvidenceMessage(
       businessEvidence.diagnostics = {
         pageSpeed: {
           success: pageSpeed.success === true,
-          durationMs: 0,
-          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300) : null
+          durationMs: Date.now() - pageSpeedStarted,
+          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300)
         },
         browserInspection: {
           attempted: false,
@@ -6950,9 +6953,21 @@ function drawEvidenceMessage(
       try {
         if (needsRenderedBusinessInspection) {
           businessEvidence.diagnostics.browserInspection.attempted = true;
-          browserInspection = await runBrowserInspection(finalUrl, {
-            timeoutMs: Math.min(45000, getScanRemainingMs())
-          });
+          const browserHostname = new URL(finalUrl).hostname.toLowerCase();
+          const browserHostCheck = await isPublicHostname(browserHostname);
+          if (browserHostCheck.ok) {
+            browserInspection = await runBrowserInspection(finalUrl, {
+              timeoutMs: Math.min(45000, getScanRemainingMs()),
+              hostname: browserHostname,
+              addresses: browserHostCheck.addresses
+            });
+          } else {
+            browserInspection = {
+              available: false,
+              durationMs: 0,
+              unavailableReason: "Browser inspection blocked by public-host validation: " + browserHostCheck.reason
+            };
+          }
           businessEvidence.diagnostics.browserInspection = {
             attempted: true,
             available: browserInspection?.available === true,
