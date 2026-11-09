@@ -37,6 +37,7 @@ module.exports = async function handler(req, res) {
   let finishRun;
   let recoverStaleQueueItems;
   let markExhaustedFailures;
+  let saveDiscoveryMetadataToProspect;
 
   try {
     ({ qualifyProspect } = require("../../lib/prospectQualification"));
@@ -73,7 +74,8 @@ module.exports = async function handler(req, res) {
       addDueFollowUps,
       finishRun,
       recoverStaleQueueItems,
-      markExhaustedFailures
+      markExhaustedFailures,
+      saveDiscoveryMetadataToProspect
     } = require("../../lib/automationStore"));
   } catch (error) {
     const message = String(error?.message || error);
@@ -559,7 +561,7 @@ module.exports = async function handler(req, res) {
   let stoppedForTimeBudget = false;
   const maxCandidateAttempts = Math.max(effectiveBatchSize + 3, effectiveBatchSize);
   while (counts.scannedCount < effectiveBatchSize && attemptsThisBatch < maxCandidateAttempts) {
-    if (Date.now() - startedAt >= maxRunMs - 15000) {
+    if (Date.now() - startedAt >= maxRunMs - 60000) {
       stoppedForTimeBudget = true;
       break;
     }
@@ -573,6 +575,14 @@ module.exports = async function handler(req, res) {
       const scanDeadlineAt = startedAt + maxRunMs - 10000;
       const result = await runScan(item.website, scanDeadlineAt);
       scanData = result.payload;
+      try {
+        await saveDiscoveryMetadataToProspect(sql, item.website);
+      } catch (metadataError) {
+        console.warn("Discovery metadata enrichment skipped:", {
+          website: item.website,
+          message: metadataError?.message || "Metadata enrichment failed."
+        });
+      }
 
       if (result.statusCode < 200 || result.statusCode >= 300 || !scanData) {
         const failureCode = scanData?.failureCode ? `[${scanData.failureCode}] ` : "";
