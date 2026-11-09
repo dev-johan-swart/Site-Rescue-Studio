@@ -6947,7 +6947,7 @@ function drawEvidenceMessage(
         pageSpeed: {
           success: pageSpeed.success === true,
           durationMs: Date.now() - pageSpeedStarted,
-          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300)
+          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300) : null
         },
         browserInspection: {
           attempted: false,
