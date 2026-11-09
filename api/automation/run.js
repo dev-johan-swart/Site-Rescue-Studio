@@ -37,6 +37,7 @@ module.exports = async function handler(req, res) {
   let finishRun;
   let recoverStaleQueueItems;
   let markExhaustedFailures;
+  let saveDiscoveryMetadataToProspect;
 
   try {
     ({ qualifyProspect } = require("../../lib/prospectQualification"));
@@ -73,7 +74,8 @@ module.exports = async function handler(req, res) {
       addDueFollowUps,
       finishRun,
       recoverStaleQueueItems,
-      markExhaustedFailures
+      markExhaustedFailures,
+      saveDiscoveryMetadataToProspect
     } = require("../../lib/automationStore"));
   } catch (error) {
     const message = String(error?.message || error);
@@ -366,7 +368,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const scanHandler = require("../scan");
-    const runScan = (url) => new Promise((resolve, reject) => {
+    const runScan = (url, deadlineAt) => new Promise((resolve, reject) => {
       let statusCode = 200;
       let payload = null;
       const response = {
@@ -374,7 +376,7 @@ module.exports = async function handler(req, res) {
         json(value) { payload = value; resolve({ statusCode, payload }); return this; },
         end() { resolve({ statusCode, payload }); return this; }
       };
-      scanHandler({ method: "POST", body: { url } }, response).catch(reject);
+      scanHandler({ method: "POST", body: { url, deadlineAt } }, response).catch(reject);
     });
     await recoverStaleQueueItems();
     await markExhaustedFailures();
@@ -556,9 +558,13 @@ module.exports = async function handler(req, res) {
   await addDueFollowUps(run.id);
 
   let attemptsThisBatch = 0;
+  let stoppedForTimeBudget = false;
   const maxCandidateAttempts = Math.max(effectiveBatchSize + 3, effectiveBatchSize);
   while (counts.scannedCount < effectiveBatchSize && attemptsThisBatch < maxCandidateAttempts) {
-    if (Date.now() - startedAt >= maxRunMs) break;
+    if (Date.now() - startedAt >= maxRunMs - 60000) {
+      stoppedForTimeBudget = true;
+      break;
+    }
     const item = await claimNextQueueItem(run.id);
     if (!item) break;
     attemptsThisBatch++;
@@ -566,8 +572,17 @@ module.exports = async function handler(req, res) {
 
     let scanData = null;
     try {
-      const result = await runScan(item.website);
+      const scanDeadlineAt = startedAt + maxRunMs - 10000;
+      const result = await runScan(item.website, scanDeadlineAt);
       scanData = result.payload;
+      try {
+        await saveDiscoveryMetadataToProspect(sql, item.website);
+      } catch (metadataError) {
+        console.warn("Discovery metadata enrichment skipped:", {
+          website: item.website,
+          message: metadataError?.message || "Metadata enrichment failed."
+        });
+      }
 
       if (result.statusCode < 200 || result.statusCode >= 300 || !scanData) {
         const failureCode = scanData?.failureCode ? `[${scanData.failureCode}] ` : "";
@@ -638,8 +653,8 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const timeBudgetReached = Date.now() - startedAt >= maxRunMs;
-  if (timeBudgetReached) errors.push("Run stopped at the safety time budget; remaining queued sites stay queued.");
+  const timeBudgetReached = stoppedForTimeBudget;
+  if (timeBudgetReached && counts.scannedCount < effectiveBatchSize) errors.push("Run stopped at the safety time budget before the target batch was completed; remaining queued sites stay queued.");
 
   // Refill after the scan batch as well. This keeps the active queue near the
   // 110-site reserve instead of waiting for the next scheduled worker.

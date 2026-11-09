@@ -1,6 +1,23 @@
 const { URL } = require("url");
 const dns = require("dns").promises;
 const net = require("net");
+const http = require("node:http");
+const https = require("node:https");
+const zlib = require("node:zlib");
+const { Readable } = require("node:stream");
+const { AsyncLocalStorage } = require("node:async_hooks");
+const scanDeadlineContext = new AsyncLocalStorage();
+function getScanRemainingMs() {
+  const deadlineAt = scanDeadlineContext.getStore();
+  return Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : Infinity;
+}
+
+function resolveScanDeadline(requestedDeadlineAt, now = Date.now(), maxDurationMs = 180000) {
+  const defaultDeadlineAt = now + maxDurationMs;
+  if (requestedDeadlineAt === undefined || requestedDeadlineAt === null) return defaultDeadlineAt;
+  const requested = Number(requestedDeadlineAt);
+  return Number.isFinite(requested) ? Math.min(requested, defaultDeadlineAt) : now;
+}
 
 const { saveProspect } =
   require("../lib/prospectStore");
@@ -533,6 +550,10 @@ function calculateRouteReliabilityScore(routeHealthSummary) {
   );
 }
 
+function stripIpBrackets(hostname) {
+  return String(hostname || "").replace(/^\[|\]$/g, "");
+}
+
 function isBlockedHostname(hostname) {
   const host =
     String(hostname || "").toLowerCase();
@@ -688,6 +709,13 @@ async function fetchWithTimeout(
   options = {},
   timeout = FETCH_TIMEOUT
 ) {
+  const remainingMs = getScanRemainingMs();
+  if (remainingMs <= 0) {
+    const error = new Error("Scan hard deadline exceeded.");
+    error.code = "SCAN_DEADLINE_EXCEEDED";
+    throw error;
+  }
+  timeout = Math.max(1, Math.min(timeout, remainingMs));
   const controller =
     new AbortController();
 
@@ -704,6 +732,115 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+function createPinnedLookup(addresses) {
+  const safe = (Array.isArray(addresses) ? addresses : [])
+    .filter(item => item && net.isIP(item.address) === Number(item.family))
+    .filter(item => !isPrivateOrReservedIp(item.address));
+  if (!safe.length) throw new Error("No validated public IP address is available for this connection.");
+  return (hostname, options, callback) => {
+    const requestedFamily = typeof options === "number"
+      ? options
+      : Number(options?.family || 0);
+    const compatible = requestedFamily
+      ? safe.filter(item => item.family === requestedFamily)
+      : safe;
+    if (!compatible.length) {
+      const error = new Error("No validated address exists for the requested IP family.");
+      error.code = "ENOTFOUND";
+      return callback(error);
+    }
+    if (options && typeof options === "object" && options.all) {
+      return callback(null, compatible);
+    }
+    const selected = compatible[0];
+    return callback(null, selected.address, selected.family);
+  };
+}
+
+async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT, addresses = []) {
+  const remainingMs = getScanRemainingMs();
+  if (remainingMs <= 0) {
+    const error = new Error("Scan hard deadline exceeded.");
+    error.code = "SCAN_DEADLINE_EXCEEDED";
+    throw error;
+  }
+  const parsed = new URL(url);
+  const transport = parsed.protocol === "https:" ? https : http;
+  const lookup = createPinnedLookup(addresses);
+  const headers = {
+    ...(options.headers && typeof options.headers.forEach === "function"
+      ? Object.fromEntries(options.headers.entries())
+      : (options.headers || {}))
+  };
+  if (!Object.keys(headers).some(key => key.toLowerCase() === "accept-encoding")) {
+    headers["Accept-Encoding"] = "gzip, deflate, br";
+  }
+  const safeTimeout = Math.max(1, Math.min(Number(timeout) || FETCH_TIMEOUT, remainingMs));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const request = transport.request(parsed, {
+      method: options.method || "GET",
+      headers,
+      lookup,
+      autoSelectFamily: true,
+      autoSelectFamilyAttemptTimeout: 250,
+      ...(parsed.protocol === "https:" && net.isIP(stripIpBrackets(parsed.hostname)) === 0
+        ? { servername: stripIpBrackets(parsed.hostname) }
+        : {})
+    }, response => {
+      const responseHeaders = new Headers();
+      for (const [key, value] of Object.entries(response.headers || {})) {
+        if (value !== undefined) {
+          if (Array.isArray(value)) value.forEach(item => responseHeaders.append(key, String(item)));
+          else responseHeaders.set(key, String(value));
+        }
+      }
+      settled = true;
+      const responseStatus = response.statusCode || 502;
+      let responseStream = response;
+      if (![204, 205, 304].includes(responseStatus)) {
+        const encoding = String(response.headers?.["content-encoding"] || "").toLowerCase();
+        if (encoding === "gzip") responseStream = response.pipe(zlib.createGunzip());
+        else if (encoding === "deflate") responseStream = response.pipe(zlib.createInflate());
+        else if (encoding === "br") responseStream = response.pipe(zlib.createBrotliDecompress());
+        if (responseStream !== response) {
+          responseHeaders.delete("content-encoding");
+          responseHeaders.delete("content-length");
+        }
+        responseStream.once("end", () => clearTimeout(timer));
+        responseStream.once("close", () => clearTimeout(timer));
+      } else {
+        response.resume();
+        clearTimeout(timer);
+      }
+      const responseBody = [204, 205, 304].includes(responseStatus) ? null : Readable.toWeb(responseStream);
+      resolve(new Response(responseBody, {
+        status: responseStatus,
+        statusText: response.statusMessage || "",
+        headers: responseHeaders
+      }));
+    });
+    const timer = setTimeout(() => {
+      const error = new Error("Website connection exceeded its time budget.");
+      error.code = "SCAN_FETCH_TIMEOUT";
+      request.destroy(error);
+    }, safeTimeout);
+    request.once("error", error => {
+      clearTimeout(timer);
+      if (!settled) reject(error);
+    });
+    request.once("close", () => {
+      if (!request.res) clearTimeout(timer);
+    });
+    if (options.signal) {
+      if (options.signal.aborted) request.destroy(new Error("Website request aborted."));
+      else options.signal.addEventListener("abort", () => request.destroy(new Error("Website request aborted.")), { once: true });
+    }
+    if (options.body !== undefined && options.body !== null) request.write(options.body);
+    request.end();
+  });
 }
 
 async function fetchPublicUrl(
@@ -741,19 +878,18 @@ async function fetchPublicUrl(
     }
 
     const response =
-      await fetchWithTimeout(
+      await fetchPinnedWithTimeout(
         currentUrl,
-        {
-          ...options,
-          redirect: "manual"
-        },
-        timeout
+        options,
+        timeout,
+        redirectedHostnameCheck.addresses
       );
 
     if (
       response.status < 300 ||
       response.status >= 400
     ) {
+      try { Object.defineProperty(response, "url", { value: currentUrl, configurable: true }); } catch {}
       return response;
     }
 
@@ -763,8 +899,10 @@ async function fetchPublicUrl(
       );
 
     if (!location) {
+      try { Object.defineProperty(response, "url", { value: currentUrl, configurable: true }); } catch {}
       return response;
     }
+    try { await response.body?.cancel(); } catch {}
 
     let nextUrl;
 
@@ -1914,10 +2052,71 @@ function classifyFormEvidence(
   };
 }
 
+
+function extractContactValues(html, pageUrl) {
+  const result = { companyName: null, contactName: null, emails: [], phones: [] };
+  const add = (kind, raw, source, confidence = "high") => {
+    const value = String(raw || "").trim();
+    if (!value) return;
+    if (kind === "email") {
+      const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (!match) return;
+      const normalized = match[0].toLowerCase();
+      if (!result.emails.some(item => item.normalized === normalized)) result.emails.push({ value: match[0], normalized, url: pageUrl, source, confidence });
+      return;
+    }
+    const match = value.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/);
+    if (!match) return;
+    const normalized = match[0].replace(/[^\d+]/g, "");
+    if (!result.phones.some(item => item.normalized === normalized)) result.phones.push({ value: match[0].trim(), normalized, url: pageUrl, source, confidence });
+  };
+  for (const link of extractElements(String(html || ""), "a")) {
+    const href = getAttribute(link, "href").replace(/&amp;/gi, "&");
+    const email = href.match(/^mailto:([^?]+)/i);
+    const phone = href.match(/^tel:([^?]+)/i);
+    if (email) { try { add("email", decodeURIComponent(email[1]), "mailto"); } catch { add("email", email[1], "mailto"); } }
+    if (phone) { try { add("phone", decodeURIComponent(phone[1]), "tel"); } catch { add("phone", phone[1], "tel"); } }
+    add("email", getAttribute(link, "data-email"), "data-email");
+    add("phone", getAttribute(link, "data-phone"), "data-phone");
+  }
+  const visibleText = String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&");
+  (visibleText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).forEach(value => add("email", value, "visible-text", "medium"));
+  (visibleText.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/g) || []).forEach(value => add("phone", value, "visible-text", "medium"));
+  const visited = new Set();
+  const walk = (value, contactContext = false) => {
+    if (!value || typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    const rawType = value["@type"];
+    const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
+    const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
+    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = value.name.trim().slice(0, 200) || null;
+    if ((types.includes("contactpoint") || (contactContext && types.includes("person"))) && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
+    (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
+    (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
+    Object.keys(value).forEach(key => {
+      if (key !== "@type" && value[key] && typeof value[key] === "object") {
+        walk(value[key], contactContext || key.toLowerCase() === "contactpoint");
+      }
+    });
+  };
+  for (const script of extractTextBetween(String(html || ""), "script")) {
+    if (!/"@type"\s*:/.test(script)) continue;
+    try { walk(JSON.parse(script)); } catch {}
+  }
+  return result;
+}
+
 function analyzeBusinessSignals(
   html,
   pageUrl
  ) {
+  const contactValues = extractContactValues(html, pageUrl);
   const pageText =
     cleanText(
       html
@@ -2130,6 +2329,7 @@ function analyzeBusinessSignals(
 
   return {
     url: pageUrl,
+    contacts: contactValues,
 
     phone: {
       found: hasPhone,
@@ -4145,6 +4345,10 @@ function aggregateBusinessEvidence(
   analyzedPages
  ) {
   const evidence = {
+    companyName: null,
+    contactName: null,
+    emailValues: [],
+    phoneValues: [],
     phone: [],
     email: [],
     whatsapp: [],
@@ -4156,6 +4360,15 @@ function aggregateBusinessEvidence(
   for (
     const page of analyzedPages
   ) {
+    const contacts = page.business.contacts || {};
+    if (!evidence.companyName && contacts.companyName) evidence.companyName = contacts.companyName;
+    if (!evidence.contactName && contacts.contactName) evidence.contactName = contacts.contactName;
+    for (const item of contacts.emails || []) {
+      if (!evidence.emailValues.some(existing => existing.normalized === item.normalized)) evidence.emailValues.push(item);
+    }
+    for (const item of contacts.phones || []) {
+      if (!evidence.phoneValues.some(existing => existing.normalized === item.normalized)) evidence.phoneValues.push(item);
+    }
     if (
       page.business.phone.found
     ) {
@@ -5112,9 +5325,8 @@ function isPrivateOrReservedIp(ip) {
         b >= 16 &&
         b <= 31) ||
       (a === 192 &&
-        b === 0) ||
-      (a === 192 &&
-        b === 168) ||
+        (b === 0 || b === 168)) ||
+      (a === 192 && b === 88 && c === 99) ||
       (a === 198 &&
         b >= 18 &&
         b <= 19) ||
@@ -5129,24 +5341,27 @@ function isPrivateOrReservedIp(ip) {
   }
 
   if (version === 6) {
-    const normalized =
-      ip.toLowerCase();
-
-    return (
-      normalized === "::" ||
-      normalized === "::1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe80:") ||
-      normalized.startsWith("ff") ||
-      normalized.startsWith("::ffff:127.") ||
-      normalized.startsWith("::ffff:10.") ||
-      normalized.startsWith("::ffff:192.168.") ||
-      normalized.startsWith("::ffff:172.")
-    );
+    const normalized = ip.toLowerCase();
+    const firstHextet = Number.parseInt(normalized.split(":")[0] || "0", 16);
+    const secondHextet = Number.parseInt(normalized.split(":")[1] || "0", 16);
+    // Permit only global-unicast 2000::/3. This also blocks IPv4-mapped,
+    // ULA, link-local, multicast, unspecified, loopback and other special ranges.
+    if (!Number.isFinite(firstHextet) || firstHextet < 0x2000 || firstHextet > 0x3fff) return true;
+    if (firstHextet === 0x2001 && (secondHextet <= 0x03ff || secondHextet === 0x0db8)) return true;
+    if (firstHextet === 0x2002 || normalized.startsWith("3fff:")) return true;
+    return false;
   }
 
   return true;
+}
+
+function areResolvedAddressesPublic(addresses) {
+  if (!Array.isArray(addresses) || addresses.length === 0) return false;
+  return addresses.every(item =>
+    item &&
+    net.isIP(item.address) === Number(item.family) &&
+    !isPrivateOrReservedIp(item.address)
+  );
 }
 
 async function isPublicHostname(hostname) {
@@ -5156,48 +5371,66 @@ async function isPublicHostname(hostname) {
     return { ok: false, reason: "MALFORMED_HOSTNAME" };
   }
 
-  if (isBlockedHostname(host)) {
+  const normalizedHost = stripIpBrackets(host);
+  if (isBlockedHostname(host) || isBlockedHostname(normalizedHost)) {
     return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }
 
-  const literalIp = net.isIP(host);
-  if (literalIp && isPrivateOrReservedIp(host)) {
+  const literalIp = net.isIP(normalizedHost);
+  if (literalIp && isPrivateOrReservedIp(normalizedHost)) {
     return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
-  let lastError = null;
-  let lookupAttempts = 0;
+  if (literalIp) return { ok: true, reason: null, addresses: [{ address: normalizedHost, family: literalIp }] };
   const lookupStartedAt = Date.now();
-  // Retry only transient EBUSY resolver contention, with a strict bound.
-  // Any successful lookup still passes through the existing address safety checks.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    lookupAttempts++;
+  const resolveFamily = async method => {
     try {
-      const addresses = await dns.lookup(host, { all: true, verbatim: true });
-      if (!Array.isArray(addresses) || addresses.length === 0) {
-        return { ok: false, reason: "DNS_NO_ADDRESSES" };
-      }
-      if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
-        return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
-      }
-      return { ok: true, reason: null };
+      return await dns[method](host);
     } catch (error) {
-      lastError = error;
       const code = String(error?.code || "").toUpperCase();
-      if (code !== "EBUSY" || attempt === 2) break;
-      await sleep(100 * (attempt + 1));
+      if (code === "ENODATA" || code === "ENOTFOUND") return [];
+      throw error;
     }
-  }
-  const code = String(lastError?.code || "").toUpperCase();
-  return {
-    ok: false,
-    reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
-      ? "DNS_LOOKUP_FAILED"
-      : "DNS_LOOKUP_ERROR",
-    diagnosticCode: code || "UNKNOWN_DNS_ERROR",
-    diagnosticAttempts: lookupAttempts,
-    diagnosticDurationMs: Date.now() - lookupStartedAt
   };
+  try {
+    // resolve4/resolve6 use the asynchronous DNS resolver rather than
+    // getaddrinfo's libuv thread-pool path. Query both families and fail
+    // closed if either family has a transient resolver error.
+    const remainingMs = getScanRemainingMs();
+    if (remainingMs <= 0) {
+      return { ok: false, reason: "SCAN_DEADLINE_EXCEEDED", diagnosticCode: "SCAN_DEADLINE_EXCEEDED", diagnosticAttempts: 0, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    let dnsTimer;
+    const resolvedFamilies = await Promise.race([
+      Promise.all([resolveFamily("resolve4"), resolveFamily("resolve6")]),
+      new Promise((_, reject) => {
+        dnsTimer = setTimeout(() => {
+          const error = new Error("DNS resolution exceeded the scan deadline.");
+          error.code = "SCAN_DEADLINE_EXCEEDED";
+          reject(error);
+        }, Math.max(1, Math.min(remainingMs, 12000)));
+      })
+    ]).finally(() => clearTimeout(dnsTimer));
+    const allAddresses = resolvedFamilies.flatMap((familyAddresses, index) =>
+      familyAddresses.map(address => ({ address, family: index === 0 ? 4 : 6 }))
+    );
+    if (!allAddresses.length) {
+      return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    if (!areResolvedAddressesPublic(allAddresses)) {
+      return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    return { ok: true, reason: null, addresses: allAddresses, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+  } catch (error) {
+    const code = String(error?.code || "").toUpperCase();
+    return {
+      ok: false,
+      reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code) ? "DNS_LOOKUP_FAILED" : "DNS_LOOKUP_ERROR",
+      diagnosticCode: code || "UNKNOWN_DNS_ERROR",
+      diagnosticAttempts: 2,
+      diagnosticDurationMs: Date.now() - lookupStartedAt
+    };
+  }
 }
 
 /*
@@ -5225,6 +5458,9 @@ module.exports =
       });
     }
 
+    const scanStartedAt = Date.now();
+    const deadlineAt = resolveScanDeadline(req.body?.deadlineAt, scanStartedAt);
+    return scanDeadlineContext.run(deadlineAt, async () => {
     let scanStage = "request validation";
 
     try {
@@ -6736,6 +6972,19 @@ function drawEvidenceMessage(
         aggregateBusinessEvidence(
           analyzedPages
         );
+      businessEvidence.diagnostics = {
+        pageSpeed: {
+          success: pageSpeed.success === true,
+          durationMs: Date.now() - pageSpeedStarted,
+          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300) : null
+        },
+        browserInspection: {
+          attempted: false,
+          available: false,
+          durationMs: 0,
+          unavailableReason: null
+        }
+      };
 
       /*
        * SITE-WIDE BUSINESS EVIDENCE
@@ -6763,7 +7012,28 @@ function drawEvidenceMessage(
 
       try {
         if (needsRenderedBusinessInspection) {
-          browserInspection = await runBrowserInspection(finalUrl);
+          businessEvidence.diagnostics.browserInspection.attempted = true;
+          const browserHostname = new URL(finalUrl).hostname.toLowerCase();
+          const browserHostCheck = await isPublicHostname(browserHostname);
+          if (browserHostCheck.ok) {
+            browserInspection = await runBrowserInspection(finalUrl, {
+              timeoutMs: Math.min(45000, getScanRemainingMs()),
+              hostname: browserHostname,
+              addresses: browserHostCheck.addresses
+            });
+          } else {
+            browserInspection = {
+              available: false,
+              durationMs: 0,
+              unavailableReason: "Browser inspection blocked by public-host validation: " + browserHostCheck.reason
+            };
+          }
+          businessEvidence.diagnostics.browserInspection = {
+            attempted: true,
+            available: browserInspection?.available === true,
+            durationMs: Number(browserInspection?.durationMs || 0),
+            unavailableReason: browserInspection?.unavailableReason || null
+          };
         }
 
         if (browserInspection?.available) {
@@ -7752,4 +8022,16 @@ const opportunity =
             : "We could not scan this website. It may be unavailable or blocking automated requests."
       });
     }
+    });
   };
+module.exports.isPublicHostname = isPublicHostname;
+module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
+module.exports.createPinnedLookup = createPinnedLookup;
+module.exports.fetchPinnedWithTimeout = fetchPinnedWithTimeout;
+module.exports.areResolvedAddressesPublic = areResolvedAddressesPublic;
+module.exports.stripIpBrackets = stripIpBrackets;
+
+module.exports.extractContactValues = extractContactValues;
+
+module.exports.getScanRemainingMs = getScanRemainingMs;
+module.exports.resolveScanDeadline = resolveScanDeadline;
