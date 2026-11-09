@@ -121,4 +121,5 @@ test("scan deadlines are capped and expired worker deadlines stay expired", () =
   assert.equal(scanner.resolveScanDeadline(51000, 1000), 51000);
   assert.equal(scanner.resolveScanDeadline(500, 1000), 500);
   assert.equal(scanner.resolveScanDeadline("invalid", 1000), 1000);
+  assert.equal(scanner.resolveScanDeadline(Infinity, 1000), 1000);
 });
