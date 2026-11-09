@@ -766,8 +766,10 @@ async function fetchPinnedWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT
         }
       }
       settled = true;
-      resolve(new Response(Readable.toWeb(response), {
-        status: response.statusCode || 502,
+      const responseStatus = response.statusCode || 502;
+      const responseBody = [204, 205, 304].includes(responseStatus) ? null : Readable.toWeb(response);
+      resolve(new Response(responseBody, {
+        status: responseStatus,
         statusText: response.statusMessage || "",
         headers: responseHeaders
       }));
@@ -5266,9 +5268,8 @@ function isPrivateOrReservedIp(ip) {
         b >= 16 &&
         b <= 31) ||
       (a === 192 &&
-        b === 0) ||
-      (a === 192 &&
-        b === 168) ||
+        (b === 0 || b === 168)) ||
+      (a === 192 && b === 88 && c === 99) ||
       (a === 198 &&
         b >= 18 &&
         b <= 19) ||
@@ -5283,20 +5284,15 @@ function isPrivateOrReservedIp(ip) {
   }
 
   if (version === 6) {
-    const normalized =
-      ip.toLowerCase();
-
-    const mappedIpv4 = normalized.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
-    if (mappedIpv4) return isPrivateOrReservedIp(mappedIpv4[1]);
-    return (
-      normalized === "::" ||
-      normalized === "::1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe80:") ||
-      normalized.startsWith("ff") ||
-      normalized.startsWith("2001:db8:")
-    );
+    const normalized = ip.toLowerCase();
+    const firstHextet = Number.parseInt(normalized.split(":")[0] || "0", 16);
+    const secondHextet = Number.parseInt(normalized.split(":")[1] || "0", 16);
+    // Permit only global-unicast 2000::/3. This also blocks IPv4-mapped,
+    // ULA, link-local, multicast, unspecified, loopback and other special ranges.
+    if (!Number.isFinite(firstHextet) || firstHextet < 0x2000 || firstHextet > 0x3fff) return true;
+    if (firstHextet === 0x2001 && secondHextet <= 0x01ff) return true;
+    if (firstHextet === 0x2002 || normalized.startsWith("3fff:")) return true;
+    return false;
   }
 
   return true;
