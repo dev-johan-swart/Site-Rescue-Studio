@@ -7850,3 +7850,5 @@ const opportunity =
   };
 module.exports.isPublicHostname = isPublicHostname;
 module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
+
+module.exports.extractContactValues = extractContactValues;
