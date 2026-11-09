@@ -1,6 +1,12 @@
 const { URL } = require("url");
 const dns = require("dns").promises;
 const net = require("net");
+const { AsyncLocalStorage } = require("node:async_hooks");
+const scanDeadlineContext = new AsyncLocalStorage();
+function getScanRemainingMs() {
+  const deadlineAt = scanDeadlineContext.getStore();
+  return Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : Infinity;
+}
 
 const { saveProspect } =
   require("../lib/prospectStore");
@@ -688,6 +694,13 @@ async function fetchWithTimeout(
   options = {},
   timeout = FETCH_TIMEOUT
 ) {
+  const remainingMs = getScanRemainingMs();
+  if (remainingMs <= 0) {
+    const error = new Error("Scan hard deadline exceeded.");
+    error.code = "SCAN_DEADLINE_EXCEEDED";
+    throw error;
+  }
+  timeout = Math.max(1, Math.min(timeout, remainingMs));
   const controller =
     new AbortController();
 
@@ -5299,6 +5312,11 @@ module.exports =
       });
     }
 
+    const requestedDeadlineAt = Number(req.body?.deadlineAt);
+    const deadlineAt = Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > Date.now()
+      ? requestedDeadlineAt
+      : Date.now() + 180000;
+    return scanDeadlineContext.run(deadlineAt, async () => {
     let scanStage = "request validation";
 
     try {
@@ -6852,7 +6870,9 @@ function drawEvidenceMessage(
       try {
         if (needsRenderedBusinessInspection) {
           businessEvidence.diagnostics.browserInspection.attempted = true;
-          browserInspection = await runBrowserInspection(finalUrl);
+          browserInspection = await runBrowserInspection(finalUrl, {
+            timeoutMs: Math.min(45000, getScanRemainingMs())
+          });
           businessEvidence.diagnostics.browserInspection = {
             attempted: true,
             available: browserInspection?.available === true,
@@ -7847,8 +7867,11 @@ const opportunity =
             : "We could not scan this website. It may be unavailable or blocking automated requests."
       });
     }
+    });
   };
 module.exports.isPublicHostname = isPublicHostname;
 module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
 
 module.exports.extractContactValues = extractContactValues;
+
+module.exports.getScanRemainingMs = getScanRemainingMs;
