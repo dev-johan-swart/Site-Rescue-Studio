@@ -639,7 +639,7 @@ module.exports = async function handler(req, res) {
   }
 
   const timeBudgetReached = Date.now() - startedAt >= maxRunMs;
-  if (timeBudgetReached) errors.push("Run stopped at the safety time budget; remaining queued sites stay queued.");
+  if (timeBudgetReached && counts.scannedCount < effectiveBatchSize) errors.push("Run stopped at the safety time budget before the target batch was completed; remaining queued sites stay queued.");
 
   // Refill after the scan batch as well. This keeps the active queue near the
   // 110-site reserve instead of waiting for the next scheduled worker.
