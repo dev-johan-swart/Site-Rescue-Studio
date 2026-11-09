@@ -4203,6 +4203,10 @@ function aggregateBusinessEvidence(
   analyzedPages
  ) {
   const evidence = {
+    companyName: null,
+    contactName: null,
+    emailValues: [],
+    phoneValues: [],
     phone: [],
     email: [],
     whatsapp: [],
@@ -4214,6 +4218,15 @@ function aggregateBusinessEvidence(
   for (
     const page of analyzedPages
   ) {
+    const contacts = page.business.contacts || {};
+    if (!evidence.companyName && contacts.companyName) evidence.companyName = contacts.companyName;
+    if (!evidence.contactName && contacts.contactName) evidence.contactName = contacts.contactName;
+    for (const item of contacts.emails || []) {
+      if (!evidence.emailValues.some(existing => existing.normalized === item.normalized)) evidence.emailValues.push(item);
+    }
+    for (const item of contacts.phones || []) {
+      if (!evidence.phoneValues.some(existing => existing.normalized === item.normalized)) evidence.phoneValues.push(item);
+    }
     if (
       page.business.phone.found
     ) {
@@ -6770,6 +6783,7 @@ function drawEvidenceMessage(
               error: pageSpeedResult.reason?.message || "PageSpeed could not be reached."
             };
 
+      businessEvidence.diagnostics.pageSpeed.durationMs = Date.now() - pageSpeedStarted;
       debugTiming(
         "Crawlability analysis complete",
         crawlabilityStarted
@@ -6797,6 +6811,19 @@ function drawEvidenceMessage(
         aggregateBusinessEvidence(
           analyzedPages
         );
+      businessEvidence.diagnostics = {
+        pageSpeed: {
+          success: pageSpeed.success === true,
+          durationMs: 0,
+          error: pageSpeed.success === false ? String(pageSpeed.error || "PageSpeed unavailable").slice(0, 300) : null
+        },
+        browserInspection: {
+          attempted: false,
+          available: false,
+          durationMs: 0,
+          unavailableReason: null
+        }
+      };
 
       /*
        * SITE-WIDE BUSINESS EVIDENCE
@@ -6824,7 +6851,14 @@ function drawEvidenceMessage(
 
       try {
         if (needsRenderedBusinessInspection) {
+          businessEvidence.diagnostics.browserInspection.attempted = true;
           browserInspection = await runBrowserInspection(finalUrl);
+          businessEvidence.diagnostics.browserInspection = {
+            attempted: true,
+            available: browserInspection?.available === true,
+            durationMs: Number(browserInspection?.durationMs || 0),
+            unavailableReason: browserInspection?.unavailableReason || null
+          };
         }
 
         if (browserInspection?.available) {
