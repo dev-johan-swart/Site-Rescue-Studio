@@ -48,3 +48,42 @@ test("candidate geographic region is derived from the candidate city, not the di
   assert.equal(getCandidateRegion({ city: "South Africa" }), "south_africa");
   assert.equal(getCandidateRegion({ city: null }), null);
 });
+
+
+test("validated DNS addresses reject mixed public and private answers", () => {
+  assert.equal(scanner.areResolvedAddressesPublic([
+    { address: "93.184.216.34", family: 4 },
+    { address: "10.0.0.5", family: 4 }
+  ]), false);
+  assert.equal(scanner.areResolvedAddressesPublic([
+    { address: "93.184.216.34", family: 4 },
+    { address: "2606:4700:4700::1111", family: 6 }
+  ]), true);
+  assert.equal(scanner.areResolvedAddressesPublic([]), false);
+});
+
+test("pinned socket lookup only returns validated addresses of the requested family", () => {
+  const lookup = scanner.createPinnedLookup([
+    { address: "93.184.216.34", family: 4 },
+    { address: "2606:4700:4700::1111", family: 6 }
+  ]);
+  lookup("example.com", { family: 4 }, (error, address, family) => {
+    assert.equal(error, null);
+    assert.equal(address, "93.184.216.34");
+    assert.equal(family, 4);
+  });
+  lookup("example.com", { family: 6 }, (error, address, family) => {
+    assert.equal(error, null);
+    assert.equal(address, "2606:4700:4700::1111");
+    assert.equal(family, 6);
+  });
+  lookup("example.com", { family: 5 }, error => {
+    assert.equal(error.code, "ENOTFOUND");
+  });
+});
+
+test("pinned socket lookup refuses private and reserved addresses", () => {
+  assert.throws(() => scanner.createPinnedLookup([
+    { address: "127.0.0.1", family: 4 }
+  ]), /No validated public IP address/);
+});
