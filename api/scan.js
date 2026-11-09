@@ -5132,6 +5132,8 @@ function isPrivateOrReservedIp(ip) {
     const normalized =
       ip.toLowerCase();
 
+    const mappedIpv4 = normalized.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+    if (mappedIpv4) return isPrivateOrReservedIp(mappedIpv4[1]);
     return (
       normalized === "::" ||
       normalized === "::1" ||
@@ -5139,10 +5141,7 @@ function isPrivateOrReservedIp(ip) {
       normalized.startsWith("fd") ||
       normalized.startsWith("fe80:") ||
       normalized.startsWith("ff") ||
-      normalized.startsWith("::ffff:127.") ||
-      normalized.startsWith("::ffff:10.") ||
-      normalized.startsWith("::ffff:192.168.") ||
-      normalized.startsWith("::ffff:172.")
+      normalized.startsWith("2001:db8:")
     );
   }
 
@@ -5165,39 +5164,43 @@ async function isPublicHostname(hostname) {
     return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
   }
 
-  let lastError = null;
-  let lookupAttempts = 0;
+  if (literalIp) return { ok: true, reason: null };
   const lookupStartedAt = Date.now();
-  // Retry only transient EBUSY resolver contention, with a strict bound.
-  // Any successful lookup still passes through the existing address safety checks.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    lookupAttempts++;
+  const resolveFamily = async method => {
     try {
-      const addresses = await dns.lookup(host, { all: true, verbatim: true });
-      if (!Array.isArray(addresses) || addresses.length === 0) {
-        return { ok: false, reason: "DNS_NO_ADDRESSES" };
-      }
-      if (addresses.some(address => isPrivateOrReservedIp(address.address))) {
-        return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS" };
-      }
-      return { ok: true, reason: null };
+      return await dns[method](host);
     } catch (error) {
-      lastError = error;
       const code = String(error?.code || "").toUpperCase();
-      if (code !== "EBUSY" || attempt === 2) break;
-      await sleep(100 * (attempt + 1));
+      if (code === "ENODATA" || code === "ENOTFOUND") return [];
+      throw error;
     }
-  }
-  const code = String(lastError?.code || "").toUpperCase();
-  return {
-    ok: false,
-    reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code)
-      ? "DNS_LOOKUP_FAILED"
-      : "DNS_LOOKUP_ERROR",
-    diagnosticCode: code || "UNKNOWN_DNS_ERROR",
-    diagnosticAttempts: lookupAttempts,
-    diagnosticDurationMs: Date.now() - lookupStartedAt
   };
+  try {
+    // resolve4/resolve6 use the asynchronous DNS resolver rather than
+    // getaddrinfo's libuv thread-pool path. Query both families and fail
+    // closed if either family has a transient resolver error.
+    const addresses = await Promise.all([
+      resolveFamily("resolve4"),
+      resolveFamily("resolve6")
+    ]);
+    const allAddresses = addresses.flat();
+    if (!allAddresses.length) {
+      return { ok: false, reason: "DNS_NO_ADDRESSES", diagnosticCode: "ENODATA", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    if (allAddresses.some(address => isPrivateOrReservedIp(address))) {
+      return { ok: false, reason: "BLOCKED_PRIVATE_OR_RESERVED_ADDRESS", diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+    }
+    return { ok: true, reason: null, diagnosticAttempts: 2, diagnosticDurationMs: Date.now() - lookupStartedAt };
+  } catch (error) {
+    const code = String(error?.code || "").toUpperCase();
+    return {
+      ok: false,
+      reason: ["ENOTFOUND", "EAI_AGAIN", "ENODATA", "ESERVFAIL"].includes(code) ? "DNS_LOOKUP_FAILED" : "DNS_LOOKUP_ERROR",
+      diagnosticCode: code || "UNKNOWN_DNS_ERROR",
+      diagnosticAttempts: 2,
+      diagnosticDurationMs: Date.now() - lookupStartedAt
+    };
+  }
 }
 
 /*
@@ -7753,3 +7756,5 @@ const opportunity =
       });
     }
   };
+module.exports.isPublicHostname = isPublicHostname;
+module.exports.isPrivateOrReservedIp = isPrivateOrReservedIp;
