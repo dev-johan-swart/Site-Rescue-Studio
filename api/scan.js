@@ -2063,7 +2063,7 @@ function extractContactValues(html, pageUrl) {
     const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
     const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
     if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = value.name.trim().slice(0, 200) || null;
-    if ((contactContext || types.includes("contactpoint")) && types.includes("person") && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
+    if ((types.includes("contactpoint") || (contactContext && types.includes("person"))) && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
     (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
     (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
     Object.keys(value).forEach(key => {
