@@ -1,4 +1,5 @@
 const { getSql, ensureAutomationSchema } = require("../../lib/automationStore");
+const { isOutreachChannelVerified } = require("../../lib/prospectQualification");
 
 function authorised(req) {
   const expected = process.env.AUTOMATION_SECRET;
@@ -15,8 +16,27 @@ module.exports = async function handler(req, res) {
     if (!websiteNormalized) return res.status(400).json({success:false,error:"websiteNormalized is required."});
     const sql=getSql();
     await ensureAutomationSchema(sql);
-    const shortlist=await sql`SELECT id, prospect_id FROM automation_shortlist WHERE website_normalized=${websiteNormalized} ORDER BY created_at DESC LIMIT 1`;
+    const shortlist=await sql`SELECT id, prospect_id, evidence FROM automation_shortlist WHERE website_normalized=${websiteNormalized} ORDER BY created_at DESC LIMIT 1`;
     if (!shortlist.length) return res.status(404).json({success:false,error:"Website is not on the automation shortlist."});
+    if (shortlist[0].evidence?.outreachReady !== true) {
+      return res.status(409).json({
+        success: false,
+        error: "This shortlist item is not ready for outreach.",
+        reason: shortlist[0].evidence?.outreachReadinessReason || "Business identity and contact ownership have not been sufficiently verified."
+      });
+    }
+    if (!shortlist[0].prospect_id) {
+      return res.status(409).json({success:false,error:"This shortlist item is not linked to a saved prospect record."});
+    }
+    const channel=String(body.channel||"").trim().toLowerCase();
+    if (!channel) return res.status(400).json({success:false,error:"channel is required."});
+    if (!isOutreachChannelVerified(shortlist[0].evidence || {}, channel)) {
+      return res.status(409).json({
+        success: false,
+        error: "The selected outreach channel is not supported by verified website evidence.",
+        channel
+      });
+    }
     const kind=String(body.outreachKind||"initial").toLowerCase();
     if (!["initial","follow_up"].includes(kind)) return res.status(400).json({success:false,error:"outreachKind must be initial or follow_up."});
     if (kind==="initial") {
