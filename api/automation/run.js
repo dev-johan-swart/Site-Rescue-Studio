@@ -115,6 +115,23 @@ module.exports = async function handler(req, res) {
   }
 
   const sql = getSql();
+  const runtimeDiagnostics = {
+    nodeVersion: process.version,
+    vercelRegion: process.env.VERCEL_REGION || null,
+    neonRoundTripMs: null
+  };
+  const dbPingStartedAt = Date.now();
+  try {
+    await sql`SELECT 1 AS health_check`;
+    runtimeDiagnostics.neonRoundTripMs = Date.now() - dbPingStartedAt;
+    console.info("Automation runtime diagnostics.", runtimeDiagnostics);
+  } catch (error) {
+    console.warn("Automation Neon round-trip diagnostic failed.", {
+      nodeVersion: runtimeDiagnostics.nodeVersion,
+      vercelRegion: runtimeDiagnostics.vercelRegion,
+      message: String(error?.message || error)
+    });
+  }
   try {
     await ensureAutomationSchema(sql);
   } catch (error) {
