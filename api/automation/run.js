@@ -76,6 +76,7 @@ module.exports = async function handler(req, res) {
       getDiscoveryStageState,
       setDiscoveryStageState,
       getDiscoveryProviderPageState,
+      getDiscoveryProviderState,
       recordDiscoveryProviderPageResult,
       filterFreshDiscoveryCandidates,
       addDiscoveryBacklogCandidates,
