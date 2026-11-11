@@ -459,12 +459,13 @@ module.exports = async function handler(req, res) {
     counts.candidateCount++;
 
     let scanData = null;
+    let discoveryMetadata = null;
     try {
       const scanDeadlineAt = startedAt + maxRunMs - 10000;
       const result = await runScan(item.website, scanDeadlineAt);
       scanData = result.payload;
       try {
-        await saveDiscoveryMetadataToProspect(sql, item.website);
+        discoveryMetadata = await saveDiscoveryMetadataToProspect(sql, item.website, { returnMetadata: true });
       } catch (metadataError) {
         console.warn("Discovery metadata enrichment skipped:", {
           website: item.website,
