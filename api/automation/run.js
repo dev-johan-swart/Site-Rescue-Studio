@@ -402,173 +402,11 @@ module.exports = async function handler(req, res) {
   // Production discovery is only a bounded emergency fallback. Reserve the
   // majority of each provider's daily request budget for the daytime discovery
   // workflow, which is responsible for rebuilding the 110-site reserve.
-  const productionDiscoveryDailyLimit = Math.max(
-    1,
-    Math.min(Number(process.env.AUTOMATION_PRODUCTION_DISCOVERY_DAILY_LIMIT || 4), 4)
-  );
-  const discoveryMaxCandidates = Math.max(
-    1,
-    Math.min(Number(process.env.AUTOMATION_DISCOVERY_MAX_CANDIDATES || 20), 20)
-  );
-  const discoveryMaxAttempts = Math.max(
-    3,
-    Math.min(Number(process.env.AUTOMATION_DISCOVERY_MAX_ATTEMPTS || 6), 6)
-  );
-
-  async function refillQueueToReserve() {
-    let queueDepth = await getFreshQueueDepth(sql);
-    const attempts = [];
-    let newlyQueuedTotal = 0;
-    refillRequested = Math.max(queueReserveTarget - queueDepth, 0);
-    queueDepthBeforeRefill = queueDepth;
-    let stageId = await getDiscoveryStageState(sql);
-
-    for (let attemptNumber = 0;
-         queueDepth < queueReserveTarget && attemptNumber < discoveryMaxAttempts;
-         attemptNumber++) {
-      // Leave enough time for the actual 5-site scan batch under Vercel's
-      // 300-second function ceiling.
-      if (Date.now() - startedAt >= maxRunMs - 90000) break;
-
-      const promoted = await promoteFreshBacklogToQueue(
-        sql,
-        Math.max(queueReserveTarget - queueDepth, 0),
-        "discovery_backlog"
-      );
-
-      queueDepth = await getFreshQueueDepth(sql);
-      if (queueDepth >= queueReserveTarget) break;
-
-      const stage = getDiscoveryStage(stageId);
-      if (
-        stage.id === "international" &&
-        String(process.env.AUTOMATION_ENABLE_INTERNATIONAL_DISCOVERY || "").toLowerCase() !== "true"
-      ) {
-        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
-        await setDiscoveryStageState(sql, nextStageId);
-        stageId = nextStageId;
-        attempts.push({
-          stage: stage.id,
-          status: "disabled"
-        });
-        continue;
-      }
-
-      try {
-        const discovery = await discoverWithProviders({
-          stage,
-          // Offset each discovery attempt so a successful provider is not
-          // repeatedly asked for the same query slice in one worker run.
-          queries: providerQueries(
-            new Date(),
-            stage.queries,
-            run.id + attemptNumber
-          ),
-          maxCandidates: discoveryMaxCandidates,
-          providerStartOffset: PRIMARY_DISCOVERY_PROVIDERS.length ? (run.id + attemptNumber) % PRIMARY_DISCOVERY_PROVIDERS.length : 0,
-          providerPageOffset: attemptNumber,
-          getProviderPageState: async (provider, pageCount) =>
-            getDiscoveryProviderPageState(sql, provider, pageCount),
-          recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
-            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
-          filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
-          isProviderAvailable: provider =>
-            reserveDiscoveryProvider(
-              sql,
-              provider,
-              productionDiscoveryDailyLimit,
-              cycleDate,
-              provider === "foursquare" ? 500 : null
-            ),
-          recordSuccess: provider =>
-            recordDiscoveryProviderSuccess(sql, provider),
-          recordFailure: (provider, error) =>
-            recordDiscoveryProviderFailure(sql, provider, error)
-        });
-
-        const backlogDiagnostics = await addDiscoveryBacklogCandidates(
-          sql,
-          discovery.candidates,
-          discovery.provider,
-          stage.id,
-          true
-        );
-
-        const promoted = await promoteFreshBacklogToQueue(
-          sql,
-          Math.max(queueReserveTarget - queueDepth, 0),
-          "discovery_backlog"
-        );
-
-        const newlyQueued = promoted.length;
-        newlyQueuedTotal += newlyQueued;
-        queueDepth = await getFreshQueueDepth(sql);
-
-        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
-        await setDiscoveryStageState(sql, nextStageId);
-        stageId = nextStageId;
-
-        attempts.push({
-          stage: stage.id,
-          source: discovery.provider,
-          candidateCount: discovery.candidateCount,
-          extractionTelemetry: discovery.telemetry || null,
-          backlogDiagnostics,
-          newlyQueued,
-          providerAttempts: discovery.attempts || [],
-          providerErrors: discovery.errors || [],
-          nextStage: nextStageId
-        });
-
-        // A provider can legitimately return only candidates we have already
-        // scanned. Continue through the enabled geographic stages rather than
-        // treating that as a successful refill.
-        if (newlyQueued === 0) continue;
-      } catch (error) {
-        const message = String(error?.message || error);
-        attempts.push({
-          stage: stage.id,
-          status: "failed",
-          message,
-          providerAttempts: error?.attempts || [],
-          providerErrors: error?.providerErrors || []
-        });
-        pipelineWarnings.push(`Discovery ${stage.label} failed: ${message}`);
-
-        const nextStageId = nextEnabledDiscoveryStageId(stage.id);
-        await setDiscoveryStageState(sql, nextStageId);
-        stageId = nextStageId;
-      }
-    }
-
-    refillAdded += newlyQueuedTotal;
-    const diagnostic = {
-      attemptedStages: attempts.map(item => ({
-        stage: item.stage || null,
-        source: item.source || item.provider || null,
-        status: item.status || (Number(item.candidateCount || 0) > 0 ? "success" : "empty"),
-        candidateCount: Number(item.candidateCount || 0),
-        newlyQueued: Number(item.newlyQueued || 0),
-        providerAttempts: item.providerAttempts || [],
-        providerErrors: item.providerErrors || [],
-        backlogDiagnostics: item.backlogDiagnostics || null
-      })),
-      noUsableSupply: newlyQueuedTotal === 0 && queueDepth < queueReserveTarget
-    };
-    return {
-      queueDepth,
-      target: queueReserveTarget,
-      newlyQueued: newlyQueuedTotal,
-      attempts,
-      diagnostic,
-      targetReached: queueDepth >= queueReserveTarget
-    };
-  }
-
-  // The 02:00/02:20/02:40 preparation workflow is responsible for
-  // building the reserve before scanning. Do not spend the scan budget on
-  // discovery before claiming the first sites.
+  // The dedicated Discovery Preparation workflow owns reserve replenishment
+  // on its existing 20-minute schedule. Keep the time-critical worker focused
+  // on scans and finalisation; do not start unbounded provider discovery here.
   await addDueFollowUps(run.id);
+  const freshQueueDepthBeforeRun = await getFreshQueueDepth(sql);
 
   let attemptsThisBatch = 0;
   let stoppedForTimeBudget = false;
@@ -669,35 +507,18 @@ module.exports = async function handler(req, res) {
   const timeBudgetReached = stoppedForTimeBudget;
   if (timeBudgetReached && counts.scannedCount < effectiveBatchSize) errors.push("Run stopped at the safety time budget before the target batch was completed; remaining queued sites stay queued.");
 
-  // Refill after the scan batch as well. This keeps the active queue near the
-  // 110-site reserve instead of waiting for the next scheduled worker.
-  if (Date.now() - startedAt < maxRunMs - 30000) {
-    try {
-      const refillAfterScan = await refillQueueToReserve();
-      discoverySummary = {
-        ...(discoverySummary || {}),
-        afterScan: refillAfterScan
-      };
-      if (!refillAfterScan.targetReached) {
-        pipelineWarnings.push(
-          `Post-scan discovery reserve target not reached: ${refillAfterScan.queueDepth}/${refillAfterScan.target} active queued sites.`
-        );
-        if (refillAfterScan.diagnostic?.noUsableSupply) {
-          pipelineWarnings.push("SUPPLY FAILURE: discovery produced no newly queued usable websites. Review providerAttempts, providerErrors and backlogDiagnostics before treating this run as healthy.");
-        }
-      }
-    } catch (error) {
-      errors.push(`Post-scan discovery orchestration failed: ${error?.message || error}`);
-    }
-  }
-
   const errorSummary = errors.length ? errors.join(" | ").slice(0, 4000) : null;
 
   const queueDepth = await getFreshQueueDepth(sql);
+  refillRequested = Math.max(queueReserveTarget - queueDepth, 0);
+  refillAdded = 0;
+  if (refillRequested > 0) {
+    pipelineWarnings.push("Post-scan reserve refill deferred to the scheduled Discovery Preparation workflow.");
+  }
   const dailyScannedTotal = await getDailyScannedCount(sql, cycleDate);
   const queueHealth = queueDepth >= 110 ? "healthy" : queueDepth >= 60 ? "warning" : "critical";
   const pipelineReport = {
-    freshBeforeRun: queueDepthBeforeRefill ?? queueDepth,
+    freshBeforeRun: freshQueueDepthBeforeRun,
     scannedThisRun: counts.scannedCount,
     freshAfterRun: queueDepth,
     reserveTarget: queueReserveTarget,
@@ -707,7 +528,7 @@ module.exports = async function handler(req, res) {
     warning: queueDepth < 60 ? "CRITICAL: fresh prospect reserve is below 60." : queueDepth < 110 ? "WARNING: fresh prospect reserve is below the 110-site target." : null,
     discoveryWarnings: pipelineWarnings,
     supplyFailure: queueDepth < queueReserveTarget && refillAdded === 0,
-    supplyDiagnostics: discoverySummary?.afterScan?.diagnostic || null
+    supplyDiagnostics: refillRequested > 0 ? { deferredToScheduledPreparation: true } : null
   };
   if (pipelineReport.warning) console.warn(pipelineReport.warning);
 
