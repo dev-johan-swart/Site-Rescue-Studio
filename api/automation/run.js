@@ -397,9 +397,6 @@ module.exports = async function handler(req, res) {
     110,
     Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 110), 110)
   );
-  // Production discovery is only a bounded emergency fallback. Reserve the
-  // majority of each provider's daily request budget for the daytime discovery
-  // workflow, which is responsible for rebuilding the 110-site reserve.
   // The dedicated Discovery Preparation workflow owns reserve replenishment
   // on its existing 20-minute schedule. Keep the time-critical worker focused
   // on scans and finalisation; do not start unbounded provider discovery here.
@@ -541,7 +538,7 @@ module.exports = async function handler(req, res) {
     dailyScannedTotal,
     dailyTargetReached: dailyScannedTotal >= dailyTarget,
     followUpsIncluded: true,
-    discoverySummary,
+    discoverySummary: null,
     queueDepth,
     queueReserveTarget,
     queueReserveHealthy: queueDepth >= queueReserveTarget,
