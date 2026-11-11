@@ -485,7 +485,7 @@ module.exports = async function handler(req, res) {
                     : /could not be reached|network connection|econn|enotfound|dns|fetch failed|connection/.test(lower)
                       ? "UNREACHABLE"
                       : "OTHER";
-      const hardFailure = ["INVALID_URL", "SAFETY_REJECTED", "DNS_NO_ADDRESSES", "DNS_LOOKUP_FAILED"].includes(failureType) || failureType === "TIMEOUT";
+      const hardFailure = isPermanentScanFailure(failureType);
       errors.push(item.website + ": [" + failureType + "] " + message);
       await failQueueItem(item.id, error, {
         retryable: !hardFailure,
