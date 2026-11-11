@@ -340,6 +340,7 @@ module.exports = async function handler(req, res) {
       queueDepth,
       target,
       targetReached: queueDepth >= target,
+      runtimeDiagnostics,
       attempts
     });
     } catch (error) {
