@@ -1,5 +1,5 @@
 const { getSql, ensureAutomationSchema } = require("../../lib/automationStore");
-const { generateFullReport } = require("../../lib/reportGenerator");
+const { generateFullReport, hasFullReportEvidence } = require("../../lib/reportGenerator");
 
 function authorised(req) {
   const expected = process.env.AUTOMATION_SECRET;
