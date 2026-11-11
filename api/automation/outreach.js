@@ -27,6 +27,14 @@ module.exports = async function handler(req, res) {
     if (!shortlist[0].prospect_id) {
       return res.status(409).json({success:false,error:"This shortlist item is not linked to a saved prospect record."});
     }
+    const channel=String(body.channel||"").trim().toLowerCase();
+    if (channel && !isOutreachChannelVerified(shortlist[0].evidence || {}, channel)) {
+      return res.status(409).json({
+        success: false,
+        error: "The selected outreach channel is not supported by verified website evidence.",
+        channel
+      });
+    }
     const kind=String(body.outreachKind||"initial").toLowerCase();
     if (!["initial","follow_up"].includes(kind)) return res.status(400).json({success:false,error:"outreachKind must be initial or follow_up."});
     if (kind==="initial") {
