@@ -32,4 +32,6 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Run automation test suite
+        env:
+          NODE_OPTIONS: --trace-deprecation
         run: npm run test:automation
