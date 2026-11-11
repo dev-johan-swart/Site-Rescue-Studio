@@ -17,6 +17,7 @@ function authorised(req) {
 }
 
 module.exports = async function handler(req, res) {
+  attachDep0169Trace();
   let qualifyProspect;
   let discoverWithProviders;
   let getDiscoveryStage;
