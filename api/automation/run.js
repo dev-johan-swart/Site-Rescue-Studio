@@ -290,17 +290,36 @@ module.exports = async function handler(req, res) {
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
           filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
-          isProviderAvailable: provider => {
-            if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) return false;
+          isProviderAvailable: async provider => {
+            if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) {
+              return { available: false, reason: "disabled", details: { cause: "foursquare_not_configured" } };
+            }
             const providerLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
-            if (providerLimit <= 0) return false;
-            return reserveDiscoveryProvider(
-              sql,
-              provider,
-              providerLimit,
-              cycleDate,
-              preparationProviderMonthlyLimits[provider] ?? (provider === "foursquare" ? 500 : null)
-            );
+            if (providerLimit <= 0) return { available: false, reason: "disabled" };
+            const monthlyLimit = preparationProviderMonthlyLimits[provider] ?? (provider === "foursquare" ? 500 : null);
+            const reserved = await reserveDiscoveryProvider(sql, provider, providerLimit, cycleDate, monthlyLimit);
+            if (reserved) return true;
+            const state = await getDiscoveryProviderState(sql, provider);
+            const cooldownUntil = state?.cooldown_until || null;
+            if (cooldownUntil && new Date(cooldownUntil).getTime() > Date.now()) {
+              return { available: false, reason: "cooldown", details: { cooldownUntil } };
+            }
+            if (state?.day_key === cycleDate && Number(state?.request_count || 0) >= providerLimit) {
+              return {
+                available: false,
+                reason: "daily_budget_exhausted",
+                details: { requestCount: Number(state.request_count || 0), dailyLimit: providerLimit }
+              };
+            }
+            if (monthlyLimit !== null && state?.month_key === cycleDate.slice(0, 7) &&
+                Number(state?.monthly_request_count || 0) >= monthlyLimit) {
+              return {
+                available: false,
+                reason: "monthly_budget_exhausted",
+                details: { monthlyRequestCount: Number(state.monthly_request_count || 0), monthlyLimit }
+              };
+            }
+            return { available: false, reason: "unavailable" };
           },
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
