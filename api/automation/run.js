@@ -521,9 +521,11 @@ module.exports = async function handler(req, res) {
     } catch (error) {
       counts.failedCount++;
       const message = String(error?.message || error || "Unknown scanner failure.");
-      const lower = message.toLowerCase();
+      const lower = [error?.code, message].filter(Boolean).join(" ").toLowerCase();
       const failureType =
-        /\[malformed_hostname\]|\[invalid_url\]|invalid (website|url)|invalid url/.test(lower)
+        /err_tls_cert_altname_invalid|hostname\/ip does not match certificate|certificate(?:'s)? altnames|cert_has_expired|certificate has expired|unable_to_verify_leaf_signature|self_signed_cert_in_chain|certificate verify failed/.test(lower)
+          ? "TLS_CERTIFICATE_ERROR"
+          : /\[malformed_hostname\]|\[invalid_url\]|invalid (website|url)|invalid url/.test(lower)
           ? "INVALID_URL"
           : /\[blocked_hostname\]|\[blocked_private_or_reserved_address\]/.test(lower)
             ? "SAFETY_REJECTED"
