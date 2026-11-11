@@ -379,7 +379,8 @@ module.exports = async function handler(req, res) {
       noBatchClaimed: true,
       dailyTarget: 50,
       dailyScannedTotal: dailyScanned,
-      dailyTargetReached: dailyScanned >= 50
+      dailyTargetReached: dailyScanned >= 50,
+      runtimeDiagnostics
     });
   }
 
