@@ -479,7 +479,21 @@ module.exports = async function handler(req, res) {
         throw new Error(failureCode + (scanData?.error || `Scanner returned HTTP ${result.statusCode}.`) + diagnosticCode);
       }
 
-      const qualification = qualifyProspect(scanData);
+      const qualificationData = discoveryMetadata ? {
+        ...scanData,
+        businessEvidence: {
+          ...(scanData.businessEvidence || {}),
+          companyName: scanData.businessEvidence?.companyName || discoveryMetadata.business_name || null,
+          discovery: {
+            ...(scanData.businessEvidence?.discovery || {}),
+            provider: discoveryMetadata.source || null,
+            region: discoveryMetadata.region || null,
+            city: discoveryMetadata.city || null,
+            businessName: discoveryMetadata.business_name || null
+          }
+        }
+      } : scanData;
+      const qualification = qualifyProspect(qualificationData);
       counts.scannedCount++;
 
       const qualificationResult = {
