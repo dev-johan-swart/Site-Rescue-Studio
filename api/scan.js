@@ -8041,3 +8041,4 @@ module.exports.extractContactValues = extractContactValues;
 
 module.exports.getScanRemainingMs = getScanRemainingMs;
 module.exports.resolveScanDeadline = resolveScanDeadline;
+module.exports.isOptionalPageSpeedTimeout = isOptionalPageSpeedTimeout;
