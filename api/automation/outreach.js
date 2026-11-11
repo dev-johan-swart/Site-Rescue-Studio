@@ -1,4 +1,5 @@
 const { getSql, ensureAutomationSchema } = require("../../lib/automationStore");
+const { isOutreachChannelVerified } = require("../../lib/prospectQualification");
 
 function authorised(req) {
   const expected = process.env.AUTOMATION_SECRET;
