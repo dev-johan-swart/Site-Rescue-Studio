@@ -1,3 +1,15 @@
+let dep0169TraceAttached = false;
+
+function attachDep0169Trace() {
+  if (dep0169TraceAttached) return;
+  dep0169TraceAttached = true;
+  process.on("warning", warning => {
+    if (warning?.code === "DEP0169") {
+      console.warn("DEP0169 source trace:", warning.stack || warning.message);
+    }
+  });
+}
+
 function authorised(req) {
   const expected = process.env.CRON_SECRET;
   const supplied = req.headers?.authorization || "";
