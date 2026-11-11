@@ -84,6 +84,7 @@ module.exports = async function handler(req, res) {
       recordDiscoveryProviderFailure,
       completeQueueItem,
       failQueueItem,
+      isPermanentScanFailure,
       addShortlistItem,
       addDueFollowUps,
       finishRun,
