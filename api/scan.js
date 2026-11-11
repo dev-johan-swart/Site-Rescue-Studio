@@ -4049,6 +4049,10 @@ function buildPerformanceDiagnostics(pageSpeed) {
  * --------------------------------------------------------
  */
 
+function isOptionalPageSpeedTimeout(error) {
+  return error?.name === "AbortError" || error?.code === "SCAN_DEADLINE_EXCEEDED";
+}
+
 async function runPageSpeed(url) {
   const endpoint =
     "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
