@@ -564,6 +564,7 @@ module.exports = async function handler(req, res) {
     queueReserveTarget,
     queueReserveHealthy: queueDepth >= queueReserveTarget,
     pipelineReport,
+    runtimeDiagnostics,
     errorSummary
   });
   } catch (error) {
