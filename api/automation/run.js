@@ -377,7 +377,6 @@ module.exports = async function handler(req, res) {
   const pipelineWarnings = [];
   let refillRequested = 0;
   let refillAdded = 0;
-  let queueDepthBeforeRefill = null;
 
   try {
     const scanHandler = require("../scan");
@@ -394,7 +393,6 @@ module.exports = async function handler(req, res) {
     await recoverStaleQueueItems();
     await markExhaustedFailures();
 
-  let discoverySummary = null;
   const queueReserveTarget = Math.max(
     110,
     Math.min(Number(process.env.AUTOMATION_QUEUE_RESERVE_TARGET || 110), 110)
