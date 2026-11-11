@@ -483,13 +483,13 @@ module.exports = async function handler(req, res) {
         ...scanData,
         businessEvidence: {
           ...(scanData.businessEvidence || {}),
-          companyName: scanData.businessEvidence?.companyName || discoveryMetadata.business_name || null,
+          companyName: scanData.businessEvidence?.companyName || discoveryMetadata.company_name || discoveryMetadata.discovery_business_name || null,
           discovery: {
             ...(scanData.businessEvidence?.discovery || {}),
             provider: discoveryMetadata.source || null,
             region: discoveryMetadata.region || null,
             city: discoveryMetadata.city || null,
-            businessName: discoveryMetadata.business_name || null
+            businessName: discoveryMetadata.discovery_business_name || null
           }
         }
       } : scanData;
