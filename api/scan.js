@@ -2053,6 +2053,20 @@ function classifyFormEvidence(
 }
 
 
+function cleanCompanyName(value) {
+  const name = cleanText(String(value || "").replace(/&amp;/gi, "&").replace(/&#\d+;/g, " "));
+  if (!name || name.length > 160) return null;
+  if (/^(?:head office|office|address|contact us|home|welcome|about us)$/i.test(name)) return null;
+  // Address-shaped strings are contact/location evidence, not business names.
+  const addressPrefix = /^(?:head office|registered office|office address|main office)\s*[:\-]/i.test(name);
+  const addressTerms = /\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|drive|dr\.?|boulevard|blvd\.?|lane|ln\.?|crescent|close|parkway|suite|unit|po box|postal code)\b/i.test(name);
+  const numberedAddress = /^\d{1,5}\s+\S+/.test(name);
+  const addressContext = addressTerms && /\b\d{1,5}\b/.test(name);
+  const postalAddress = addressTerms && /,\s*[^,]+,\s*\d{4}\b/.test(name);
+  if (addressPrefix || numberedAddress || addressContext || postalAddress) return null;
+  return name;
+}
+
 function extractContactValues(html, pageUrl) {
   const result = { companyName: null, contactName: null, emails: [], phones: [] };
   const add = (kind, raw, source, confidence = "high") => {
@@ -2095,7 +2109,7 @@ function extractContactValues(html, pageUrl) {
     const rawType = value["@type"];
     const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
     const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
-    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = value.name.trim().slice(0, 200) || null;
+    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = cleanCompanyName(value.name);
     if ((types.includes("contactpoint") || (contactContext && types.includes("person"))) && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
     (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
     (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
@@ -2108,6 +2122,12 @@ function extractContactValues(html, pageUrl) {
   for (const script of extractTextBetween(String(html || ""), "script")) {
     if (!/"@type"\s*:/.test(script)) continue;
     try { walk(JSON.parse(script)); } catch {}
+  }
+  if (!result.companyName) {
+    result.companyName = cleanCompanyName(
+      getMetaContent(html, "og:site_name") ||
+      getMetaContent(html, "application-name")
+    );
   }
   return result;
 }

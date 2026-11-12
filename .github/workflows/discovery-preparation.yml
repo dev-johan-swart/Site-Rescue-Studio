@@ -4,8 +4,8 @@ on:
   schedule:
     # Continuous supply-chain check every 20 minutes. The endpoint exits
     # immediately when the fresh queue is already at the 110-site target.
-    # Production closes at 07:30 SAST (05:30 UTC). Discovery gets the daytime gap
-    # plus the final pre-production refill window, but does not compete with production.
+    # Keep the established 20-minute UTC schedule unchanged. GitHub may delay
+    # scheduled events; queue: max below prevents pending runs replacing one another.
     - cron: "40 5 * * *"
     - cron: "0,20,40 6-23 * * *"
     - cron: "0,20,40 0-1 * * *"
@@ -15,6 +15,7 @@ jobs:
   prepare-discovery:
     concurrency:
       group: site-rescue-studio-discovery-preparation
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 6
