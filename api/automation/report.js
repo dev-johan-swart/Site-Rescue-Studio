@@ -1,5 +1,5 @@
 const { getSql, ensureAutomationSchema } = require("../../lib/automationStore");
-const { generateFullReport } = require("../../lib/reportGenerator");
+const { generateFullReport, hasFullReportEvidence } = require("../../lib/reportGenerator");
 
 function authorised(req) {
   const expected = process.env.AUTOMATION_SECRET;
@@ -22,7 +22,14 @@ module.exports = async function handler(req, res) {
     if (!queue.length) return res.status(404).json({success:false,error:"No completed scan history is linked to this shortlist item."});
     const history=await sql`SELECT scan_data FROM scan_history WHERE id=${queue[0].scan_history_id} LIMIT 1`;
     if (!history.length || !history[0].scan_data) return res.status(404).json({success:false,error:"The linked scan history does not contain report data."});
-    const pdf=await generateFullReport(history[0].scan_data);
+    const scanData=history[0].scan_data;
+    if (!hasFullReportEvidence(scanData)) {
+      return res.status(409).json({
+        success:false,
+        error:"The saved scan predates complete report evidence. Rescan this website before generating a detailed report."
+      });
+    }
+    const pdf=await generateFullReport(scanData);
     res.setHeader("Content-Type","application/pdf");
     res.setHeader("Content-Disposition",`attachment; filename="website-health-report-${websiteNormalized.replace(/[^a-z0-9.-]/g,"-")}.pdf"`);
     res.setHeader("Content-Length",String(pdf.length));
