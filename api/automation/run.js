@@ -1,3 +1,72 @@
+const dns = require("node:dns").promises;
+
+async function filterMyCityInfoDnsCandidates(candidates, options = {}) {
+  const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
+  const resolve6 = options.resolve6 || dns.resolve6.bind(dns);
+  const timeoutMs = Math.max(250, Math.min(Number(options.timeoutMs) || 2500, 5000));
+  const concurrency = Math.max(1, Math.min(Math.floor(Number(options.concurrency) || 4), 6));
+  const diagnostics = { examined: 0, rejectedNoAddress: 0, deferredTransient: 0 };
+  const input = Array.isArray(candidates) ? candidates : [];
+  const results = new Array(input.length);
+  let nextIndex = 0;
+
+  const checkCandidate = async candidate => {
+    if (String(candidate?.provider || "").toLowerCase() !== "mycityinfo") return candidate;
+    let hostname;
+    try {
+      hostname = new URL(String(candidate.website || "")).hostname.toLowerCase();
+    } catch {
+      // URL syntax is already validated upstream. Do not discard a record here
+      // if its shape is unexpectedly different; preserve it for normal checks.
+      return candidate;
+    }
+    const resolveFamily = async resolver => {
+      try {
+        return await resolver(hostname);
+      } catch (error) {
+        const code = String(error?.code || "").toUpperCase();
+        if (code === "ENODATA" || code === "ENOTFOUND") return [];
+        throw error;
+      }
+    };
+
+    let timer;
+    try {
+      const families = await Promise.race([
+        Promise.all([resolveFamily(resolve4), resolveFamily(resolve6)]),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            const error = new Error("MyCityInfo DNS preflight timed out.");
+            error.code = "DNS_PREFLIGHT_TIMEOUT";
+            reject(error);
+          }, timeoutMs);
+        })
+      ]).finally(() => clearTimeout(timer));
+      diagnostics.examined++;
+      if (!families.some(addresses => Array.isArray(addresses) && addresses.length > 0)) {
+        diagnostics.rejectedNoAddress++;
+        return null;
+      }
+      return candidate;
+    } catch {
+      // Fail open on temporary resolver errors/timeouts. The scanner retains
+      // its existing bounded DNS validation and retry classification.
+      diagnostics.deferredTransient++;
+      return candidate;
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, input.length) }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= input.length) return;
+      results[index] = await checkCandidate(input[index]);
+    }
+  });
+  await Promise.all(workers);
+  return { candidates: results.filter(candidate => candidate !== null), diagnostics };
+}
+
 let dep0169TraceAttached = false;
 
 function attachDep0169Trace() {
@@ -322,9 +391,10 @@ module.exports = async function handler(req, res) {
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider, provider === "mycityinfo" ? 240 : 0),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
+        const dnsQualification = await filterMyCityInfoDnsCandidates(discovery.candidates);
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
           sql,
-          discovery.candidates,
+          dnsQualification.candidates,
           discovery.provider,
           stage.id,
           true
@@ -338,6 +408,7 @@ module.exports = async function handler(req, res) {
           extractionTelemetry: discovery.telemetry || null,
           providerAttempts: discovery.attempts || [],
           providerErrors: discovery.errors || [],
+          dnsQualification: dnsQualification.diagnostics,
           backlogDiagnostics,
           newlyQueued: promoted.length
         });
@@ -619,3 +690,6 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
+
+module.exports.filterMyCityInfoDnsCandidates = filterMyCityInfoDnsCandidates;
