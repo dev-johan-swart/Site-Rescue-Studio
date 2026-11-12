@@ -2061,7 +2061,7 @@ function cleanCompanyName(value) {
   const addressPrefix = /^(?:head office|registered office|office address|main office)\s*[:\-]/i.test(name);
   const addressTerms = /\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|drive|dr\.?|boulevard|blvd\.?|lane|ln\.?|crescent|close|parkway|suite|unit|po box|postal code)\b/i.test(name);
   const numberedAddress = /^\d{1,5}\s+\S+/.test(name);
-  const addressContext = addressTerms && /\b\d{1,5}\b|,/.test(name);
+  const addressContext = addressTerms && /\b\d{1,5}\b/.test(name);
   const postalAddress = addressTerms && /,\s*[^,]+,\s*\d{4}\b/.test(name);
   if (addressPrefix || numberedAddress || addressContext || postalAddress) return null;
   return name;
