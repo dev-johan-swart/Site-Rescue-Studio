@@ -7675,34 +7675,79 @@ const opportunity =
       try {
         const prospectResult =
           await saveProspect({
-            scannerVersion:
-             "3.2",
-
-            url:
-              targetUrl.href,
-
-              finalUrl,
-
-              businessEvidence,
-
-              keyProblems,
-
-              opportunity,
-
-              priority,
-
-              potentialServices,
-
-              scores: {
-                overall,
-                seo: seoScore,
-                performance: performanceScore,
-                mobile: mobileScore,
-                accessibility: accessibilityScore,
-                technical: technicalScore,
-                business: businessScore,
-                security: homepage.security.score
-              },
+            success: true,
+            scannerVersion: "3.2",
+            scannedAt: new Date().toISOString(),
+            url: targetUrl.href,
+            finalUrl,
+            responseTime,
+            statusCode: response.status,
+            businessEvidence,
+            browserInspection: browserInspection
+              ? {
+                  attempted: true,
+                  available: Boolean(browserInspection.available),
+                  durationMs: browserInspection.durationMs || null,
+                  renderedContactLinks: browserInspection.renderedContactLinks || [],
+                  renderedForms: browserInspection.renderedForms || [],
+                  formEmbedFailures: browserInspection.formEmbedFailures || [],
+                  unavailableReason: browserInspection.unavailableReason || null
+                }
+              : { attempted: false, available: false },
+            crawlability,
+            technologies,
+            linkHealth: homepage.linkHealth || linkHealth,
+            routeHealth: routeHealthSummary,
+            counts: {
+              images: homepage.images,
+              imagesWithoutAlt: homepage.imagesWithoutAlt,
+              links: homepage.links,
+              scripts: homepage.scripts,
+              stylesheets: homepage.stylesheets,
+              h1: homepage.h1s.length,
+              h2: homepage.h2s.length
+            },
+            pageSpeed: {
+              available: pageSpeed.success,
+              error: pageSpeed.error || null,
+              scores: pageSpeed.success ? pageSpeed.scores : null,
+              vitals: pageSpeed.success ? pageSpeed.vitals : null,
+              diagnostics: pageSpeed.success ? pageSpeed.diagnostics : []
+            },
+            checks: {
+              seo: homepage.seoChecks,
+              accessibility: homepage.accessibilityChecks,
+              technical: homepage.technicalChecks,
+              business: businessChecks,
+              mobile: homepage.mobileChecks,
+              security: homepage.security.checks
+            },
+            issues,
+            recommendations,
+            metadata: {
+              title: homepage.title,
+              description: homepage.description,
+              viewport: homepage.viewport,
+              canonical: homepage.canonical,
+              language: homepage.language,
+              h1s: homepage.h1s,
+              h2s: homepage.h2s,
+              structuredData: homepage.structuredData
+            },
+            keyProblems,
+            opportunity,
+            priority,
+            potentialServices,
+            scores: {
+              overall,
+              seo: seoScore,
+              performance: performanceScore,
+              mobile: mobileScore,
+              accessibility: accessibilityScore,
+              technical: technicalScore,
+              business: businessScore,
+              security: homepage.security.score
+            }
           });
 
         prospectSaved =
