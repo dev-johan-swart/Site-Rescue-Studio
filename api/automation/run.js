@@ -62,7 +62,7 @@ module.exports = async function handler(req, res) {
       nextEnabledDiscoveryStageId,
       providerQueries,
       PRIMARY_DISCOVERY_PROVIDERS,
-      preparationProviderOffsetForStage
+      preparationProviderOrderForStage
     } = require("../../lib/discoveryProviders"));
     ({
       getSql,
@@ -284,8 +284,8 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          providerStartOffset: preparationProviderOffsetForStage(stage.id),
-          providerOrder: PREPARATION_PROVIDER_ORDER,
+          providerStartOffset: 0,
+          providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
@@ -298,13 +298,13 @@ module.exports = async function handler(req, res) {
             const providerLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
             if (providerLimit <= 0) return { available: false, reason: "disabled" };
             const monthlyLimit = preparationProviderMonthlyLimits[provider] ?? (provider === "foursquare" ? 500 : null);
-            const reserved = await reserveDiscoveryProvider(sql, provider, providerLimit, cycleDate, monthlyLimit);
-            if (reserved) return true;
             const state = await getDiscoveryProviderState(sql, provider);
             const cooldownUntil = state?.cooldown_until || null;
             if (cooldownUntil && new Date(cooldownUntil).getTime() > Date.now()) {
               return { available: false, reason: "cooldown", details: { cooldownUntil } };
             }
+            const reserved = await reserveDiscoveryProvider(sql, provider, providerLimit, cycleDate, monthlyLimit);
+            if (reserved) return true;
             if (state?.day_key === cycleDate && Number(state?.request_count || 0) >= providerLimit) {
               return {
                 available: false,
