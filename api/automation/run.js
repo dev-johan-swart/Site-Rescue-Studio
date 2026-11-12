@@ -62,7 +62,7 @@ module.exports = async function handler(req, res) {
       nextEnabledDiscoveryStageId,
       providerQueries,
       PRIMARY_DISCOVERY_PROVIDERS,
-      PREPARATION_PROVIDER_ORDER
+      preparationProviderOffsetForStage
     } = require("../../lib/discoveryProviders"));
     ({
       getSql,
@@ -185,6 +185,7 @@ module.exports = async function handler(req, res) {
   // Midnight SAST begins the new production day; 07:30 SAST is the reporting cutoff.
   const cycleDate = localDate;
   try {
+    await recoverStaleQueueItems(sql);
     await recoverStaleAutomationRuns(sql);
   } catch (error) {
     const message = String(error?.message || error);
@@ -283,7 +284,7 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          providerStartOffset: PREPARATION_PROVIDER_ORDER.length ? Math.floor(Date.now() / 1200000) % PREPARATION_PROVIDER_ORDER.length : 0,
+          providerStartOffset: preparationProviderOffsetForStage(stage.id),
           providerOrder: PREPARATION_PROVIDER_ORDER,
           providerPageOffset: attemptNumber,
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
@@ -321,7 +322,7 @@ module.exports = async function handler(req, res) {
             }
             return { available: false, reason: "unavailable" };
           },
-          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
+          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider, provider === "mycityinfo" ? 240 : 0),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
@@ -432,7 +433,6 @@ module.exports = async function handler(req, res) {
       };
       scanHandler({ method: "POST", body: { url, deadlineAt } }, response).catch(reject);
     });
-    await recoverStaleQueueItems();
     await markExhaustedFailures();
 
   const queueReserveTarget = Math.max(
