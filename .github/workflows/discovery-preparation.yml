@@ -4,8 +4,8 @@ on:
   schedule:
     # Continuous supply-chain check every 20 minutes. The endpoint exits
     # immediately when the fresh queue is already at the 110-site target.
-    # Production closes at 07:30 SAST (05:30 UTC). Discovery gets the daytime gap
-    # plus the final pre-production refill window, but does not compete with production.
+    # Production closes at 07:30 SAST (05:30 UTC). The first 07:47 SAST run
+    # replenishes the reserve for the next cycle; later runs keep it topped up.
     - cron: "47 5 * * *"
     - cron: "7,27,47 6-23 * * *"
     - cron: "7,27,47 0-1 * * *"
