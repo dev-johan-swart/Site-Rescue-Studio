@@ -4,11 +4,11 @@ on:
   schedule:
     # Continuous supply-chain check every 20 minutes. The endpoint exits
     # immediately when the fresh queue is already at the 110-site target.
-    # Production closes at 07:30 SAST (05:30 UTC). The first 07:47 SAST run
-    # replenishes the reserve for the next cycle; later runs keep it topped up.
-    - cron: "47 5 * * *"
-    - cron: "7,27,47 6-23 * * *"
-    - cron: "7,27,47 0-1 * * *"
+    # Keep the established 20-minute UTC schedule unchanged. GitHub may delay
+    # scheduled events; queue: max below prevents pending runs replacing one another.
+    - cron: "40 5 * * *"
+    - cron: "0,20,40 6-23 * * *"
+    - cron: "0,20,40 0-1 * * *"
   workflow_dispatch:
 
 jobs:
