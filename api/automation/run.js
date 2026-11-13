@@ -1,6 +1,6 @@
 const dns = require("node:dns").promises;
 
-async function filterMyCityInfoDnsCandidates(candidates, options = {}) {
+async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
   const resolve6 = options.resolve6 || dns.resolve6.bind(dns);
   const timeoutMs = Math.max(250, Math.min(Number(options.timeoutMs) || 2500, 5000));
@@ -11,7 +11,7 @@ async function filterMyCityInfoDnsCandidates(candidates, options = {}) {
   let nextIndex = 0;
 
   const checkCandidate = async candidate => {
-    if (String(candidate?.provider || "").toLowerCase() !== "mycityinfo") return candidate;
+    if (!candidate?.website) return candidate;
     let hostname;
     try {
       hostname = new URL(String(candidate.website || "")).hostname.toLowerCase();
@@ -36,7 +36,7 @@ async function filterMyCityInfoDnsCandidates(candidates, options = {}) {
         Promise.all([resolveFamily(resolve4), resolveFamily(resolve6)]),
         new Promise((_, reject) => {
           timer = setTimeout(() => {
-            const error = new Error("MyCityInfo DNS preflight timed out.");
+            const error = new Error("Discovery DNS preflight timed out.");
             error.code = "DNS_PREFLIGHT_TIMEOUT";
             reject(error);
           }, timeoutMs);
@@ -391,7 +391,7 @@ module.exports = async function handler(req, res) {
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider, provider === "mycityinfo" ? 240 : 0),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
-        const dnsQualification = await filterMyCityInfoDnsCandidates(discovery.candidates);
+        const dnsQualification = await filterDiscoveryDnsCandidates(discovery.candidates);
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
           sql,
           dnsQualification.candidates,
@@ -692,4 +692,5 @@ module.exports = async function handler(req, res) {
 };
 
 
-module.exports.filterMyCityInfoDnsCandidates = filterMyCityInfoDnsCandidates;
+module.exports.filterDiscoveryDnsCandidates = filterDiscoveryDnsCandidates;
+module.exports.filterMyCityInfoDnsCandidates = filterDiscoveryDnsCandidates;
