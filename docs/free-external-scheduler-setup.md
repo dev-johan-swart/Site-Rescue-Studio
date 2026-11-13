@@ -90,3 +90,23 @@ For every job:
 - Do not retry a production batch just because the scheduler's request result is unclear. First inspect the GitHub run and Neon to avoid duplicate work.
 - cron-job.org is free but provides no punctuality guarantee. This is a practical way to bypass the native scheduled-event delivery layer, not a guarantee against all scheduling or runner delays.
 - Never share the GitHub token or paste it into chat.
+
+
+## Additional external trigger for discovery preparation
+
+The native GitHub schedule for discovery preparation remains enabled as a fallback. The discovery workflow is idempotent with respect to the reserve: it checks the fresh queue target before adding more candidates, and its dedicated `queue: max` concurrency group serializes overlapping preparation requests.
+
+To improve delivery reliability without touching the 12 production worker jobs, add **one separate cron-job.org job** for discovery preparation:
+
+- Name: `SRS Discovery Preparation`
+- Schedule: every 20 minutes (`*/20 * * * *`)
+- Timezone: `Africa/Johannesburg`
+- URL: `https://api.github.com/repos/dev-johan-swart/Site-Rescue-Studio/actions/workflows/discovery-preparation.yml/dispatches`
+- Method: `POST`
+- Headers: use the same narrowly scoped fine-grained GitHub token and headers from Step 2 above.
+- Body: `{"ref":"main"}`
+- Enable failure notifications and execution history.
+
+This additional job dispatches **only** the discovery-preparation workflow. It does not dispatch the production worker, does not call a scan batch, and does not alter the 07:30 SAST worker cutoff. Keep the native discovery `schedule:` entries enabled as fallback. Do not add or change any of the 12 existing production worker jobs.
+
+For the first full day, compare each external scheduler execution with the matching `Site Rescue Studio Discovery Preparation` GitHub run and the Neon preparation run record. A successful dispatch response proves only that GitHub accepted the workflow request; confirm that the preparation workflow completed and recorded its provider/queue results.

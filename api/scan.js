@@ -21,6 +21,7 @@ function resolveScanDeadline(requestedDeadlineAt, now = Date.now(), maxDurationM
 
 const { saveProspect } =
   require("../lib/prospectStore");
+const { cleanBusinessName, emailCandidate, selectPrimaryEmail } = require("../lib/prospectIdentity");
 const { runBrowserInspection } = require("../lib/browserInspection");
 
 const USER_AGENT =
@@ -2076,7 +2077,9 @@ function extractContactValues(html, pageUrl) {
       const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
       if (!match) return;
       const normalized = match[0].toLowerCase();
-      if (!result.emails.some(item => item.normalized === normalized)) result.emails.push({ value: match[0], normalized, url: pageUrl, source, confidence });
+      const candidate = emailCandidate({ value: match[0], normalized, url: pageUrl, source, confidence });
+      if (!candidate) return;
+      if (!result.emails.some(item => item.normalized === normalized)) result.emails.push(candidate);
       return;
     }
     const match = value.match(/(?:\+27|0)\s?(?:\(?\d{2}\)?)[\s-]?\d{3}[\s-]?\d{4}/);
@@ -2109,7 +2112,7 @@ function extractContactValues(html, pageUrl) {
     const rawType = value["@type"];
     const types = (Array.isArray(rawType) ? rawType : [rawType]).filter(Boolean).map(type => String(type).toLowerCase());
     const isBusiness = types.some(type => /organization|localbusiness|store|restaurant|professionalservice|medicalbusiness/.test(type));
-    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = cleanCompanyName(value.name);
+    if (isBusiness && !result.companyName && typeof value.name === "string") result.companyName = cleanBusinessName(value.name);
     if ((types.includes("contactpoint") || (contactContext && types.includes("person"))) && !result.contactName && typeof value.name === "string") result.contactName = value.name.trim().slice(0, 160) || null;
     (Array.isArray(value.email) ? value.email : [value.email]).forEach(item => add("email", item, "json-ld"));
     (Array.isArray(value.telephone) ? value.telephone : [value.telephone]).forEach(item => add("phone", item, "json-ld"));
@@ -2124,7 +2127,7 @@ function extractContactValues(html, pageUrl) {
     try { walk(JSON.parse(script)); } catch {}
   }
   if (!result.companyName) {
-    result.companyName = cleanCompanyName(
+    result.companyName = cleanBusinessName(
       getMetaContent(html, "og:site_name") ||
       getMetaContent(html, "application-name")
     );
@@ -4387,7 +4390,7 @@ function aggregateBusinessEvidence(
     const page of analyzedPages
   ) {
     const contacts = page.business.contacts || {};
-    if (!evidence.companyName && contacts.companyName) evidence.companyName = contacts.companyName;
+    if (!evidence.companyName && contacts.companyName) evidence.companyName = cleanBusinessName(contacts.companyName);
     if (!evidence.contactName && contacts.contactName) evidence.contactName = contacts.contactName;
     for (const item of contacts.emails || []) {
       if (!evidence.emailValues.some(existing => existing.normalized === item.normalized)) evidence.emailValues.push(item);
@@ -4465,6 +4468,10 @@ function aggregateBusinessEvidence(
     }
   }
 
+  const primaryEmail = selectPrimaryEmail(evidence.emailValues, analyzedPages[0]?.url);
+  if (primaryEmail) {
+    evidence.emailValues = [primaryEmail, ...evidence.emailValues.filter(item => item.normalized !== primaryEmail.normalized)];
+  }
   return evidence;
 }
 
