@@ -551,7 +551,7 @@ module.exports = async function handler(req, res) {
         ...scanData,
         businessEvidence: {
           ...(scanData.businessEvidence || {}),
-          companyName: scanData.businessEvidence?.companyName || discoveryMetadata.company_name || discoveryMetadata.discovery_business_name || null,
+          companyName: scanData.businessEvidence?.companyName || null,
           discovery: {
             ...(scanData.businessEvidence?.discovery || {}),
             provider: discoveryMetadata.source || null,
