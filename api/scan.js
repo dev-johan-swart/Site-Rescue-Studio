@@ -4468,6 +4468,10 @@ function aggregateBusinessEvidence(
     }
   }
 
+  const primaryEmail = selectPrimaryEmail(evidence.emailValues, analyzedPages[0]?.url);
+  if (primaryEmail) {
+    evidence.emailValues = [primaryEmail, ...evidence.emailValues.filter(item => item.normalized !== primaryEmail.normalized)];
+  }
   return evidence;
 }
 
