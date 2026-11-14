@@ -114,7 +114,6 @@ module.exports = async function handler(req, res) {
   let getDailyScannedCount;
   let recoverStaleAutomationRuns;
   let claimNextDailyRun;
-  let getDiscoveryStageState;
   let setDiscoveryStageState;
   let getDiscoveryProviderPageState;
   let getDiscoveryProviderState;
@@ -154,7 +153,6 @@ module.exports = async function handler(req, res) {
       getDailyScannedCount,
       recoverStaleAutomationRuns,
       claimNextDailyRun,
-      getDiscoveryStageState,
       setDiscoveryStageState,
       getDiscoveryProviderPageState,
       getDiscoveryProviderState,
@@ -302,7 +300,10 @@ module.exports = async function handler(req, res) {
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
     const attempts = [];
-    let stageId = await getDiscoveryStageState(sql);
+    // Every preparation cycle starts with the highest-priority local market.
+    // It then widens to Gauteng and national coverage only if the reserve is still short.
+    let stageId = "pretoria_centurion";
+    await setDiscoveryStageState(sql, stageId);
 
     // Seed the durable local reserve first. This is independent of live
     // discovery providers and uses the same dedupe/backlog path as all other
