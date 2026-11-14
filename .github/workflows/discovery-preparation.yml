@@ -2,13 +2,12 @@ name: Site Rescue Studio Discovery Preparation
 
 on:
   schedule:
-    # Continuous supply-chain check every 20 minutes. The endpoint exits
-    # immediately when the fresh queue is already at the 110-site target.
-    # Keep the established 20-minute UTC schedule unchanged. GitHub may delay
-    # scheduled events; queue: max below prevents pending runs replacing one another.
-    - cron: "40 5 * * *"
-    - cron: "0,20,40 6-23 * * *"
-    - cron: "0,20,40 0-1 * * *"
+    # Run every 20 minutes across the full day, including the entire
+    # 03:05-06:45 SAST production window, so fresh reserve can replenish
+    # while workers consume it. The endpoint exits immediately at the
+    # 110-site fresh reserve target. GitHub schedule delivery is best-effort;
+    # the separate external dispatch remains an additional trigger.
+    - cron: "*/20 * * * *"
   workflow_dispatch:
 
 jobs:
