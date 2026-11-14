@@ -74,7 +74,7 @@ function isAllowedScannedDestination(scanData, originalWebsite) {
   try {
     const path = new URL(String(destination)).pathname.toLowerCase();
     // A product/category listing is not a business homepage or service site.
-    if (/\\/(?:product-category|category)\\//.test(path)) return false;
+    if (/\/(?:product-category|category)\//.test(path)) return false;
   } catch {
     return false;
   }
