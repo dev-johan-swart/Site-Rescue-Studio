@@ -364,7 +364,7 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          providerStartOffset: 0,
+          providerStartOffset: attemptNumber,
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
