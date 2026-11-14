@@ -70,7 +70,15 @@ async function filterDiscoveryDnsCandidates(candidates, options = {}) {
 
 function isAllowedScannedDestination(scanData, originalWebsite) {
   const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
-  return Boolean(normalizeWebsite(destination));
+  if (!normalizeWebsite(destination)) return false;
+  try {
+    const path = new URL(String(destination)).pathname.toLowerCase();
+    // A product/category listing is not a business homepage or service site.
+    if (/\\/(?:product-category|category)\\//.test(path)) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 let dep0169TraceAttached = false;
