@@ -142,7 +142,8 @@ module.exports = async function handler(req, res) {
       getDiscoveryStage,
       nextEnabledDiscoveryStageId,
       providerQueries,
-      preparationProviderOrderForStage
+      preparationProviderOrderForStage,
+      preparationProviderStartOffset
     } = require("../../lib/discoveryProviders"));
     ({
       getSql,
@@ -364,7 +365,7 @@ module.exports = async function handler(req, res) {
           stage,
           queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
           maxCandidates: 20,
-          providerStartOffset: attemptNumber,
+          providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
