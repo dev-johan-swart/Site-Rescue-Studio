@@ -1,4 +1,5 @@
 const dns = require("node:dns").promises;
+const { normalizeWebsite } = require("../../lib/discoveryUrl");
 
 async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
@@ -65,6 +66,11 @@ async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   });
   await Promise.all(workers);
   return { candidates: results.filter(candidate => candidate !== null), diagnostics };
+}
+
+function isAllowedScannedDestination(scanData, originalWebsite) {
+  const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
+  return Boolean(normalizeWebsite(destination));
 }
 
 let dep0169TraceAttached = false;
@@ -388,7 +394,9 @@ module.exports = async function handler(req, res) {
             }
             return { available: false, reason: "unavailable" };
           },
-          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider, provider === "mycityinfo" ? 240 : 0),
+          // Daily provider budgets and failure cooldowns already bound request volume.
+          // A successful MyCityInfo page must not lock the source for four hours.
+          recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
         const dnsQualification = await filterDiscoveryDnsCandidates(discovery.candidates);
@@ -547,6 +555,12 @@ module.exports = async function handler(req, res) {
         throw new Error(failureCode + (scanData?.error || `Scanner returned HTTP ${result.statusCode}.`) + diagnosticCode);
       }
 
+      if (!isAllowedScannedDestination(scanData, item.website)) {
+        const destinationError = new Error("The scanned website redirected to an excluded directory, parked-domain or non-public destination.");
+        destinationError.code = "SAFETY_REJECTED";
+        throw destinationError;
+      }
+
       const qualificationData = discoveryMetadata ? {
         ...scanData,
         businessEvidence: {
@@ -693,4 +707,5 @@ module.exports = async function handler(req, res) {
 
 
 module.exports.filterDiscoveryDnsCandidates = filterDiscoveryDnsCandidates;
+module.exports.isAllowedScannedDestination = isAllowedScannedDestination;
 module.exports.filterMyCityInfoDnsCandidates = filterDiscoveryDnsCandidates;
