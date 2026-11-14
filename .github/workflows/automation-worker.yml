@@ -118,4 +118,7 @@ jobs:
             scanned="$(jq -r '.counts.scannedCount' "$response_file")"
             candidates="$(jq -r '.counts.candidateCount' "$response_file")"
             echo "Batch $batch completed its endpoint path: candidates=$candidates, scans=$scanned."
+            if [ "$scanned" -eq 0 ]; then
+              echo "::warning::Production batch $batch scanned zero websites. Inspect fresh reserve depth, retry backlog, provider diagnostics and Neon run telemetry immediately."
+            fi
           fi
