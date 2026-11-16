@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/mycityinfo-gauteng-routes
+      - fix/local-discovery-core-provider-rotation
   pull_request:
     branches:
       - main
