@@ -5,6 +5,7 @@ on:
     branches:
       - fix/mycityinfo-gauteng-routes
       - fix/local-discovery-core-provider-rotation
+      - fix/discovery-source-efficiency-nov16
   pull_request:
     branches:
       - main
