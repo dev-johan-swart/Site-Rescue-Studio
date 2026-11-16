@@ -9,6 +9,16 @@ on:
     # the separate external dispatch remains an additional trigger.
     - cron: "*/20 * * * *"
   workflow_dispatch:
+  # The existing external scheduler dispatches the 12 worker batches. Run a
+  # reserve top-up after each completed production batch so discovery remains
+  # coupled to the proven external schedule without changing any worker jobs.
+  workflow_run:
+    workflows:
+      - "Site Rescue Studio Automation Worker"
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   prepare-discovery:
