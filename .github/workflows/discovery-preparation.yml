@@ -2,23 +2,13 @@ name: Site Rescue Studio Discovery Preparation
 
 on:
   schedule:
-    # Run every 20 minutes across the full day, including the entire
-    # 03:05-06:45 SAST production window, so fresh reserve can replenish
-    # while workers consume it. The endpoint exits immediately at the
-    # 110-site fresh reserve target. GitHub schedule delivery is best-effort;
-    # the separate external dispatch remains an additional trigger.
-    - cron: "*/20 * * * *"
+    # Preserve the established reserve-building windows: before the next
+    # production cycle and during daytime recovery. Do not spend provider
+    # budgets or compete with the 03:05-06:45 SAST scan window.
+    - cron: "40 5 * * *"
+    - cron: "0,20,40 6-23 * * *"
+    - cron: "0,20,40 0-1 * * *"
   workflow_dispatch:
-  # The existing external scheduler dispatches the 12 worker batches. Run a
-  # reserve top-up after each completed production batch so discovery remains
-  # coupled to the proven external schedule without changing any worker jobs.
-  workflow_run:
-    workflows:
-      - "Site Rescue Studio Automation Worker"
-    types:
-      - completed
-    branches:
-      - main
 
 jobs:
   prepare-discovery:
