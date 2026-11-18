@@ -2,12 +2,12 @@ name: Site Rescue Studio Discovery Preparation
 
 on:
   schedule:
-    # Preserve the established reserve-building windows: before the next
-    # production cycle and during daytime recovery. Do not spend provider
-    # budgets or compete with the 03:05-06:45 SAST scan window.
-    - cron: "40 5 * * *"
+    # Build reserve before and throughout the 03:05-06:45 SAST production
+    # window (00:00-06:40 SAST = 22:00-04:40 UTC), then retain daytime
+    # recovery cadence. No worker-completion trigger or budget increase.
+    - cron: "0,20,40 0-4 * * *"
     - cron: "0,20,40 6-23 * * *"
-    - cron: "0,20,40 0-1 * * *"
+    - cron: "40 5 * * *"
   workflow_dispatch:
 
 jobs:
