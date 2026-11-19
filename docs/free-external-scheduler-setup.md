@@ -96,17 +96,18 @@ For every job:
 
 The native GitHub schedule for discovery preparation remains enabled as a fallback. The discovery workflow is idempotent with respect to the reserve: it checks the fresh queue target before adding more candidates, and its dedicated `queue: max` concurrency group serializes overlapping preparation requests.
 
-To improve delivery reliability without touching the 12 production worker jobs, add **one separate cron-job.org job** for discovery preparation:
+To improve delivery reliability without touching the 12 production worker jobs, add **one separate cron-job.org job** for discovery preparation. Do not enable its recurring schedule until the safe test and cutover are complete.
 
 - Name: `SRS Discovery Preparation`
-- Schedule: every 20 minutes (`*/20 * * * *`)
 - Timezone: `Africa/Johannesburg`
 - URL: `https://api.github.com/repos/dev-johan-swart/Site-Rescue-Studio/actions/workflows/discovery-preparation.yml/dispatches`
 - Method: `POST`
-- Headers: use the same narrowly scoped fine-grained GitHub token and headers from Step 2 above.
-- Body: `{"ref":"main"}`
-- Enable failure notifications and execution history.
+- Headers: copy the same narrowly scoped fine-grained GitHub token and required headers from an existing worker job. Never paste the token into chat.
+- **Initial safe-test body:** `{"ref":"fix/discovery-supply-diagnostics","inputs":{"dry_run":"true"}}`
+- Keep the new job disabled while configuring it.
 
-This additional job dispatches **only** the discovery-preparation workflow. It does not dispatch the production worker, does not call a scan batch, and does not alter the 07:30 SAST worker cutoff. Keep the native discovery `schedule:` entries enabled as fallback. Do not add or change any of the 12 existing production worker jobs.
+Use the job's **Run now** action once. The workflow must report `SAFE_EXTERNAL_DISPATCH_CONFIRMED`. This dry run does not call Vercel or touch Neon, provider budgets, queue items or scans. Do not use the production body until the workflow code is merged to `main`.
 
-For the first full day, compare each external scheduler execution with the matching `Site Rescue Studio Discovery Preparation` GitHub run and the Neon preparation run record. A successful dispatch response proves only that GitHub accepted the workflow request; confirm that the preparation workflow completed and recorded its provider/queue results.
+For production cutover, first confirm the safe dispatch succeeded. Then remove the native GitHub `schedule:` trigger in a reviewed PR, leaving `workflow_dispatch` enabled. After that PR is merged, change the external job body to `{"ref":"main"}` and enable it. This avoids running both the native schedule and the external schedule concurrently. Keep all 12 production worker jobs untouched.
+
+The production preparation cadence must be bounded to the agreed preparation window and request budget; do not use an all-day `*/20 * * * *` schedule. We will set the exact schedule after checking the cron-job.org schedule controls and confirming the daily provider budgets. A successful 204 proves only that GitHub accepted the dispatch; confirm the resulting workflow and Neon run record separately.

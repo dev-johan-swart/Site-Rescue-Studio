@@ -11,6 +11,12 @@ on:
     - cron: "0,20,40 6-21 * * *"
     - cron: "40 5 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate external scheduler delivery without calling production"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   prepare-discovery:
@@ -21,7 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
+      - name: Confirm safe external dispatch
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "SAFE_EXTERNAL_DISPATCH_CONFIRMED"
+          echo "No Vercel endpoint, Neon table, provider budget, queue, or scan was touched."
+          {
+            echo "### Safe external dispatch test"
+            echo "- Dispatch accepted by GitHub Actions."
+            echo "- Production preparation was not executed."
+            echo "- No Neon, provider, queue, or scan data was touched."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check and top up the fresh 110-site reserve
+        if: ${{ inputs.dry_run != true }}
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
         run: |
@@ -40,7 +59,13 @@ jobs:
           queue_depth="$(jq -r '.queueDepth // 0' "$response_file")"
           target="$(jq -r '.target // 110' "$response_file")"
           target_reached="$(jq -r '.targetReached // false' "$response_file")"
-          echo "DISCOVERY_RESERVE:$queue_depth/$target TARGET_REACHED:$target_reached"
+          supply_status="$(jq -r '.supplyStatus // "unknown"' "$response_file")"
+          echo "DISCOVERY_RESERVE:$queue_depth/$target TARGET_REACHED:$target_reached SUPPLY_STATUS:$supply_status"
+          {
+            echo "### Discovery preparation"
+            echo "- Fresh reserve: $queue_depth/$target"
+            echo "- Supply status: $supply_status"
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$queue_depth" -eq 0 ]; then
             echo "::error::Discovery preparation returned a zero fresh-prospect reserve. Investigate provider availability and queue/backlog diagnostics immediately."
             exit 1
