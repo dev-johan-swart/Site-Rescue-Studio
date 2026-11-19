@@ -11,6 +11,12 @@ on:
     - cron: "0,20,40 6-21 * * *"
     - cron: "40 5 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate external scheduler delivery without calling production"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   prepare-discovery:
@@ -21,7 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
+      - name: Confirm safe external dispatch
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "SAFE_EXTERNAL_DISPATCH_CONFIRMED"
+          echo "No Vercel endpoint, Neon table, provider budget, queue, or scan was touched."
+          {
+            echo "### Safe external dispatch test"
+            echo "- Dispatch accepted by GitHub Actions."
+            echo "- Production preparation was not executed."
+            echo "- No Neon, provider, queue, or scan data was touched."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check and top up the fresh 110-site reserve
+        if: ${{ inputs.dry_run != true }}
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
         run: |
