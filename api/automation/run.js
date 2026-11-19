@@ -68,6 +68,17 @@ async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   return { candidates: results.filter(candidate => candidate !== null), diagnostics };
 }
 
+
+function normalizeProviderDayKey(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value || "").trim();
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
+}
+
 function isAllowedScannedDestination(scanData, originalWebsite) {
   const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
   if (!normalizeWebsite(destination)) return false;
@@ -387,7 +398,7 @@ module.exports = async function handler(req, res) {
             }
             const reserved = await reserveDiscoveryProvider(sql, provider, providerLimit, cycleDate, monthlyLimit);
             if (reserved) return true;
-            if (state?.day_key === cycleDate && Number(state?.request_count || 0) >= providerLimit) {
+            if (normalizeProviderDayKey(state?.day_key) === cycleDate && Number(state?.request_count || 0) >= providerLimit) {
               return {
                 available: false,
                 reason: "daily_budget_exhausted",
@@ -442,12 +453,15 @@ module.exports = async function handler(req, res) {
       stageId = nextEnabledDiscoveryStageId(stage.id);
       await setDiscoveryStageState(sql, stageId);
     }
+    const targetReached = queueDepth >= target;
+    const supplyStatus = targetReached ? "target_reached" : queueDepth > 0 ? "partial" : "empty";
     return res.status(200).json({
       success: true,
       preparationOnly: true,
+      supplyStatus,
       queueDepth,
       target,
-      targetReached: queueDepth >= target,
+      targetReached,
       runtimeDiagnostics,
       attempts
     });
@@ -719,3 +733,5 @@ module.exports = async function handler(req, res) {
 module.exports.filterDiscoveryDnsCandidates = filterDiscoveryDnsCandidates;
 module.exports.isAllowedScannedDestination = isAllowedScannedDestination;
 module.exports.filterMyCityInfoDnsCandidates = filterDiscoveryDnsCandidates;
+
+module.exports.normalizeProviderDayKey = normalizeProviderDayKey;
