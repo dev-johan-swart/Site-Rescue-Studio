@@ -74,7 +74,7 @@ function normalizeProviderDayKey(value) {
     return value.toISOString().slice(0, 10);
   }
   const raw = String(value || "").trim();
-  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+  if (raw.length >= 10 && raw[4] === "-" && raw[7] === "-") return raw.slice(0, 10);
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
