@@ -3,12 +3,13 @@ name: Site Rescue Studio Discovery Preparation
 on:
   schedule:
     # Build reserve before and throughout the 03:05-06:45 SAST production
-    # window: every 20 minutes 00:00-06:40 SAST (22:00-04:40 UTC).
-    # Preserve daytime discovery and the existing 07:40 SAST recovery slot.
+    # window. Run every 20 minutes at :07, :27 and :47 UTC to avoid the
+    # GitHub Actions top-of-hour scheduling congestion window.
+    # Preserve the existing 07:40 SAST recovery slot (05:40 UTC).
     # No worker-completion trigger or provider budget increase.
-    - cron: "0,20,40 22-23 * * *"
-    - cron: "0,20,40 0-4 * * *"
-    - cron: "0,20,40 6-21 * * *"
+    - cron: "7,27,47 22-23 * * *"
+    - cron: "7,27,47 0-4 * * *"
+    - cron: "7,27,47 6-21 * * *"
     - cron: "40 5 * * *"
   workflow_dispatch:
     inputs:
