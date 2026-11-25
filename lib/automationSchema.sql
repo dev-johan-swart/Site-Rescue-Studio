@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS automation_discovery_preparation_runs (
   queue_depth_before INTEGER NOT NULL DEFAULT 0,
   queue_depth_after INTEGER NOT NULL DEFAULT 0,
   readiness_passed BOOLEAN NOT NULL DEFAULT FALSE,
+  strict_check BOOLEAN NOT NULL DEFAULT FALSE,
   raw_candidate_count INTEGER NOT NULL DEFAULT 0,
   dns_examined INTEGER NOT NULL DEFAULT 0,
   dns_rejected INTEGER NOT NULL DEFAULT 0,
