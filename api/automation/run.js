@@ -380,9 +380,9 @@ module.exports = async function handler(req, res) {
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
-          getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
+          getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount, stage.id),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
-            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
+            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates, stage.id),
           filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
           isProviderAvailable: async provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) {
