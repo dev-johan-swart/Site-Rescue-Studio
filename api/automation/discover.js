@@ -13,6 +13,16 @@ function authorised(req) {
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ success:false,error:"Method not allowed." });
   if (!authorised(req)) return res.status(401).json({ success:false,error:"Unauthorized." });
+  // This legacy endpoint bypasses preparation backlog qualification, DNS
+  // preflight, stage-specific cursors and monthly provider budgets. Keep it
+  // closed by default so it cannot become a second production supply path.
+  if (String(process.env.AUTOMATION_LEGACY_DISCOVERY_ENABLED || "").toLowerCase() !== "true") {
+    return res.status(410).json({
+      success: false,
+      retired: true,
+      error: "Legacy discovery is disabled. Use the scheduled /api/automation/run?mode=prepare pipeline."
+    });
+  }
 
   try {
     const sql=getSql();
