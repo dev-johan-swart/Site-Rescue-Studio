@@ -489,6 +489,7 @@ module.exports = async function handler(req, res) {
       queueDepthBefore: queueDepthBeforePreparation,
       queueDepthAfter: queueDepth,
       readinessPassed: targetReached,
+      strictCheck: strictReadiness,
       attempts,
       startedAt: new Date(startedAt).toISOString(),
       completedAt: new Date().toISOString()
