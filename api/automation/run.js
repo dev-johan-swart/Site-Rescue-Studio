@@ -162,6 +162,8 @@ module.exports = async function handler(req, res) {
   let recoverStaleQueueItems;
   let markExhaustedFailures;
   let saveDiscoveryMetadataToProspect;
+  let recordDiscoveryPreparationRun;
+  let hasDiscoveryPreparationReadiness;
 
   try {
     ({ qualifyProspect } = require("../../lib/prospectQualification"));
@@ -200,7 +202,9 @@ module.exports = async function handler(req, res) {
       finishRun,
       recoverStaleQueueItems,
       markExhaustedFailures,
-      saveDiscoveryMetadataToProspect
+      saveDiscoveryMetadataToProspect,
+      recordDiscoveryPreparationRun,
+      hasDiscoveryPreparationReadiness
     } = require("../../lib/automationStore"));
   } catch (error) {
     const message = String(error?.message || error);
@@ -328,6 +332,7 @@ module.exports = async function handler(req, res) {
     const maxPreparationMs = 180000;
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
+    const queueDepthBeforePreparation = queueDepth;
     const attempts = [];
     // Every preparation cycle starts with the highest-priority local market.
     // It then widens to Gauteng and national coverage only if the reserve is still short.
@@ -455,6 +460,7 @@ module.exports = async function handler(req, res) {
           extractionTelemetry: discovery.telemetry || null,
           providerAttempts: discovery.attempts || [],
           providerErrors: discovery.errors || [],
+          httpRequests: discovery.httpRequests || [],
           dnsQualification: dnsQualification.diagnostics,
           backlogDiagnostics,
           newlyQueued: promoted.length
@@ -465,7 +471,8 @@ module.exports = async function handler(req, res) {
           status: "failed",
           message: String(error?.message || error),
           providerAttempts: Array.isArray(error?.attempts) ? error.attempts : [],
-          providerErrors: Array.isArray(error?.providerErrors) ? error.providerErrors : []
+          providerErrors: Array.isArray(error?.providerErrors) ? error.providerErrors : [],
+          httpRequests: Array.isArray(error?.httpRequests) ? error.httpRequests : []
         });
       }
       stageId = nextEnabledDiscoveryStageId(stage.id);
@@ -473,6 +480,19 @@ module.exports = async function handler(req, res) {
     }
     const targetReached = queueDepth >= target;
     const supplyStatus = targetReached ? "target_reached" : queueDepth > 0 ? "partial" : "empty";
+    const strictReadiness = String(req.query?.strict || "").toLowerCase() === "true";
+    const preparationTelemetry = await recordDiscoveryPreparationRun(sql, {
+      preparationKey: require("node:crypto").randomUUID(),
+      cycleDate,
+      status: supplyStatus,
+      target,
+      queueDepthBefore: queueDepthBeforePreparation,
+      queueDepthAfter: queueDepth,
+      readinessPassed: targetReached,
+      attempts,
+      startedAt: new Date(startedAt).toISOString(),
+      completedAt: new Date().toISOString()
+    });
     return res.status(200).json({
       success: true,
       preparationOnly: true,
@@ -480,6 +500,10 @@ module.exports = async function handler(req, res) {
       queueDepth,
       target,
       targetReached,
+      readinessPassed: targetReached,
+      strictReadiness,
+      readinessGate: strictReadiness ? (targetReached ? "passed" : "failed") : "not_requested",
+      preparationRunId: preparationTelemetry?.id || null,
       runtimeDiagnostics,
       attempts
     });
@@ -493,6 +517,20 @@ module.exports = async function handler(req, res) {
         error: message
       });
     }
+  }
+
+  const readiness = await hasDiscoveryPreparationReadiness(sql, cycleDate);
+  if (!readiness) {
+    const currentReserve = await getFreshQueueDepth(sql);
+    return res.status(200).json({
+      success: false,
+      reserveNotReady: true,
+      productionPaused: true,
+      cycleDate,
+      queueDepth: currentReserve,
+      queueReserveTarget: 110,
+      reason: "No successful 110/110 discovery preparation readiness record exists for this SAST production day. Worker batch was not claimed."
+    });
   }
 
   const requestedBatchNo = Number(req.query?.batch);
