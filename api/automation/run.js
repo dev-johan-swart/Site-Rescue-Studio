@@ -651,7 +651,8 @@ module.exports = async function handler(req, res) {
             provider: discoveryMetadata.source || null,
             region: discoveryMetadata.region || null,
             city: discoveryMetadata.city || null,
-            businessName: discoveryMetadata.discovery_business_name || null
+            businessName: discoveryMetadata.discovery_business_name || null,
+            locationEvidence: discoveryMetadata.location_evidence || null
           }
         }
       } : scanData;
