@@ -3,9 +3,9 @@ name: Site Rescue Studio Discovery Preparation
 on:
   schedule:
     # Build reserve before and throughout the 03:05-06:45 SAST production
-    # window. Stagger every 20 minutes at :15, :35 and :55 UTC to avoid
-    # GitHub Actions top-of-hour scheduling congestion.
-    # Final pre-worker preparation is 06:35 SAST; preserve the 07:40 recovery slot.
+    # window. Run every 20 minutes at :15, :35 and :55 UTC to avoid the
+    # GitHub Actions top-of-hour scheduling congestion window.
+    # Preserve the existing 07:40 SAST recovery slot (05:40 UTC).
     # No worker-completion trigger or provider budget increase.
     - cron: "15,35,55 22-23 * * *"
     - cron: "15,35,55 0-3 * * *"
@@ -58,18 +58,28 @@ jobs:
             "https://site-rescue-studio.vercel.app/api/automation/run?mode=prepare"
           cat "$response_file"
           echo
-          queue_depth="$(jq -r '.queueDepth // 0' "$response_file")"
-          target="$(jq -r '.target // 110' "$response_file")"
+          jq -e '.success == true and (.queueDepth | type == "number") and (.target | type == "number") and (.attempts | type == "array")' "$response_file" >/dev/null
+          queue_depth="$(jq -r '.queueDepth' "$response_file")"
+          target="$(jq -r '.target' "$response_file")"
           target_reached="$(jq -r '.targetReached // false' "$response_file")"
           supply_status="$(jq -r '.supplyStatus // "unknown"' "$response_file")"
+          attempts="$(jq -r '.attempts | length' "$response_file")"
+          discovered="$(jq '[.attempts[].backlogDiagnostics.added // 0] | add // 0' "$response_file")"
+          promoted="$(jq '[.attempts[].newlyQueued // 0] | add // 0' "$response_file")"
           echo "DISCOVERY_RESERVE:$queue_depth/$target TARGET_REACHED:$target_reached SUPPLY_STATUS:$supply_status"
           {
             echo "### Discovery preparation"
             echo "- Fresh reserve: $queue_depth/$target"
             echo "- Supply status: $supply_status"
+            echo "- Preparation attempts: $attempts"
+            echo "- New backlog records: $discovered"
+            echo "- Newly promoted queue items: $promoted"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$queue_depth" -eq 0 ]; then
-            echo "::error::Discovery preparation returned a zero fresh-prospect reserve. Investigate provider availability and queue/backlog diagnostics immediately."
+          if [ "$target" -ne 110 ]; then
+            echo "::error::Discovery preparation reported an unexpected reserve target: $target (expected 110)."
+            exit 1
+          elif [ "$queue_depth" -lt 60 ]; then
+            echo "::error::Discovery reserve is critical at $queue_depth/$target. Investigate provider yield, qualification, backlog promotion and scheduling."
             exit 1
           elif [ "$target_reached" != "true" ]; then
             echo "::warning::Discovery reserve remains below target: $queue_depth/$target fresh prospects."

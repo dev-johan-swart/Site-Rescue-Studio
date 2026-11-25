@@ -6,7 +6,7 @@ async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve6 = options.resolve6 || dns.resolve6.bind(dns);
   const timeoutMs = Math.max(250, Math.min(Number(options.timeoutMs) || 2500, 5000));
   const concurrency = Math.max(1, Math.min(Math.floor(Number(options.concurrency) || 4), 6));
-  const diagnostics = { examined: 0, rejectedNoAddress: 0, deferredTransient: 0 };
+  const diagnostics = { examined: 0, rejectedNoAddress: 0, deferredTransient: 0, rejectedCandidates: [], deferredCandidates: [] };
   const input = Array.isArray(candidates) ? candidates : [];
   const results = new Array(input.length);
   let nextIndex = 0;
@@ -46,13 +46,31 @@ async function filterDiscoveryDnsCandidates(candidates, options = {}) {
       diagnostics.examined++;
       if (!families.some(addresses => Array.isArray(addresses) && addresses.length > 0)) {
         diagnostics.rejectedNoAddress++;
+        if (diagnostics.rejectedCandidates.length < 20) {
+          diagnostics.rejectedCandidates.push({
+            website: String(candidate.website || ""),
+            hostname,
+            provider: candidate.provider || null,
+            name: candidate.name || null,
+            reason: "no_public_dns_address"
+          });
+        }
         return null;
       }
       return candidate;
-    } catch {
+    } catch (error) {
       // Fail open on temporary resolver errors/timeouts. The scanner retains
       // its existing bounded DNS validation and retry classification.
       diagnostics.deferredTransient++;
+      if (diagnostics.deferredCandidates.length < 20) {
+        diagnostics.deferredCandidates.push({
+          website: String(candidate.website || ""),
+          hostname,
+          provider: candidate.provider || null,
+          name: candidate.name || null,
+          reason: String(error?.code || "temporary_dns_error")
+        });
+      }
       return candidate;
     }
   };
@@ -380,9 +398,9 @@ module.exports = async function handler(req, res) {
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
-          getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount),
+          getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount, stage.id),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
-            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates),
+            recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates, stage.id),
           filterFreshCandidates: async candidates => filterFreshDiscoveryCandidates(sql, candidates),
           isProviderAvailable: async provider => {
             if (provider === "foursquare" && !String(process.env.FOURSQUARE_API_KEY || "").trim()) {

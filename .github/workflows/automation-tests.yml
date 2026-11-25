@@ -7,6 +7,7 @@ on:
       - fix/local-discovery-core-provider-rotation
       - fix/discovery-source-efficiency-nov16
       - fix/restore-discovery-supply-cadence
+      - fix/discovery-provenance-and-map-link-filtering
   pull_request:
     branches:
       - main
@@ -30,9 +31,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Run automation test suite
+      - name: Run complete automation regression suite
         run: npm run test:automation

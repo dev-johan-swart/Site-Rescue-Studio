@@ -117,7 +117,23 @@ jobs:
           else
             scanned="$(jq -r '.counts.scannedCount' "$response_file")"
             candidates="$(jq -r '.counts.candidateCount' "$response_file")"
+            fresh_before="$(jq -r '.pipelineReport.freshBeforeRun // 0' "$response_file")"
+            fresh_after="$(jq -r '.queueDepth // 0' "$response_file")"
+            reserve_target="$(jq -r '.queueReserveTarget // 110' "$response_file")"
+            queue_health="$(jq -r '.pipelineReport.queueHealth // "unknown"' "$response_file")"
             echo "Batch $batch completed its endpoint path: candidates=$candidates, scans=$scanned."
+            {
+              echo "### Production batch $batch"
+              echo "- Candidates: $candidates"
+              echo "- Successful scans: $scanned"
+              echo "- Fresh reserve: $fresh_before before / $fresh_after after (target $reserve_target)"
+              echo "- Queue health: $queue_health"
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$queue_health" = "critical" ]; then
+              echo "::warning::Production batch $batch completed with a critical fresh reserve ($fresh_after/$reserve_target). Discovery preparation must restore the reserve before further scans."
+            elif [ "$queue_health" = "warning" ]; then
+              echo "::warning::Production batch $batch completed below the fresh reserve target ($fresh_after/$reserve_target)."
+            fi
             if [ "$scanned" -eq 0 ]; then
               echo "::warning::Production batch $batch scanned zero websites. Inspect fresh reserve depth, retry backlog, provider diagnostics and Neon run telemetry immediately."
             fi
