@@ -97,6 +97,23 @@ function normalizeProviderDayKey(value) {
   return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
 
+function qualifyDiscoveryCandidate(candidate, provider = "unknown") {
+  const name = String(candidate?.name || "").replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim();
+  const city = String(candidate?.city || "").trim();
+  const region = String(candidate?.region || "").trim();
+  if (!name) return { eligible: false, reason: "business_identity_missing" };
+  if (!city && !region) return { eligible: false, reason: "geography_evidence_missing" };
+  return {
+    eligible: true,
+    candidate: {
+      ...candidate,
+      name,
+      provider: candidate?.provider || provider,
+      locationEvidence: candidate?.locationEvidence || (city ? "source_city_metadata" : "source_region_metadata")
+    }
+  };
+}
+
 function isAllowedScannedDestination(scanData, originalWebsite) {
   const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
   if (!normalizeWebsite(destination)) return false;
@@ -402,7 +419,7 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
+          queries: providerQueries(new Date(), stage.queries, attemptNumber * 2),
           maxCandidates: 20,
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
@@ -450,17 +467,16 @@ module.exports = async function handler(req, res) {
         const identityQualified = [];
         const qualificationRejected = [];
         for (const candidate of discovery.candidates || []) {
-          const businessName = String(candidate?.name || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          const hasLocation = Boolean(String(candidate?.city || "").trim() || String(candidate?.region || "").trim());
-          if (!businessName || !hasLocation) {
+          const qualification = qualifyDiscoveryCandidate(candidate, discovery.provider);
+          if (!qualification.eligible) {
             qualificationRejected.push({
               website: candidate?.website || null,
               provider: candidate?.provider || discovery.provider,
-              reason: !businessName ? "business_identity_missing" : "geography_evidence_missing"
+              reason: qualification.reason
             });
             continue;
           }
-          identityQualified.push({ ...candidate, name: businessName });
+          identityQualified.push(qualification.candidate);
         }
         const dnsQualification = await filterDiscoveryDnsCandidates(identityQualified);
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
@@ -814,3 +830,5 @@ module.exports.isAllowedScannedDestination = isAllowedScannedDestination;
 module.exports.filterMyCityInfoDnsCandidates = filterDiscoveryDnsCandidates;
 
 module.exports.normalizeProviderDayKey = normalizeProviderDayKey;
+
+module.exports.qualifyDiscoveryCandidate = qualifyDiscoveryCandidate;
