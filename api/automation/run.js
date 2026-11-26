@@ -171,6 +171,8 @@ module.exports = async function handler(req, res) {
   let addDiscoveryBacklogCandidates;
   let promoteFreshBacklogToQueue;
   let reserveDiscoveryProvider;
+  let reserveDiscoveryHttpRequest;
+  let getDailyDiscoveryHttpRequestCount;
   let recordDiscoveryProviderSuccess;
   let recordDiscoveryProviderFailure;
   let completeQueueItem;
@@ -214,6 +216,8 @@ module.exports = async function handler(req, res) {
       addDiscoveryBacklogCandidates,
       promoteFreshBacklogToQueue,
       reserveDiscoveryProvider,
+      reserveDiscoveryHttpRequest,
+      getDailyDiscoveryHttpRequestCount,
       recordDiscoveryProviderSuccess,
       recordDiscoveryProviderFailure,
       completeQueueItem,
@@ -428,6 +432,17 @@ module.exports = async function handler(req, res) {
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
+          reserveHttpRequest: async provider => {
+            const providerDailyLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
+            const providerMonthlyLimit = preparationProviderMonthlyLimits[provider] ?? null;
+            return reserveDiscoveryHttpRequest(
+              sql,
+              provider,
+              providerDailyLimit * 6,
+              cycleDate,
+              providerMonthlyLimit === null ? null : providerMonthlyLimit * 6
+            );
+          },
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount, stage.id),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates, stage.id),
@@ -520,6 +535,7 @@ module.exports = async function handler(req, res) {
       await setDiscoveryStageState(sql, stageId);
     }
     const dailyQualifiedProspects = await getDailyQualifiedDiscoveryCount(sql, cycleDate);
+    const dailyHttpRequestCount = await getDailyDiscoveryHttpRequestCount(sql, cycleDate);
     const dailyQualifiedTarget = 60;
     const targetReached = queueDepth >= target;
     const supplyStatus = targetReached ? "target_reached" : queueDepth > 0 ? "partial" : "empty";
@@ -546,6 +562,7 @@ module.exports = async function handler(req, res) {
       targetReached,
       dailyQualifiedProspects,
       dailyQualifiedTarget,
+      dailyHttpRequestCount,
       dailyQualifiedTargetReached: dailyQualifiedProspects >= dailyQualifiedTarget,
       readinessPassed: targetReached,
       strictReadiness,
