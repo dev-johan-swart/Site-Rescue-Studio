@@ -5,6 +5,8 @@
 CREATE TABLE IF NOT EXISTS automation_discovery_provider_state (
   provider TEXT PRIMARY KEY, day_key DATE NOT NULL, request_count INTEGER NOT NULL DEFAULT 0,
   month_key TEXT, monthly_request_count INTEGER NOT NULL DEFAULT 0,
+  http_day_key DATE, http_request_count INTEGER NOT NULL DEFAULT 0,
+  http_month_key TEXT, http_monthly_request_count INTEGER NOT NULL DEFAULT 0,
   page_cursor INTEGER NOT NULL DEFAULT 0, page_cursors JSONB NOT NULL DEFAULT '{}'::jsonb,
   depleted_pages JSONB NOT NULL DEFAULT '[]'::jsonb,
   consecutive_failures INTEGER NOT NULL DEFAULT 0, cooldown_until TIMESTAMPTZ, last_error TEXT,
