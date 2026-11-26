@@ -432,17 +432,13 @@ module.exports = async function handler(req, res) {
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
-          reserveHttpRequest: async provider => {
-            const providerDailyLimit = Number(preparationProviderDailyLimits[provider] ?? dailyLimit);
-            const providerMonthlyLimit = preparationProviderMonthlyLimits[provider] ?? null;
-            return reserveDiscoveryHttpRequest(
-              sql,
-              provider,
-              null,
-              cycleDate,
-              null
-            );
-          },
+          reserveHttpRequest: provider => reserveDiscoveryHttpRequest(
+            sql,
+            provider,
+            null,
+            cycleDate,
+            null
+          ),
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount, stage.id),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates, stage.id),
