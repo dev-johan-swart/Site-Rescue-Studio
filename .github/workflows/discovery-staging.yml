@@ -33,17 +33,9 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CRON_SECRET"
-          case "$PREVIEW_URL" in
-            https://*.vercel.app) ;;
-            *) echo "::error::Only a Vercel preview URL is accepted."; exit 1 ;;
-          esac
-          if [ "$PREVIEW_URL" = "https://site-rescue-studio.vercel.app" ]; then
-            echo "::error::Production URL is forbidden."; exit 1
+          if [[ ! "$PREVIEW_URL" =~ ^https://site-rescue-studio-[a-z0-9-]+\.vercel\.app$ ]]; then
+            echo "::error::Provide only the exact Site Rescue Studio preview hostname (no path, query, or production URL)."; exit 1
           fi
-          case "$PREVIEW_URL" in
-            https://site-rescue-studio-*.vercel.app) ;;
-            *) echo "::error::URL is not a Site Rescue Studio preview deployment."; exit 1 ;;
-          esac
           echo "STAGING_TARGET_VALIDATED"
 
       - name: Run isolated discovery preparation
@@ -60,7 +52,7 @@ jobs:
             --header "Cache-Control: no-cache" \
             --output "$response_file" \
             "$PREVIEW_URL/api/automation/run?mode=prepare"
-          jq -e '.success == true and (.attempts | type == "array")' "$response_file" >/dev/null
+          jq -e '.success == true and .preparationOnly == true and .target == 110 and (.attempts | type == "array")' "$response_file" >/dev/null
           jq '{
             success,
             preparationOnly,
