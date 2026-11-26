@@ -161,6 +161,7 @@ module.exports = async function handler(req, res) {
   let getDailyQualifiedDiscoveryCount;
   let recoverStaleAutomationRuns;
   let claimNextDailyRun;
+  let getDiscoveryStageState;
   let setDiscoveryStageState;
   let getDiscoveryProviderPageState;
   let getDiscoveryProviderState;
