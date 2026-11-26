@@ -48,7 +48,7 @@ jobs:
         if: ${{ inputs.dry_run != true }}
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
-          STRICT_READINESS: ${{ github.event.schedule == '55 0 * * *' || github.event.schedule == '35 4 * * *' }}
+          STRICT_READINESS: ${{ github.event.schedule == '55 0 * * *' }}
         run: |
           set -euo pipefail
           test -n "$CRON_SECRET"
