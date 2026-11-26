@@ -158,6 +158,7 @@ module.exports = async function handler(req, res) {
   let getQueueDepth;
   let getFreshQueueDepth;
   let getDailyScannedCount;
+  let getDailyQualifiedDiscoveryCount;
   let recoverStaleAutomationRuns;
   let claimNextDailyRun;
   let setDiscoveryStageState;
@@ -199,6 +200,7 @@ module.exports = async function handler(req, res) {
       getQueueDepth,
       getFreshQueueDepth,
       getDailyScannedCount,
+      getDailyQualifiedDiscoveryCount,
       recoverStaleAutomationRuns,
       claimNextDailyRun,
       getDiscoveryStageState,
@@ -515,6 +517,8 @@ module.exports = async function handler(req, res) {
       stageId = nextEnabledDiscoveryStageId(stage.id);
       await setDiscoveryStageState(sql, stageId);
     }
+    const dailyQualifiedProspects = await getDailyQualifiedDiscoveryCount(sql, cycleDate);
+    const dailyQualifiedTarget = 60;
     const targetReached = queueDepth >= target;
     const supplyStatus = targetReached ? "target_reached" : queueDepth > 0 ? "partial" : "empty";
     const strictReadiness = String(req.query?.strict || "").toLowerCase() === "true";
@@ -538,6 +542,9 @@ module.exports = async function handler(req, res) {
       queueDepth,
       target,
       targetReached,
+      dailyQualifiedProspects,
+      dailyQualifiedTarget,
+      dailyQualifiedTargetReached: dailyQualifiedProspects >= dailyQualifiedTarget,
       readinessPassed: targetReached,
       strictReadiness,
       readinessGate: strictReadiness ? (targetReached ? "passed" : "failed") : "not_requested",
