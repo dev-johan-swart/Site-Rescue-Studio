@@ -1,5 +1,6 @@
 const dns = require("node:dns").promises;
 const { normalizeWebsite } = require("../../lib/discoveryUrl");
+const { cleanBusinessName } = require("../../lib/prospectIdentity");
 
 async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
@@ -98,7 +99,7 @@ function normalizeProviderDayKey(value) {
 }
 
 function qualifyDiscoveryCandidate(candidate, provider = "unknown") {
-  const name = String(candidate?.name || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const name = cleanBusinessName(String(candidate?.name || "").replace(/<[^>]+>/g, " "));
   const city = String(candidate?.city || "").trim();
   const region = String(candidate?.region || "").trim();
   if (!name) return { eligible: false, reason: "business_identity_missing" };
