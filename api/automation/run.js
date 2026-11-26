@@ -184,6 +184,7 @@ module.exports = async function handler(req, res) {
       getDailyScannedCount,
       recoverStaleAutomationRuns,
       claimNextDailyRun,
+      getDiscoveryStageState,
       setDiscoveryStageState,
       getDiscoveryProviderPageState,
       getDiscoveryProviderState,
@@ -334,10 +335,13 @@ module.exports = async function handler(req, res) {
     let queueDepth = await getFreshQueueDepth(sql);
     const queueDepthBeforePreparation = queueDepth;
     const attempts = [];
-    // Every preparation cycle starts with the highest-priority local market.
-    // It then widens to Gauteng and national coverage only if the reserve is still short.
-    let stageId = "pretoria_centurion";
-    await setDiscoveryStageState(sql, stageId);
+    // Resume from the durable stage cursor. Keep the local-first sequence on
+    // first use, but do not restart there on every preparation invocation.
+    let stageId = await getDiscoveryStageState(sql);
+    if (!["pretoria_centurion", "gauteng", "south_africa"].includes(stageId)) {
+      stageId = "pretoria_centurion";
+      await setDiscoveryStageState(sql, stageId);
+    }
 
     // Seed the durable local reserve first. This is independent of live
     // discovery providers and uses the same dedupe/backlog path as all other
@@ -443,7 +447,22 @@ module.exports = async function handler(req, res) {
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
-        const dnsQualification = await filterDiscoveryDnsCandidates(discovery.candidates);
+        const identityQualified = [];
+        const qualificationRejected = [];
+        for (const candidate of discovery.candidates || []) {
+          const businessName = String(candidate?.name || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          const hasLocation = Boolean(String(candidate?.city || "").trim() || String(candidate?.region || "").trim());
+          if (!businessName || !hasLocation) {
+            qualificationRejected.push({
+              website: candidate?.website || null,
+              provider: candidate?.provider || discovery.provider,
+              reason: !businessName ? "business_identity_missing" : "geography_evidence_missing"
+            });
+            continue;
+          }
+          identityQualified.push({ ...candidate, name: businessName });
+        }
+        const dnsQualification = await filterDiscoveryDnsCandidates(identityQualified);
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
           sql,
           dnsQualification.candidates,
@@ -451,6 +470,8 @@ module.exports = async function handler(req, res) {
           stage.id,
           true
         );
+        backlogDiagnostics.identityOrGeographyRejected = qualificationRejected.length;
+        backlogDiagnostics.qualificationRejectedSamples = qualificationRejected.slice(0, 20);
         const promoted = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "discovery_backlog");
         queueDepth = await getFreshQueueDepth(sql);
         attempts.push({
