@@ -8,6 +8,7 @@ on:
       - fix/discovery-source-efficiency-nov16
       - fix/restore-discovery-supply-cadence
       - fix/discovery-provenance-and-map-link-filtering
+      - fix/discovery-supply-readiness-110-v2
   pull_request:
     branches:
       - main
