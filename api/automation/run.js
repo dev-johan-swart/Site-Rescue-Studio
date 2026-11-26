@@ -455,6 +455,15 @@ module.exports = async function handler(req, res) {
             if (providerLimit <= 0) return { available: false, reason: "disabled" };
             const monthlyLimit = preparationProviderMonthlyLimits[provider] ?? (provider === "foursquare" ? 500 : null);
             const state = await getDiscoveryProviderState(sql, provider);
+            const httpDailyLimit = providerLimit * 6;
+            if (normalizeProviderDayKey(state?.http_day_key) === cycleDate &&
+                Number(state?.http_request_count || 0) >= httpDailyLimit) {
+              return {
+                available: false,
+                reason: "daily_http_budget_exhausted",
+                details: { httpRequestCount: Number(state.http_request_count || 0), httpDailyLimit }
+              };
+            }
             const cooldownUntil = state?.cooldown_until || null;
             if (cooldownUntil && new Date(cooldownUntil).getTime() > Date.now()) {
               return { available: false, reason: "cooldown", details: { cooldownUntil } };
