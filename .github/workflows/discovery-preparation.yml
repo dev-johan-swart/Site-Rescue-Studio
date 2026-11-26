@@ -71,6 +71,8 @@ jobs:
           readiness_gate="$(jq -r '.readinessGate // "not_requested"' "$response_file")"
           preparation_run_id="$(jq -r '.preparationRunId // "not-recorded"' "$response_file")"
           supply_status="$(jq -r '.supplyStatus // "unknown"' "$response_file")"
+          daily_qualified="$(jq -r '.dailyQualifiedProspects // 0' "$response_file")"
+          daily_qualified_target="$(jq -r '.dailyQualifiedTarget // 60' "$response_file")"
           attempts="$(jq -r '.attempts | length' "$response_file")"
           discovered="$(jq '[.attempts[].backlogDiagnostics.added // 0] | add // 0' "$response_file")"
           promoted="$(jq '[.attempts[].newlyQueued // 0] | add // 0' "$response_file")"
@@ -79,6 +81,7 @@ jobs:
             echo "### Discovery preparation"
             echo "- Fresh reserve: $queue_depth/$target"
             echo "- Supply status: $supply_status"
+            echo "- New qualified prospects today: $daily_qualified/$daily_qualified_target"
             echo "- Preparation attempts: $attempts"
             echo "- Readiness gate: $readiness_gate"
             echo "- Durable preparation run: $preparation_run_id"
@@ -91,7 +94,11 @@ jobs:
           elif [ "$queue_depth" -lt 60 ]; then
             echo "::error::Discovery reserve is critical at $queue_depth/$target. Investigate provider yield, qualification, backlog promotion and scheduling."
             exit 1
-          elif [ "$target_reached" != "true" ]; then
+          fi
+          if [ "$daily_qualified" -lt "$daily_qualified_target" ]; then
+            echo "::warning::Daily qualified discovery yield is below target: $daily_qualified/$daily_qualified_target. Review provider freshness and qualification diagnostics."
+          fi
+          if [ "$target_reached" != "true" ]; then
             if [ "$STRICT_READINESS" = "true" ]; then
               echo "::error::Strict reserve readiness failed: $queue_depth/$target. The production worker will remain paused until a preparation run proves 110/110."
               exit 1
