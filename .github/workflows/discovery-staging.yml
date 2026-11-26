@@ -41,8 +41,8 @@ jobs:
             echo "::error::Production URL is forbidden."; exit 1
           fi
           case "$PREVIEW_URL" in
-            *git-fix-discovery-supply-readiness-110-v2*) ;;
-            *) echo "::error::URL does not identify the discovery staging branch."; exit 1 ;;
+            https://site-rescue-studio-*.vercel.app) ;;
+            *) echo "::error::URL is not a Site Rescue Studio preview deployment."; exit 1 ;;
           esac
           echo "STAGING_TARGET_VALIDATED"
 
