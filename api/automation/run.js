@@ -1,6 +1,6 @@
 const dns = require("node:dns").promises;
 const { normalizeWebsite } = require("../../lib/discoveryUrl");
-const { cleanBusinessName } = require("../../lib/prospectIdentity");
+const { qualifyDiscoveryCandidate } = require("../../lib/discoveryCandidateQualification");
 
 async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
@@ -98,22 +98,6 @@ function normalizeProviderDayKey(value) {
   return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
 
-function qualifyDiscoveryCandidate(candidate, provider = "unknown") {
-  const name = cleanBusinessName(String(candidate?.name || "").replace(/<[^>]+>/g, " "));
-  const city = String(candidate?.city || "").trim();
-  const region = String(candidate?.region || "").trim();
-  if (!name) return { eligible: false, reason: "business_identity_missing" };
-  if (!city && !region) return { eligible: false, reason: "geography_evidence_missing" };
-  return {
-    eligible: true,
-    candidate: {
-      ...candidate,
-      name,
-      provider: candidate?.provider || provider,
-      locationEvidence: candidate?.locationEvidence || (city ? "source_city_metadata" : "source_region_metadata")
-    }
-  };
-}
 
 function isAllowedScannedDestination(scanData, originalWebsite) {
   const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
