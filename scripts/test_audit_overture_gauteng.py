@@ -110,7 +110,7 @@ class OvertureAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             input_path = Path(folder) / "places.geojsonseq"
             output_path = Path(folder) / "gauteng.jsonl.gz"
-            input_path.write_text("\\n".join(json.dumps(item) for item in records), encoding="utf-8")
+            input_path.write_text("\n".join(json.dumps(item) for item in records), encoding="utf-8")
             exported = export_candidates(input_path, output_path)
             with gzip.open(output_path, "rt", encoding="utf-8") as stream:
                 candidates = [json.loads(line) for line in stream if line.strip()]
