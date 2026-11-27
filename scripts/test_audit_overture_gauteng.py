@@ -81,6 +81,9 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertTrue(sasol["excluded_chain_or_locator"])
         self.assertFalse(engen["eligible"])
         self.assertTrue(engen["excluded_chain_or_locator"])
+        total = assess_feature(feature("TotalEnergies Newlands Service Station", "https://www.budgetgas.co.za/"))
+        self.assertFalse(total["eligible"])
+        self.assertTrue(total["excluded_chain_or_locator"])
 
     def test_requires_an_explicit_high_confidence_score(self):
         item = feature("Example Business", "https://example.co.za")
