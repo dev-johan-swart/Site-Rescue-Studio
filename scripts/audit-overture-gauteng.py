@@ -147,6 +147,12 @@ CHAIN_DOMAIN_ROOTS = {
     "adidas.com", "regus.com", "sportscene.co.za", "f45training.com",
     "cashbuild.co.za", "goldwagen.com", "cashcrusaders.co.za", "freshstop.co.za",
     "sportsmanswarehouse.co.za", "sterns.co.za", "incredible.co.za",
+    "home.co.za", "sleepmasters.co.za", "assupol.co.za",
+    "americanswiss.co.za", "markham.co.za", "crazystore.co.za",
+    "tyremart.co.za", "superdry.com",
+    "vans.co.za", "r-stahl.com", "hydehotels.com", "wework.com",
+    "hellmann.com", "delforno.co.za", "pizzaperfect.co.za",
+    "johndorys.com", "twt.co.za", "fabiani.co.za",
 }
 STORE_LOCATOR_MARKERS = (
     "/store-finder", "/store-locator", "/find-a-store", "/branch-locator",
