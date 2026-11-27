@@ -53,6 +53,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: overture-gauteng-candidates-${{ github.sha }}
-          path: "$RUNNER_TEMP/gauteng-places.jsonl.gz"
+          path: "${{ runner.temp }}/gauteng-places.jsonl.gz"
           if-no-files-found: error
           retention-days: 1
