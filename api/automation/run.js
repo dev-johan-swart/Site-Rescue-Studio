@@ -230,15 +230,19 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const diagnosticsMode = String(req.query?.mode || "").toLowerCase() === "diagnostics";
-  // Preview deployments are protected by Vercel Authentication. Permit this
-  // read-only diagnostic there without the cron secret so the authenticated
-  // Vercel fetch can verify the database target. Never permit this in production.
-  const protectedPreviewDiagnostic =
-    diagnosticsMode &&
+  const requestMode = String(req.query?.mode || "").toLowerCase();
+  const isTargetPreviewBranch =
     process.env.VERCEL_ENV === "preview" &&
+    process.env.VERCEL_GIT_COMMIT_REF === "fix/discovery-supply-readiness-110-v2" &&
     Boolean(process.env.VERCEL_GIT_COMMIT_SHA);
-  if (!authorised(req) && !protectedPreviewDiagnostic) {
+  // Preview deployments are protected by Vercel Authentication. Permit the
+  // read-only diagnostic and one strict staging preparation there. Production
+  // and every other branch still require the cron bearer secret.
+  const protectedPreviewOperation =
+    isTargetPreviewBranch &&
+    (requestMode === "diagnostics" ||
+      (requestMode === "prepare" && String(req.query?.strict || "").toLowerCase() === "true"));
+  if (!authorised(req) && !protectedPreviewOperation) {
     console.warn("Automation cron rejected.", {
       method: req.method,
       userAgent: req.headers?.["user-agent"] || null
