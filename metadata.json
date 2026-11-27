@@ -1,6 +1,6 @@
 {
   "source": "Overture Maps Places",
-  "generated_at": "2026-11-27T14:27:53.469442+00:00",
+  "generated_at": "2026-11-27T14:31:03.989316+00:00",
   "overturemaps_client_version": "2.1.1",
   "region": "Gauteng, South Africa",
   "bbox": [
@@ -54,7 +54,7 @@
     "one record per unique website host",
     "no phone numbers or email addresses exported"
   ],
-  "source_commit": "9f8412652a28be5c7461d70831daa2fae658416e",
+  "source_commit": "8675889f2b23ca224e2d4747a05b883ad504644a",
   "licenses": [
     "https://cdla.dev/permissive-2-0/",
     "https://creativecommons.org/publicdomain/zero/1.0/"
