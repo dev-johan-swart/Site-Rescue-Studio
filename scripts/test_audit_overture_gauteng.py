@@ -74,6 +74,14 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertTrue(result["has_brand"])
         self.assertEqual(result["brand_name"], "SPAR")
 
+    def test_excludes_known_chain_names_domains_and_store_locator_pages(self):
+        sasol = assess_feature(feature("Sasol Carletonville", "https://www.sasol.co.za/"))
+        engen = assess_feature(feature("Independent Fuel Shop", "https://www.engen.co.za/store-details"))
+        self.assertFalse(sasol["eligible"])
+        self.assertTrue(sasol["excluded_chain_or_locator"])
+        self.assertFalse(engen["eligible"])
+        self.assertTrue(engen["excluded_chain_or_locator"])
+
     def test_requires_an_explicit_high_confidence_score(self):
         item = feature("Example Business", "https://example.co.za")
         item["properties"]["confidence"] = None
