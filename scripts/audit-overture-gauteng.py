@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -87,6 +88,69 @@ def is_gauteng_region(value: str) -> bool:
     }
 
 
+CHAIN_NAME_TOKENS = {
+    "sasol", "engen", "shell", "spar", "savemor", "kfc", "nandos",
+    "ocean basket", "total energies", "total elarduspark", "marriott",
+    "protea hotels", "glasfit", "seriously addictive mathematics",
+    "dischem", "clicks", "pick n pay", "checkers", "woolworths",
+    "shoprite", "makro", "builders warehouse", "ackermans", "mr price",
+    "truworths", "foschini", "edgars", "mcdonalds", "burger king",
+    "steers", "debonaire", "spur", "wimpy", "chicken licken",
+    "hungry lion", "romans pizza", "fishaways", "pedros", "rocomamas",
+    "mugg bean", "vida e caffe", "seattle coffee", "city lodge",
+    "sun international", "tsogo sun", "radisson", "hilton", "holiday inn",
+    "standard bank", "absa", "nedbank", "capitec", "investec", "discovery",
+    "momentum", "old mutual", "sanlam", "vodacom", "mtn", "telkom", "cell c",
+    "toyota", "volkswagen", "ford", "bmw", "mercedes", "audi", "hyundai",
+    "kia", "nissan", "renault", "suzuki", "haval", "chery", "mahindra",
+    "we buy cars", "motus", "avis", "hertz", "europcar", "safair", "airlink",
+    "south african airways",
+}
+CHAIN_DOMAIN_ROOTS = {
+    "sasol.co.za", "engen.co.za", "shell.com", "spar.co.za", "kfc.co.za",
+    "nandos.co.za", "oceanbasket.com", "totalenergies.co.za", "hm.com",
+    "marriott.com", "glasfit.com", "dischem.co.za", "clicks.co.za",
+    "pnp.co.za", "checkers.co.za", "woolworths.co.za", "shoprite.co.za",
+    "makro.co.za", "game.co.za", "builders.co.za", "ackermans.co.za",
+    "mrprice.com", "truworths.co.za", "foschini.co.za", "mcdonalds.co.za",
+    "burgerking.co.za", "steers.co.za", "spursteakranches.com", "wimpy.co.za",
+    "chickenlicken.co.za", "hungrylion.co.za", "romanspizza.co.za",
+    "fishaways.co.za", "pedros.co.za", "rocomamas.com", "muggandbean.co.za",
+    "vidaecaffe.com", "seattlecoffeecompany.com", "citylodgehotels.com",
+    "suninternational.com", "tsogosun.com", "radissonhotels.com", "hilton.com",
+    "ihg.com", "fnb.co.za", "standardbank.co.za", "absa.co.za", "nedbank.co.za",
+    "capitecbank.co.za", "investec.com", "discovery.co.za", "momentum.co.za",
+    "oldmutual.co.za", "sanlam.co.za", "vodacom.co.za", "mtn.co.za",
+    "telkom.co.za", "cellc.co.za", "toyota.co.za", "vw.co.za", "ford.co.za",
+    "bmw.co.za", "mercedes-benz.co.za", "audi.co.za", "hyundai.co.za",
+    "kia.co.za", "nissan.co.za", "renault.co.za", "suzukiauto.co.za",
+    "haval.co.za", "chery.co.za", "mahindra.co.za", "webuycars.co.za",
+    "motus.co.za", "avis.co.za", "hertz.co.za", "europcar.co.za",
+    "safair.co.za", "flysaa.com", "airlink.co.za",
+}
+STORE_LOCATOR_MARKERS = (
+    "/store-finder", "/store-locator", "/find-a-store", "/branch-locator",
+    "/service-stations/", "/locations/", "/location/", "/find-us",
+    "/store-details", "/find-a-branch", "/our-stores",
+)
+
+
+def is_chain_or_locator(name: str, websites: list[str]) -> bool:
+    normalized_name = re.sub(r"[^a-z0-9]+", " ", str(name or "").lower()).strip()
+    padded_name = f" {normalized_name} "
+    if any(f" {token} " in padded_name for token in CHAIN_NAME_TOKENS):
+        return True
+    for website in websites:
+        parsed = urlparse(str(website or "") if "://" in str(website or "") else "https://" + str(website or ""))
+        host = website_host(website)
+        if host and any(host == root or host.endswith("." + root) for root in CHAIN_DOMAIN_ROOTS):
+            return True
+        path = (parsed.path or "").lower()
+        if any(marker in path for marker in STORE_LOCATOR_MARKERS):
+            return True
+    return False
+
+
 def assess_feature(feature: dict) -> dict:
     props = feature.get("properties") or feature
     name = str((props.get("names") or {}).get("primary") or "").strip()
@@ -109,12 +173,13 @@ def assess_feature(feature: dict) -> dict:
     status = str(props.get("operating_status") or "").lower()
     brand = props.get("brand") or {}
     has_brand = bool(brand and (brand.get("names") or brand.get("wikidata")))
+    chain_or_locator = is_chain_or_locator(name, websites)
     allowed, datasets, provenance_reason = provenance(props)
     eligible = bool(
         name and hosts and city and is_gauteng_region(region) and allowed
         and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
-        and not has_brand
+        and not has_brand and not chain_or_locator
     )
     source_details = [
         {
@@ -141,6 +206,7 @@ def assess_feature(feature: dict) -> dict:
         "confidence": confidence,
         "status": status,
         "has_brand": has_brand,
+        "excluded_chain_or_locator": chain_or_locator,
         "brand_name": str(((brand.get("names") or {}).get("primary")) or ""),
         "category": str(props.get("basic_category") or (props.get("taxonomy") or {}).get("primary") or ""),
         "datasets": datasets,
@@ -178,6 +244,8 @@ def audit(path: Path) -> dict:
             counts["closed"] += 1
         if result["has_brand"]:
             counts["excluded_branded"] += 1
+        if result["excluded_chain_or_locator"]:
+            counts["excluded_chain_or_locator"] += 1
         if result["eligible"]:
             counts["eligible"] += 1
             eligible.append(result)
