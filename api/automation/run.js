@@ -239,6 +239,32 @@ module.exports = async function handler(req, res) {
   }
 
   const sql = getSql();
+
+  // Read-only, authenticated target verification. This deliberately returns
+  // only the database hostname/name and deployment commit, never credentials.
+  // It exits before schema setup, stale recovery, provider budgets or writes.
+  if (String(req.query?.mode || "").toLowerCase() === "diagnostics") {
+    try {
+      const databaseUrl = new URL(process.env.DATABASE_URL || "");
+      const connectedRows = await sql`SELECT current_database() AS database_name`;
+      return res.status(200).json({
+        success: true,
+        diagnosticsOnly: true,
+        databaseHost: databaseUrl.hostname.toLowerCase(),
+        configuredDatabaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\\/+/, "")),
+        connectedDatabaseName: connectedRows[0]?.database_name || null,
+        deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+        vercelRegion: process.env.VERCEL_REGION || null
+      });
+    } catch (error) {
+      return res.status(200).json({
+        success: false,
+        diagnosticsOnly: true,
+        error: String(error?.message || error)
+      });
+    }
+  }
+
   const runtimeDiagnostics = {
     nodeVersion: process.version,
     vercelRegion: process.env.VERCEL_REGION || null,
