@@ -209,19 +209,21 @@ def export_candidates(input_path: Path, output_path: Path) -> int:
             )
             candidate = {
                 "source": "overture_maps",
+                "provider": "overture_maps",
                 "website": website if "://" in website else "https://" + website,
                 "website_normalized": host,
                 "name": result["name"],
                 "city": result["city"],
-                "region": "ZA-GP",
+                "region": "Gauteng",
                 "confidence": result["confidence"],
                 "category": result["category"],
                 "source_id": result["id"],
-                "location_evidence": {
+                "locationEvidence": {
                     "provider": "overture_maps",
                     "source_id": result["id"],
                     "city": result["city"],
-                    "region": "ZA-GP",
+                    "region": "Gauteng",
+                    "region_code": "ZA-GP",
                     "country": "ZA",
                     "confidence": result["confidence"],
                     "category": result["category"],
@@ -236,9 +238,9 @@ def export_candidates(input_path: Path, output_path: Path) -> int:
                 current["_priority"], -current["confidence"], current["name"]
             ):
                 if current:
-                    candidate["location_evidence"]["also_seen_source_ids"] = [
+                    candidate["locationEvidence"]["also_seen_source_ids"] = [
                         current.get("source_id")
-                    ] + current["location_evidence"].get("also_seen_source_ids", [])
+                    ] + current["locationEvidence"].get("also_seen_source_ids", [])
                 by_host[host] = candidate
             elif current and result["id"] and result["id"] != current.get("source_id"):
                 ids = current["location_evidence"].setdefault("also_seen_source_ids", [])
