@@ -20,7 +20,7 @@ def feature(name, website, source="meta", license="CDLA-Permissive-2.0", status=
             "id": "gers-1",
             "names": {"primary": name},
             "websites": [website] if website else [],
-            "addresses": [{"locality": "Pretoria", "region": "ZA-GT", "country": "ZA"}],
+            "addresses": [{"locality": "Pretoria", "region": "ZA-GP", "country": "ZA"}],
             "sources": [{"dataset": source, "license": license}],
             "confidence": 0.92,
             "operating_status": status,
@@ -61,6 +61,11 @@ class OvertureAuditTests(unittest.TestCase):
     def test_requires_an_explicit_high_confidence_score(self):
         item = feature("Example Business", "https://example.co.za")
         item["properties"]["confidence"] = None
+        self.assertFalse(assess_feature(item)["eligible"])
+
+    def test_excludes_places_outside_gauteng_even_inside_the_bounding_box(self):
+        item = feature("North West Business", "https://example.co.za")
+        item["properties"]["addresses"][0]["region"] = "ZA-NW"
         self.assertFalse(assess_feature(item)["eligible"])
 
     def test_streams_geojson_sequence_and_counts_unique_hosts(self):
