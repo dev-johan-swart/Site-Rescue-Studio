@@ -368,11 +368,10 @@ module.exports = async function handler(req, res) {
           "local_reserve",
           true
         );
-        const promoted = await promoteFreshBacklogToQueue(
-          sql,
-          Math.max(target - queueDepth, 0),
-          "local_reserve"
-        );
+        // Local reserve entries are seed URLs without the business identity
+        // and locality evidence required for a qualified fresh prospect. Keep
+        // them in the audit backlog, but never promote them into the scan queue.
+        const promoted = [];
         queueDepth = await getFreshQueueDepth(sql);
         attempts.push({
           source: "local_reserve",
