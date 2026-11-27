@@ -1,6 +1,6 @@
 {
   "source": "Overture Maps Places",
-  "generated_at": "2026-11-27T14:38:51.208862+00:00",
+  "generated_at": "2026-11-27T14:41:34.998604+00:00",
   "overturemaps_client_version": "2.1.1",
   "region": "Gauteng, South Africa",
   "bbox": [
@@ -10,34 +10,34 @@
     -24.5
   ],
   "format": "gzip-compressed JSON Lines",
-  "candidate_count": 3478,
+  "candidate_count": 3464,
   "eligible_source_counts": {
-    "overture": 7269,
-    "microsoft": 7122,
-    "uberall": 276,
+    "overture": 6929,
+    "microsoft": 6838,
+    "uberall": 164,
     "dac": 9
   },
   "eligible_category_counts": {
-    "uncategorized": 1159,
-    "fashion_and_apparel_store": 579,
-    "b2b_office_and_professional_service": 424,
-    "shopping": 414,
-    "hardware_home_and_garden_store": 332,
-    "bank_or_credit_union": 237,
+    "uncategorized": 1131,
+    "fashion_and_apparel_store": 497,
+    "b2b_office_and_professional_service": 422,
+    "shopping": 400,
+    "hardware_home_and_garden_store": 301,
+    "bank_or_credit_union": 231,
     "home_service": 205,
     "automotive_service": 199,
-    "gas_station": 173,
+    "gas_station": 171,
     "b2b_service": 160,
     "manufacturer": 151,
-    "restaurant": 135,
+    "restaurant": 131,
     "real_estate_service": 126,
-    "specialty_store": 120,
-    "electronics_store": 120,
     "financial_service": 113,
+    "electronics_store": 111,
     "diagnostics_imaging_or_lab_service": 109,
-    "sporting_goods_store": 108,
-    "rental_service": 102,
-    "professional_service": 95
+    "professional_service": 95,
+    "shopping_mall": 89,
+    "food_and_beverage_store": 89,
+    "supplier_or_distributor": 84
   },
   "filters": [
     "country ZA and Gauteng region aliases only",
@@ -51,7 +51,7 @@
     "one record per unique website host",
     "no phone numbers or email addresses exported"
   ],
-  "source_commit": "951df2f0f5a390f22ad5004d27ead55de5791604",
+  "source_commit": "0de9eb3e24220233c72f35d2a4c9aef3b10244e2",
   "licenses": [
     "https://cdla.dev/permissive-2-0/",
     "https://creativecommons.org/publicdomain/zero/1.0/"
