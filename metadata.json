@@ -1,0 +1,29 @@
+{
+  "source": "Overture Maps Places",
+  "generated_at": "2026-11-27T14:27:26.180970+00:00",
+  "overturemaps_client_version": "2.1.1",
+  "region": "Gauteng, South Africa",
+  "bbox": [
+    27.0,
+    -26.5,
+    29.0,
+    -24.5
+  ],
+  "format": "gzip-compressed JSON Lines",
+  "candidate_count": 26531,
+  "filters": [
+    "country ZA and Gauteng region aliases only",
+    "business name and website required",
+    "confidence >= 0.7",
+    "Foursquare-sourced records excluded",
+    "source licence must be CDLA-Permissive-2.0 or CC0-1.0",
+    "social, directory, parked and platform-hosted domains excluded",
+    "one record per unique website host",
+    "no phone numbers or email addresses exported"
+  ],
+  "source_commit": "ea7c42e88a23a3a8bfd87486f4f637014e68c197",
+  "licenses": [
+    "https://cdla.dev/permissive-2-0/",
+    "https://creativecommons.org/publicdomain/zero/1.0/"
+  ]
+}
