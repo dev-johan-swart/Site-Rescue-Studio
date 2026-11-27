@@ -16,9 +16,22 @@ from urllib.parse import urlparse
 ALLOWED_LICENSES = {"cdla-permissive-2.0", "cc0-1.0"}
 EXCLUDED_SOURCE_NAMES = {"foursquare"}
 EXCLUDED_HOSTS = {
-    "facebook.com", "instagram.com", "linkedin.com", "tiktok.com",
-    "twitter.com", "x.com", "youtube.com", "youtu.be", "wa.me",
-    "whatsapp.com", "linktr.ee", "google.com", "maps.google.com",
+    "facebook.com", "instagram.com", "linkedin.com", "google.com", "maps.google.com",
+    "goo.gl", "youtube.com", "yelp.com", "x.com", "twitter.com", "pinterest.com",
+    "pin.it", "fb.me", "share.google", "t.co", "lnkd.in", "bit.ly", "tinyurl.com",
+    "m.me", "wa.me", "whatsapp.com", "t.me", "threads.net", "tiktok.com", "snapchat.com",
+    "share.here.com", "here.com", "maps.apple.com", "waze.com", "mapquest.com",
+    "tripadvisor.com", "booking.com", "airbnb.com", "privateproperty.co.za",
+    "citizen.co.za", "yellowpages.net.za", "yellowpages-south-africa.com",
+    "myportmoni.com", "hotfrog.co.za", "opendi.co.za", "mycityinfo.co.za",
+    "ccbc.co.za", "pretoriaeast.co.za", "pretoriahub.com", "websdocs.com",
+    "yellowpages.com", "trustpilot.com", "crunchbase.com", "linktr.ee", "bio.site",
+    "beacons.ai", "hugedomains.com", "sedo.com", "afternic.com", "dan.com",
+    "atom.com", "brandbucket.com", "buydomains.com", "domainmarket.com",
+    "parkingcrew.net", "bodis.com", "undeveloped.com", "sav.com",
+    "domainnamesales.com", "expireddomains.com",
+    "wixsite.com", "wordpress.com", "sites.google.com",
+    "business.websdocs.com", "blogspot.com", "weebly.com", "business.site",
 }
 
 
