@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 assess_feature = MODULE.assess_feature
 audit = MODULE.audit
+export_candidates = MODULE.export_candidates
 
 
 def feature(name, website, source="meta", license="CDLA-Permissive-2.0", status="open"):
@@ -95,6 +97,30 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertEqual(result["unique_website_hosts_all_sources"], 2)
         self.assertEqual(result["eligible_unique_website_hosts"], 1)
         self.assertEqual(result["counts"]["excluded_foursquare"], 1)
+
+
+    def test_exports_one_gzipped_candidate_per_unique_host_with_provenance(self):
+        records = [
+            feature("Pretoria Example", "https://www.example.co.za"),
+            feature("Centurion Example", "https://example.co.za"),
+            feature("Foursquare Example", "https://four.co.za", source="Foursquare", license="Apache-2.0"),
+        ]
+        records[0]["id"] = "gers-pretoria"
+        records[1]["id"] = "gers-centurion"
+        with tempfile.TemporaryDirectory() as folder:
+            input_path = Path(folder) / "places.geojsonseq"
+            output_path = Path(folder) / "gauteng.jsonl.gz"
+            input_path.write_text("\\n".join(json.dumps(item) for item in records), encoding="utf-8")
+            exported = export_candidates(input_path, output_path)
+            with gzip.open(output_path, "rt", encoding="utf-8") as stream:
+                candidates = [json.loads(line) for line in stream if line.strip()]
+        self.assertEqual(exported, 1)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["website_normalized"], "example.co.za")
+        self.assertEqual(candidates[0]["source"], "overture_maps")
+        self.assertTrue(candidates[0]["location_evidence"]["sources"])
+        self.assertNotIn("phone", candidates[0])
+        self.assertNotIn("email", candidates[0])
 
 
 if __name__ == "__main__":
