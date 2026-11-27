@@ -66,6 +66,14 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertFalse(wix["eligible"])
         self.assertFalse(wordpress["eligible"])
 
+    def test_excludes_brand_associated_chain_locations(self):
+        item = feature("SPAR Roodeplaat", "https://www.spar.co.za/Store-Finder")
+        item["properties"]["brand"] = {"names": {"primary": "SPAR"}}
+        result = assess_feature(item)
+        self.assertFalse(result["eligible"])
+        self.assertTrue(result["has_brand"])
+        self.assertEqual(result["brand_name"], "SPAR")
+
     def test_requires_an_explicit_high_confidence_score(self):
         item = feature("Example Business", "https://example.co.za")
         item["properties"]["confidence"] = None
