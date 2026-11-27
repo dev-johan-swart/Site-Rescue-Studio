@@ -107,11 +107,14 @@ def assess_feature(feature: dict) -> dict:
     except (TypeError, ValueError):
         confidence = None
     status = str(props.get("operating_status") or "").lower()
+    brand = props.get("brand") or {}
+    has_brand = bool(brand and (brand.get("names") or brand.get("wikidata")))
     allowed, datasets, provenance_reason = provenance(props)
     eligible = bool(
         name and hosts and city and is_gauteng_region(region) and allowed
         and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
+        and not has_brand
     )
     source_details = [
         {
@@ -137,6 +140,8 @@ def assess_feature(feature: dict) -> dict:
         "country": str((address or {}).get("country") or ""),
         "confidence": confidence,
         "status": status,
+        "has_brand": has_brand,
+        "brand_name": str(((brand.get("names") or {}).get("primary")) or ""),
         "category": str(props.get("basic_category") or (props.get("taxonomy") or {}).get("primary") or ""),
         "datasets": datasets,
         "provenance_reason": provenance_reason,
@@ -171,6 +176,8 @@ def audit(path: Path) -> dict:
             counts["excluded_unapproved_provenance"] += 1
         if result["status"] == "permanently_closed":
             counts["closed"] += 1
+        if result["has_brand"]:
+            counts["excluded_branded"] += 1
         if result["eligible"]:
             counts["eligible"] += 1
             eligible.append(result)
