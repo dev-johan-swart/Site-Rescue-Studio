@@ -41,6 +41,9 @@ EXCLUDED_HOSTS = {
     "vans.co.za", "r-stahl.com", "hydehotels.com", "wework.com",
     "hellmann.com", "delforno.co.za", "pizzaperfect.co.za",
     "johndorys.com", "twt.co.za", "fabiani.co.za",
+    "home.co.za", "sleepmasters.co.za", "assupol.co.za",
+    "americanswiss.co.za", "markham.co.za", "crazystore.co.za",
+    "tyremart.co.za", "superdry.com",
 }
 
 
@@ -114,7 +117,8 @@ CHAIN_NAME_TOKENS = {
     "cashbuild", "goldwagen", "cash crusaders", "freshstop", "sportsmans warehouse",
     "sterns", "incredible connection", "vans", "r stahl", "hyde",
     "wework", "hellmann", "del forno", "pizza perfect", "john dory",
-    "tiger wheel", "fabiani",
+    "tiger wheel", "fabiani", "sleepmasters", "assupol", "american swiss",
+    "markham", "crazy store", "tyremart", "superdry",
 }
 CHAIN_DOMAIN_ROOTS = {
     "sasol.co.za", "engen.co.za", "shell.com", "spar.co.za", "kfc.co.za",
