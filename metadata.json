@@ -1,6 +1,6 @@
 {
   "source": "Overture Maps Places",
-  "generated_at": "2026-11-27T14:35:59.058906+00:00",
+  "generated_at": "2026-11-27T14:37:05.714398+00:00",
   "overturemaps_client_version": "2.1.1",
   "region": "Gauteng, South Africa",
   "bbox": [
@@ -10,34 +10,34 @@
     -24.5
   ],
   "format": "gzip-compressed JSON Lines",
-  "candidate_count": 3596,
+  "candidate_count": 3478,
   "eligible_source_counts": {
-    "overture": 9860,
-    "microsoft": 9436,
-    "uberall": 830,
+    "overture": 7269,
+    "microsoft": 7122,
+    "uberall": 276,
     "dac": 9
   },
   "eligible_category_counts": {
-    "uncategorized": 1472,
-    "fashion_and_apparel_store": 714,
-    "gas_station": 595,
-    "bank_or_credit_union": 518,
-    "b2b_office_and_professional_service": 455,
-    "shopping": 434,
-    "hardware_home_and_garden_store": 391,
-    "pharmacy_and_drug_store": 381,
-    "automotive_service": 286,
-    "food_and_beverage_store": 270,
-    "electronics_store": 264,
-    "restaurant": 259,
-    "home_service": 207,
-    "b2b_service": 163,
-    "manufacturer": 155,
-    "shopping_mall": 130,
-    "specialty_store": 130,
-    "real_estate_service": 129,
-    "b2b_energy_and_utility_service": 121,
-    "financial_service": 116
+    "uncategorized": 1159,
+    "fashion_and_apparel_store": 579,
+    "b2b_office_and_professional_service": 424,
+    "shopping": 414,
+    "hardware_home_and_garden_store": 332,
+    "bank_or_credit_union": 237,
+    "home_service": 205,
+    "automotive_service": 199,
+    "gas_station": 173,
+    "b2b_service": 160,
+    "manufacturer": 151,
+    "restaurant": 135,
+    "real_estate_service": 126,
+    "specialty_store": 120,
+    "electronics_store": 120,
+    "financial_service": 113,
+    "diagnostics_imaging_or_lab_service": 109,
+    "sporting_goods_store": 108,
+    "rental_service": 102,
+    "professional_service": 95
   },
   "filters": [
     "country ZA and Gauteng region aliases only",
@@ -50,7 +50,7 @@
     "one record per unique website host",
     "no phone numbers or email addresses exported"
   ],
-  "source_commit": "a1a83f0406c98b4ad9f04e6561a5a30a49b5661d",
+  "source_commit": "063e1ccf6cff862c6dba9dae58b06eeb8e8a3393",
   "licenses": [
     "https://cdla.dev/permissive-2-0/",
     "https://creativecommons.org/publicdomain/zero/1.0/"
