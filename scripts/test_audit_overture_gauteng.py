@@ -74,6 +74,12 @@ class OvertureAuditTests(unittest.TestCase):
         item["properties"]["addresses"][0]["region"] = "ZA-NW"
         self.assertFalse(assess_feature(item)["eligible"])
 
+    def test_accepts_common_gauteng_region_aliases(self):
+        for region in ("GP", "Gauteng", "GAUTENG", "ZA-GT", "Tshwane"):
+            item = feature("Gauteng Business", "https://example.co.za")
+            item["properties"]["addresses"][0]["region"] = region
+            self.assertTrue(assess_feature(item)["eligible"], region)
+
     def test_streams_geojson_sequence_and_counts_unique_hosts(self):
         records = [
             feature("One", "https://www.example.co.za"),
