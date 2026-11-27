@@ -1,6 +1,6 @@
 {
   "source": "Overture Maps Places",
-  "generated_at": "2026-11-27T14:27:41.564541+00:00",
+  "generated_at": "2026-11-27T14:27:53.469442+00:00",
   "overturemaps_client_version": "2.1.1",
   "region": "Gauteng, South Africa",
   "bbox": [
@@ -11,6 +11,39 @@
   ],
   "format": "gzip-compressed JSON Lines",
   "candidate_count": 26531,
+  "eligible_source_counts": {
+    "overture": 47097,
+    "meta": 35626,
+    "microsoft": 9436,
+    "alltheplaces": 1611,
+    "uberall": 1024,
+    "pinmeto": 13,
+    "dac": 9,
+    "opentravel": 1,
+    "overture-signals": 1
+  },
+  "eligible_category_counts": {
+    "restaurant": 2985,
+    "fashion_and_apparel_store": 2501,
+    "hardware_home_and_garden_store": 1755,
+    "automotive_service": 1733,
+    "uncategorized": 1685,
+    "food_and_beverage_store": 1497,
+    "personal_or_beauty_service": 1398,
+    "christian_place_of_worship": 1281,
+    "gas_station": 1198,
+    "hotel": 1175,
+    "auto_dealer": 1056,
+    "fast_food_restaurant": 933,
+    "manufacturer": 856,
+    "shopping": 812,
+    "place_of_learning": 782,
+    "bank_or_credit_union": 745,
+    "electronics_store": 704,
+    "pharmacy_and_drug_store": 656,
+    "real_estate_service": 656,
+    "home_service": 636
+  },
   "filters": [
     "country ZA and Gauteng region aliases only",
     "business name and website required",
@@ -21,7 +54,7 @@
     "one record per unique website host",
     "no phone numbers or email addresses exported"
   ],
-  "source_commit": "92d6efd1df64902916330c1a5e63a6b3c3b3bdbd",
+  "source_commit": "9f8412652a28be5c7461d70831daa2fae658416e",
   "licenses": [
     "https://cdla.dev/permissive-2-0/",
     "https://creativecommons.org/publicdomain/zero/1.0/"
