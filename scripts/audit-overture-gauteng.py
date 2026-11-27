@@ -132,6 +132,9 @@ CHAIN_DOMAIN_ROOTS = {
     "haval.co.za", "chery.co.za", "mahindra.co.za", "webuycars.co.za",
     "motus.co.za", "avis.co.za", "hertz.co.za", "europcar.co.za",
     "safair.co.za", "flysaa.com", "airlink.co.za",
+    "adidas.com", "regus.com", "sportscene.co.za", "f45training.com",
+    "cashbuild.co.za", "goldwagen.com", "cashcrusaders.co.za", "freshstop.co.za",
+    "sportsmanswarehouse.co.za", "sterns.co.za", "incredible.co.za",
 }
 STORE_LOCATOR_MARKERS = (
     "/store-finder", "/store-locator", "/find-a-store", "/branch-locator",
