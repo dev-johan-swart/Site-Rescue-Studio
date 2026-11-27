@@ -118,7 +118,7 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["website_normalized"], "example.co.za")
         self.assertEqual(candidates[0]["source"], "overture_maps")
-        self.assertTrue(candidates[0]["location_evidence"]["sources"])
+        self.assertTrue(candidates[0]["locationEvidence"]["sources"])
         self.assertNotIn("phone", candidates[0])
         self.assertNotIn("email", candidates[0])
 
