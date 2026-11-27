@@ -86,7 +86,7 @@ def assess_feature(feature: dict) -> dict:
     status = str(props.get("operating_status") or "").lower()
     allowed, datasets, provenance_reason = provenance(props)
     eligible = bool(
-        name and hosts and city and region and allowed
+        name and hosts and city and region == "ZA-GP" and allowed
         and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
     )
@@ -102,7 +102,7 @@ def assess_feature(feature: dict) -> dict:
         "category": str(props.get("basic_category") or (props.get("taxonomy") or {}).get("primary") or ""),
         "datasets": datasets,
         "provenance_reason": provenance_reason,
-        "id": str(props.get("id") or ""),
+        "id": str(feature.get("id") or props.get("id") or ""),
     }
 
 
@@ -110,6 +110,7 @@ def audit(path: Path) -> dict:
     counts = Counter()
     sources = Counter()
     categories = Counter()
+    regions = Counter()
     eligible = []
     seen_hosts = set()
     eligible_hosts = set()
@@ -123,6 +124,9 @@ def audit(path: Path) -> dict:
             seen_hosts.update(result["hosts"])
         if result["city"] and result["region"]:
             counts["with_city_region"] += 1
+            regions[result["region"]] += 1
+        if result["region"] == "ZA-GP":
+            counts["gauteng_region"] += 1
         if result["provenance_reason"] == "foursquare_source":
             counts["excluded_foursquare"] += 1
         elif result["provenance_reason"]:
@@ -139,6 +143,7 @@ def audit(path: Path) -> dict:
         "counts": dict(counts),
         "unique_website_hosts_all_sources": len(seen_hosts),
         "eligible_unique_website_hosts": len(eligible_hosts),
+        "region_counts_in_bbox": dict(regions.most_common()),
         "eligible_source_counts": dict(sources.most_common()),
         "eligible_category_counts": dict(categories.most_common(20)),
         "sample": eligible[:25],
