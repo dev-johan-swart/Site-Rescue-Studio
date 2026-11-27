@@ -47,7 +47,8 @@ jobs:
         run: |
           python scripts/audit-overture-gauteng.py \
             "$RUNNER_TEMP/gauteng-places.geojsonseq" \
-            --export "$RUNNER_TEMP/gauteng-places.jsonl.gz"
+            --export "$RUNNER_TEMP/gauteng-places.jsonl.gz" \
+            --summary "$RUNNER_TEMP/overture-summary.json"
 
       - name: Upload read-only candidate feed for review
         uses: actions/upload-artifact@v4
@@ -73,6 +74,8 @@ jobs:
           python - <<'PY'
           import importlib.metadata, json, os
           from datetime import datetime, timezone
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "overture-summary.json"), encoding="utf-8") as stream:
+              summary = json.load(stream)
           metadata = {
               "source": "Overture Maps Places",
               "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -80,7 +83,9 @@ jobs:
               "region": "Gauteng, South Africa",
               "bbox": [27.0, -26.5, 29.0, -24.5],
               "format": "gzip-compressed JSON Lines",
-              "candidate_count": 26531,
+              "candidate_count": summary["exported_unique_website_hosts"],
+              "eligible_source_counts": summary["eligible_source_counts"],
+              "eligible_category_counts": summary["eligible_category_counts"],
               "filters": [
                   "country ZA and Gauteng region aliases only",
                   "business name and website required",
