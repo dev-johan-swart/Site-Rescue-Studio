@@ -75,7 +75,8 @@ class OvertureAuditTests(unittest.TestCase):
             result = audit(path)
         self.assertEqual(result["counts"]["features"], 3)
         self.assertEqual(result["counts"]["eligible"], 2)
-        self.assertEqual(result["unique_website_hosts"], 1)
+        self.assertEqual(result["unique_website_hosts_all_sources"], 2)
+        self.assertEqual(result["eligible_unique_website_hosts"], 1)
         self.assertEqual(result["counts"]["excluded_foursquare"], 1)
 
 
