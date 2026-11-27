@@ -450,7 +450,7 @@ module.exports = async function handler(req, res) {
         const discovery = await discoverWithProviders({
           stage,
           queries: providerQueries(new Date(), stage.queries, attemptNumber * 2),
-          maxCandidates: 20,
+          maxCandidates: 45,
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
