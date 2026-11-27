@@ -77,6 +77,14 @@ def provenance(feature: dict) -> tuple[bool, list[str], str | None]:
     return True, datasets, None
 
 
+def is_gauteng_region(value: str) -> bool:
+    normalized = str(value or "").strip().upper().replace("_", "-")
+    return normalized in {
+        "ZA-GP", "GP", "GAUTENG", "GAUTENG (OLD)", "ZA-GT",
+        "JOHANNESBURG", "TSHWANE",
+    }
+
+
 def assess_feature(feature: dict) -> dict:
     props = feature.get("properties") or feature
     name = str((props.get("names") or {}).get("primary") or "").strip()
@@ -99,7 +107,7 @@ def assess_feature(feature: dict) -> dict:
     status = str(props.get("operating_status") or "").lower()
     allowed, datasets, provenance_reason = provenance(props)
     eligible = bool(
-        name and hosts and city and region == "ZA-GP" and allowed
+        name and hosts and city and is_gauteng_region(region) and allowed
         and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
     )
@@ -138,7 +146,7 @@ def audit(path: Path) -> dict:
         if result["city"] and result["region"]:
             counts["with_city_region"] += 1
             regions[result["region"]] += 1
-        if result["region"] == "ZA-GP":
+        if is_gauteng_region(result["region"]):
             counts["gauteng_region"] += 1
         if result["provenance_reason"] == "foursquare_source":
             counts["excluded_foursquare"] += 1
