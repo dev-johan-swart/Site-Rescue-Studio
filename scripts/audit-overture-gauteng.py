@@ -87,7 +87,7 @@ def assess_feature(feature: dict) -> dict:
     allowed, datasets, provenance_reason = provenance(props)
     eligible = bool(
         name and hosts and city and region and allowed
-        and (confidence is None or confidence >= 0.7)
+        and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
     )
     return {
