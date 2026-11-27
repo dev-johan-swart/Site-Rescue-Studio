@@ -7,6 +7,8 @@ It prints counts and a small public business/site sample for manual review.
 """
 from __future__ import annotations
 
+import argparse
+import gzip
 import json
 import sys
 from collections import Counter
@@ -111,10 +113,25 @@ def assess_feature(feature: dict) -> dict:
         and confidence is not None and confidence >= 0.7
         and status != "permanently_closed"
     )
+    source_details = [
+        {
+            "dataset": str(item.get("dataset") or "").strip().lower(),
+            "license": str(item.get("license") or "").strip(),
+        }
+        for item in (props.get("sources") or [])
+        if item.get("dataset")
+    ]
+    valid_websites = [
+        str(item).strip()
+        for item in websites
+        if website_host(item)
+    ]
     return {
         "eligible": eligible,
         "name": name,
         "hosts": hosts,
+        "websites": valid_websites,
+        "source_details": source_details,
         "city": city,
         "region": region,
         "country": str((address or {}).get("country") or ""),
@@ -171,11 +188,85 @@ def audit(path: Path) -> dict:
     }
 
 
+def export_candidates(input_path: Path, output_path: Path) -> int:
+    """Write one candidate per unique website host, preserving source evidence."""
+    by_host = {}
+    city_priority = {
+        "pretoria": 0, "tshwane": 0, "centurion": 1, "johannesburg": 2,
+    }
+    for feature in iter_features(input_path):
+        result = assess_feature(feature)
+        if not result["eligible"]:
+            continue
+        for website in result["websites"]:
+            host = website_host(website)
+            if not host:
+                continue
+            city_key = result["city"].lower()
+            priority = next(
+                (rank for city, rank in city_priority.items() if city in city_key),
+                3,
+            )
+            candidate = {
+                "source": "overture_maps",
+                "website": website if "://" in website else "https://" + website,
+                "website_normalized": host,
+                "name": result["name"],
+                "city": result["city"],
+                "region": "ZA-GP",
+                "confidence": result["confidence"],
+                "category": result["category"],
+                "source_id": result["id"],
+                "location_evidence": {
+                    "provider": "overture_maps",
+                    "source_id": result["id"],
+                    "city": result["city"],
+                    "region": "ZA-GP",
+                    "country": "ZA",
+                    "confidence": result["confidence"],
+                    "category": result["category"],
+                    "sources": result["source_details"],
+                },
+                "_priority": priority,
+            }
+            current = by_host.get(host)
+            if current is None or (
+                candidate["_priority"], -candidate["confidence"], candidate["name"]
+            ) < (
+                current["_priority"], -current["confidence"], current["name"]
+            ):
+                if current:
+                    candidate["location_evidence"]["also_seen_source_ids"] = [
+                        current.get("source_id")
+                    ] + current["location_evidence"].get("also_seen_source_ids", [])
+                by_host[host] = candidate
+            elif current and result["id"] and result["id"] != current.get("source_id"):
+                ids = current["location_evidence"].setdefault("also_seen_source_ids", [])
+                if result["id"] not in ids and len(ids) < 20:
+                    ids.append(result["id"])
+
+    candidates = sorted(
+        by_host.values(),
+        key=lambda item: (item["_priority"], -item["confidence"], item["city"], item["name"], item["website_normalized"]),
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(output_path, "wt", encoding="utf-8", newline="\\n") as stream:
+        for candidate in candidates:
+            candidate.pop("_priority", None)
+            stream.write(json.dumps(candidate, ensure_ascii=False, separators=(",", ":")) + "\\n")
+    return len(candidates)
+
+
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Usage: audit-overture-gauteng.py <places.geojsonseq>", file=sys.stderr)
-        return 2
-    result = audit(Path(sys.argv[1]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", type=Path, help="Overture Places GeoJSONSeq file")
+    parser.add_argument("--export", type=Path, help="Optional gzip JSONL candidate feed output")
+    args = parser.parse_args()
+
+    result = audit(args.input)
+    if args.export:
+        result["exported_unique_website_hosts"] = export_candidates(args.input, args.export)
+        result["export_file"] = str(args.export)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
