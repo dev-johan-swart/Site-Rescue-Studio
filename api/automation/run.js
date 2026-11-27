@@ -1,5 +1,6 @@
 const dns = require("node:dns").promises;
 const { normalizeWebsite } = require("../../lib/discoveryUrl");
+const { qualifyDiscoveryCandidate } = require("../../lib/discoveryCandidateQualification");
 
 async function filterDiscoveryDnsCandidates(candidates, options = {}) {
   const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
@@ -97,6 +98,7 @@ function normalizeProviderDayKey(value) {
   return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
 
+
 function isAllowedScannedDestination(scanData, originalWebsite) {
   const destination = scanData?.finalUrl || scanData?.url || originalWebsite;
   if (!normalizeWebsite(destination)) return false;
@@ -141,8 +143,10 @@ module.exports = async function handler(req, res) {
   let getQueueDepth;
   let getFreshQueueDepth;
   let getDailyScannedCount;
+  let getDailyQualifiedDiscoveryCount;
   let recoverStaleAutomationRuns;
   let claimNextDailyRun;
+  let getDiscoveryStageState;
   let setDiscoveryStageState;
   let getDiscoveryProviderPageState;
   let getDiscoveryProviderState;
@@ -151,6 +155,8 @@ module.exports = async function handler(req, res) {
   let addDiscoveryBacklogCandidates;
   let promoteFreshBacklogToQueue;
   let reserveDiscoveryProvider;
+  let reserveDiscoveryHttpRequest;
+  let getDailyDiscoveryHttpRequestCount;
   let recordDiscoveryProviderSuccess;
   let recordDiscoveryProviderFailure;
   let completeQueueItem;
@@ -162,6 +168,8 @@ module.exports = async function handler(req, res) {
   let recoverStaleQueueItems;
   let markExhaustedFailures;
   let saveDiscoveryMetadataToProspect;
+  let recordDiscoveryPreparationRun;
+  let hasDiscoveryPreparationReadiness;
 
   try {
     ({ qualifyProspect } = require("../../lib/prospectQualification"));
@@ -180,8 +188,10 @@ module.exports = async function handler(req, res) {
       getQueueDepth,
       getFreshQueueDepth,
       getDailyScannedCount,
+      getDailyQualifiedDiscoveryCount,
       recoverStaleAutomationRuns,
       claimNextDailyRun,
+      getDiscoveryStageState,
       setDiscoveryStageState,
       getDiscoveryProviderPageState,
       getDiscoveryProviderState,
@@ -190,6 +200,8 @@ module.exports = async function handler(req, res) {
       addDiscoveryBacklogCandidates,
       promoteFreshBacklogToQueue,
       reserveDiscoveryProvider,
+      reserveDiscoveryHttpRequest,
+      getDailyDiscoveryHttpRequestCount,
       recordDiscoveryProviderSuccess,
       recordDiscoveryProviderFailure,
       completeQueueItem,
@@ -200,7 +212,9 @@ module.exports = async function handler(req, res) {
       finishRun,
       recoverStaleQueueItems,
       markExhaustedFailures,
-      saveDiscoveryMetadataToProspect
+      saveDiscoveryMetadataToProspect,
+      recordDiscoveryPreparationRun,
+      hasDiscoveryPreparationReadiness
     } = require("../../lib/automationStore"));
   } catch (error) {
     const message = String(error?.message || error);
@@ -216,7 +230,19 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  if (!authorised(req)) {
+  const requestMode = String(req.query?.mode || "").toLowerCase();
+  const isTargetPreviewBranch =
+    process.env.VERCEL_ENV === "preview" &&
+    process.env.VERCEL_GIT_COMMIT_REF === "fix/discovery-supply-readiness-110-v2" &&
+    Boolean(process.env.VERCEL_GIT_COMMIT_SHA);
+  // Preview deployments are protected by Vercel Authentication. Permit the
+  // read-only diagnostic and one strict staging preparation there. Production
+  // and every other branch still require the cron bearer secret.
+  const protectedPreviewOperation =
+    isTargetPreviewBranch &&
+    (requestMode === "diagnostics" ||
+      (requestMode === "prepare" && String(req.query?.strict || "").toLowerCase() === "true"));
+  if (!authorised(req) && !protectedPreviewOperation) {
     console.warn("Automation cron rejected.", {
       method: req.method,
       userAgent: req.headers?.["user-agent"] || null
@@ -225,6 +251,32 @@ module.exports = async function handler(req, res) {
   }
 
   const sql = getSql();
+
+  // Read-only, authenticated target verification. This deliberately returns
+  // only the database hostname/name and deployment commit, never credentials.
+  // It exits before schema setup, stale recovery, provider budgets or writes.
+  if (String(req.query?.mode || "").toLowerCase() === "diagnostics") {
+    try {
+      const databaseUrl = new URL(process.env.DATABASE_URL || "");
+      const connectedRows = await sql`SELECT current_database() AS database_name`;
+      return res.status(200).json({
+        success: true,
+        diagnosticsOnly: true,
+        databaseHost: databaseUrl.hostname.toLowerCase(),
+        configuredDatabaseName: decodeURIComponent(databaseUrl.pathname.startsWith("/") ? databaseUrl.pathname.slice(1) : databaseUrl.pathname),
+        connectedDatabaseName: connectedRows[0]?.database_name || null,
+        deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+        vercelRegion: process.env.VERCEL_REGION || null
+      });
+    } catch (error) {
+      return res.status(200).json({
+        success: false,
+        diagnosticsOnly: true,
+        error: String(error?.message || error)
+      });
+    }
+  }
+
   const runtimeDiagnostics = {
     nodeVersion: process.version,
     vercelRegion: process.env.VERCEL_REGION || null,
@@ -308,6 +360,7 @@ module.exports = async function handler(req, res) {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const preparationProviderDailyLimits = {
+      overture: dailyLimit,
       pretoriaeast: dailyLimit,
       ccbc: dailyLimit,
       openstreetmap: dailyLimit,
@@ -328,11 +381,15 @@ module.exports = async function handler(req, res) {
     const maxPreparationMs = 180000;
     const startedAt = Date.now();
     let queueDepth = await getFreshQueueDepth(sql);
+    const queueDepthBeforePreparation = queueDepth;
     const attempts = [];
-    // Every preparation cycle starts with the highest-priority local market.
-    // It then widens to Gauteng and national coverage only if the reserve is still short.
-    let stageId = "pretoria_centurion";
-    await setDiscoveryStageState(sql, stageId);
+    // Resume from the durable stage cursor. Keep the local-first sequence on
+    // first use, but do not restart there on every preparation invocation.
+    let stageId = await getDiscoveryStageState(sql);
+    if (!["pretoria_centurion", "gauteng", "south_africa"].includes(stageId)) {
+      stageId = "pretoria_centurion";
+      await setDiscoveryStageState(sql, stageId);
+    }
 
     // Seed the durable local reserve first. This is independent of live
     // discovery providers and uses the same dedupe/backlog path as all other
@@ -350,11 +407,10 @@ module.exports = async function handler(req, res) {
           "local_reserve",
           true
         );
-        const promoted = await promoteFreshBacklogToQueue(
-          sql,
-          Math.max(target - queueDepth, 0),
-          "local_reserve"
-        );
+        // Local reserve entries are seed URLs without the business identity
+        // and locality evidence required for a qualified fresh prospect. Keep
+        // them in the audit backlog, but never promote them into the scan queue.
+        const promoted = [];
         queueDepth = await getFreshQueueDepth(sql);
         attempts.push({
           source: "local_reserve",
@@ -393,11 +449,18 @@ module.exports = async function handler(req, res) {
       try {
         const discovery = await discoverWithProviders({
           stage,
-          queries: providerQueries(new Date(), stage.queries, Date.now() + attemptNumber),
-          maxCandidates: 20,
+          queries: providerQueries(new Date(), stage.queries, attemptNumber * 2),
+          maxCandidates: 45,
           providerStartOffset: preparationProviderStartOffset(attemptNumber),
           providerOrder: preparationProviderOrderForStage(stage.id),
           providerPageOffset: attemptNumber,
+          reserveHttpRequest: provider => reserveDiscoveryHttpRequest(
+            sql,
+            provider,
+            null,
+            cycleDate,
+            null
+          ),
           getProviderPageState: async (provider, pageCount) => getDiscoveryProviderPageState(sql, provider, pageCount, stage.id),
           recordProviderPageResult: async (provider, page, pageCount, hasFreshCandidates) =>
             recordDiscoveryProviderPageResult(sql, provider, page, pageCount, hasFreshCandidates, stage.id),
@@ -438,7 +501,21 @@ module.exports = async function handler(req, res) {
           recordSuccess: provider => recordDiscoveryProviderSuccess(sql, provider),
           recordFailure: (provider, error) => recordDiscoveryProviderFailure(sql, provider, error)
         });
-        const dnsQualification = await filterDiscoveryDnsCandidates(discovery.candidates);
+        const identityQualified = [];
+        const qualificationRejected = [];
+        for (const candidate of discovery.candidates || []) {
+          const qualification = qualifyDiscoveryCandidate(candidate, discovery.provider);
+          if (!qualification.eligible) {
+            qualificationRejected.push({
+              website: candidate?.website || null,
+              provider: candidate?.provider || discovery.provider,
+              reason: qualification.reason
+            });
+            continue;
+          }
+          identityQualified.push(qualification.candidate);
+        }
+        const dnsQualification = await filterDiscoveryDnsCandidates(identityQualified);
         const backlogDiagnostics = await addDiscoveryBacklogCandidates(
           sql,
           dnsQualification.candidates,
@@ -446,6 +523,8 @@ module.exports = async function handler(req, res) {
           stage.id,
           true
         );
+        backlogDiagnostics.identityOrGeographyRejected = qualificationRejected.length;
+        backlogDiagnostics.qualificationRejectedSamples = qualificationRejected.slice(0, 20);
         const promoted = await promoteFreshBacklogToQueue(sql, Math.max(target - queueDepth, 0), "discovery_backlog");
         queueDepth = await getFreshQueueDepth(sql);
         attempts.push({
@@ -455,6 +534,7 @@ module.exports = async function handler(req, res) {
           extractionTelemetry: discovery.telemetry || null,
           providerAttempts: discovery.attempts || [],
           providerErrors: discovery.errors || [],
+          httpRequests: discovery.httpRequests || [],
           dnsQualification: dnsQualification.diagnostics,
           backlogDiagnostics,
           newlyQueued: promoted.length
@@ -465,14 +545,32 @@ module.exports = async function handler(req, res) {
           status: "failed",
           message: String(error?.message || error),
           providerAttempts: Array.isArray(error?.attempts) ? error.attempts : [],
-          providerErrors: Array.isArray(error?.providerErrors) ? error.providerErrors : []
+          providerErrors: Array.isArray(error?.providerErrors) ? error.providerErrors : [],
+          httpRequests: Array.isArray(error?.httpRequests) ? error.httpRequests : []
         });
       }
       stageId = nextEnabledDiscoveryStageId(stage.id);
       await setDiscoveryStageState(sql, stageId);
     }
+    const dailyQualifiedProspects = await getDailyQualifiedDiscoveryCount(sql, cycleDate);
+    const dailyHttpRequestCount = await getDailyDiscoveryHttpRequestCount(sql, cycleDate);
+    const dailyQualifiedTarget = 60;
     const targetReached = queueDepth >= target;
     const supplyStatus = targetReached ? "target_reached" : queueDepth > 0 ? "partial" : "empty";
+    const strictReadiness = String(req.query?.strict || "").toLowerCase() === "true";
+    const preparationTelemetry = await recordDiscoveryPreparationRun(sql, {
+      preparationKey: require("node:crypto").randomUUID(),
+      cycleDate,
+      status: supplyStatus,
+      target,
+      queueDepthBefore: queueDepthBeforePreparation,
+      queueDepthAfter: queueDepth,
+      readinessPassed: targetReached,
+      strictCheck: strictReadiness,
+      attempts,
+      startedAt: new Date(startedAt).toISOString(),
+      completedAt: new Date().toISOString()
+    });
     return res.status(200).json({
       success: true,
       preparationOnly: true,
@@ -480,6 +578,14 @@ module.exports = async function handler(req, res) {
       queueDepth,
       target,
       targetReached,
+      dailyQualifiedProspects,
+      dailyQualifiedTarget,
+      dailyHttpRequestCount,
+      dailyQualifiedTargetReached: dailyQualifiedProspects >= dailyQualifiedTarget,
+      readinessPassed: targetReached,
+      strictReadiness,
+      readinessGate: strictReadiness ? (targetReached ? "passed" : "failed") : "not_requested",
+      preparationRunId: preparationTelemetry?.id || null,
       runtimeDiagnostics,
       attempts
     });
@@ -493,6 +599,20 @@ module.exports = async function handler(req, res) {
         error: message
       });
     }
+  }
+
+  const readiness = await hasDiscoveryPreparationReadiness(sql, cycleDate);
+  if (!readiness) {
+    const currentReserve = await getFreshQueueDepth(sql);
+    return res.status(200).json({
+      success: false,
+      reserveNotReady: true,
+      productionPaused: true,
+      cycleDate,
+      queueDepth: currentReserve,
+      queueReserveTarget: 110,
+      reason: "No successful 110/110 discovery preparation readiness record exists for this SAST production day. Worker batch was not claimed."
+    });
   }
 
   const requestedBatchNo = Number(req.query?.batch);
@@ -613,7 +733,8 @@ module.exports = async function handler(req, res) {
             provider: discoveryMetadata.source || null,
             region: discoveryMetadata.region || null,
             city: discoveryMetadata.city || null,
-            businessName: discoveryMetadata.discovery_business_name || null
+            businessName: discoveryMetadata.discovery_business_name || null,
+            locationEvidence: discoveryMetadata.location_evidence || null
           }
         }
       } : scanData;
@@ -753,3 +874,5 @@ module.exports.isAllowedScannedDestination = isAllowedScannedDestination;
 module.exports.filterMyCityInfoDnsCandidates = filterDiscoveryDnsCandidates;
 
 module.exports.normalizeProviderDayKey = normalizeProviderDayKey;
+
+module.exports.qualifyDiscoveryCandidate = qualifyDiscoveryCandidate;

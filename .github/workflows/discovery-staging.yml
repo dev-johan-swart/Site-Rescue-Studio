@@ -1,0 +1,73 @@
+name: Site Rescue Studio Isolated Discovery Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Exact READY Vercel preview URL for this feature branch (never production)"
+        required: true
+        type: string
+      confirm_isolated:
+        description: "Confirm the preview DATABASE_URL is branch-scoped to the isolated Neon staging branch"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: srs-isolated-discovery-staging
+  cancel-in-progress: false
+
+jobs:
+  staging-discovery:
+    if: ${{ inputs.confirm_isolated == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Validate staging target and credentials
+        env:
+          PREVIEW_URL: ${{ inputs.preview_url }}
+          CRON_SECRET: ${{ secrets.SRS_STAGING_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$CRON_SECRET"
+          if [[ ! "$PREVIEW_URL" =~ ^https://site-rescue-studio-[a-z0-9-]+\.vercel\.app$ ]]; then
+            echo "::error::Provide only the exact Site Rescue Studio preview hostname (no path, query, or production URL)."; exit 1
+          fi
+          echo "STAGING_TARGET_VALIDATED"
+
+      - name: Run isolated discovery preparation
+        env:
+          PREVIEW_URL: ${{ inputs.preview_url }}
+          CRON_SECRET: ${{ secrets.SRS_STAGING_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          response_file="$RUNNER_TEMP/staging-discovery.json"
+          curl --fail-with-body --show-error --silent \
+            --connect-timeout 15 --max-time 240 \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Cache-Control: no-cache" \
+            --output "$response_file" \
+            "$PREVIEW_URL/api/automation/run?mode=prepare"
+          jq -e '.success == true and .preparationOnly == true and .target == 110 and (.attempts | type == "array")' "$response_file" >/dev/null
+          jq '{
+            success,
+            preparationOnly,
+            supplyStatus,
+            queueDepth,
+            target,
+            dailyQualifiedProspects,
+            dailyQualifiedTarget,
+            dailyHttpRequestCount,
+            attempts
+          }' "$response_file"
+          {
+            echo "### Isolated discovery staging result"
+            jq -r '"- Success: \(.success)\n- Reserve: \(.queueDepth)/\(.target)\n- Daily qualified prospects: \(.dailyQualifiedProspects)/\(.dailyQualifiedTarget)\n- Actual HTTP requests: \(.dailyHttpRequestCount)\n- Preparation attempts: \(.attempts | length)"' "$response_file"
+            echo "- Target: Vercel preview for the isolated Neon staging branch"
+            echo "- Production endpoint and external cron were not called"
+          } >> "$GITHUB_STEP_SUMMARY"
+    

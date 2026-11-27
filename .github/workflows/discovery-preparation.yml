@@ -8,8 +8,11 @@ on:
     # Preserve the existing 07:40 SAST recovery slot (05:40 UTC).
     # No worker-completion trigger or provider budget increase.
     - cron: "15,35,55 22-23 * * *"
-    - cron: "15,35,55 0-3 * * *"
-    - cron: "15,35 4 * * *"
+    - cron: "15,35 0 * * *"
+    - cron: "55 0 * * *"
+    - cron: "15,35,55 1-3 * * *"
+    - cron: "15 4 * * *"
+    - cron: "35 4 * * *"
     - cron: "15,35,55 6-21 * * *"
     - cron: "40 5 * * *"
   workflow_dispatch:
@@ -45,33 +48,45 @@ jobs:
         if: ${{ inputs.dry_run != true }}
         env:
           CRON_SECRET: ${{ secrets.SRS_CRON_SECRET }}
+          STRICT_READINESS: ${{ github.event.schedule == '55 0 * * *' || github.event.schedule == '35 4 * * *' }}
         run: |
           set -euo pipefail
           test -n "$CRON_SECRET"
           response_file="$RUNNER_TEMP/discovery-preparation.json"
+          endpoint="https://site-rescue-studio.vercel.app/api/automation/run?mode=prepare"
+          if [ "$STRICT_READINESS" = "true" ]; then endpoint="$endpoint&strict=true"; fi
           curl --fail-with-body --show-error --silent \
             --connect-timeout 15 --max-time 240 \
             --request GET \
             --header "Authorization: Bearer $CRON_SECRET" \
             --header "Cache-Control: no-cache" \
             --output "$response_file" \
-            "https://site-rescue-studio.vercel.app/api/automation/run?mode=prepare"
+            "$endpoint"
           cat "$response_file"
           echo
           jq -e '.success == true and (.queueDepth | type == "number") and (.target | type == "number") and (.attempts | type == "array")' "$response_file" >/dev/null
           queue_depth="$(jq -r '.queueDepth' "$response_file")"
           target="$(jq -r '.target' "$response_file")"
           target_reached="$(jq -r '.targetReached // false' "$response_file")"
+          readiness_gate="$(jq -r '.readinessGate // "not_requested"' "$response_file")"
+          preparation_run_id="$(jq -r '.preparationRunId // "not-recorded"' "$response_file")"
           supply_status="$(jq -r '.supplyStatus // "unknown"' "$response_file")"
+          daily_qualified="$(jq -r '.dailyQualifiedProspects // 0' "$response_file")"
+          daily_qualified_target="$(jq -r '.dailyQualifiedTarget // 60' "$response_file")"
+          daily_http_requests="$(jq -r '.dailyHttpRequestCount // 0' "$response_file")"
           attempts="$(jq -r '.attempts | length' "$response_file")"
           discovered="$(jq '[.attempts[].backlogDiagnostics.added // 0] | add // 0' "$response_file")"
           promoted="$(jq '[.attempts[].newlyQueued // 0] | add // 0' "$response_file")"
-          echo "DISCOVERY_RESERVE:$queue_depth/$target TARGET_REACHED:$target_reached SUPPLY_STATUS:$supply_status"
+          echo "DISCOVERY_RESERVE:$queue_depth/$target TARGET_REACHED:$target_reached READINESS_GATE:$readiness_gate STRICT:$STRICT_READINESS SUPPLY_STATUS:$supply_status"
           {
             echo "### Discovery preparation"
             echo "- Fresh reserve: $queue_depth/$target"
             echo "- Supply status: $supply_status"
+            echo "- New qualified prospects today: $daily_qualified/$daily_qualified_target"
+            echo "- Actual outbound HTTP requests today: $daily_http_requests"
             echo "- Preparation attempts: $attempts"
+            echo "- Readiness gate: $readiness_gate"
+            echo "- Durable preparation run: $preparation_run_id"
             echo "- New backlog records: $discovered"
             echo "- Newly promoted queue items: $promoted"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -81,6 +96,17 @@ jobs:
           elif [ "$queue_depth" -lt 60 ]; then
             echo "::error::Discovery reserve is critical at $queue_depth/$target. Investigate provider yield, qualification, backlog promotion and scheduling."
             exit 1
-          elif [ "$target_reached" != "true" ]; then
+          fi
+          if [ "$daily_qualified" -lt "$daily_qualified_target" ]; then
+            echo "::warning::Daily qualified discovery yield is below target: $daily_qualified/$daily_qualified_target. Review provider freshness and qualification diagnostics."
+          fi
+          if [ "$target_reached" != "true" ]; then
+            if [ "$STRICT_READINESS" = "true" ]; then
+              echo "::error::Strict reserve readiness failed: $queue_depth/$target. The production worker will remain paused until a preparation run proves 110/110."
+              exit 1
+            fi
             echo "::warning::Discovery reserve remains below target: $queue_depth/$target fresh prospects."
+          elif [ "$STRICT_READINESS" = "true" ] && [ "$readiness_gate" != "passed" ]; then
+            echo "::error::Strict readiness was requested but the API did not confirm the 110/110 gate."
+            exit 1
           fi

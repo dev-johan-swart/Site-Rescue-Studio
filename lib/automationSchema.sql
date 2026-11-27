@@ -4,6 +4,11 @@
 
 CREATE TABLE IF NOT EXISTS automation_discovery_provider_state (
   provider TEXT PRIMARY KEY, day_key DATE NOT NULL, request_count INTEGER NOT NULL DEFAULT 0,
+  month_key TEXT, monthly_request_count INTEGER NOT NULL DEFAULT 0,
+  http_day_key DATE, http_request_count INTEGER NOT NULL DEFAULT 0,
+  http_month_key TEXT, http_monthly_request_count INTEGER NOT NULL DEFAULT 0,
+  page_cursor INTEGER NOT NULL DEFAULT 0, page_cursors JSONB NOT NULL DEFAULT '{}'::jsonb,
+  depleted_pages JSONB NOT NULL DEFAULT '[]'::jsonb,
   consecutive_failures INTEGER NOT NULL DEFAULT 0, cooldown_until TIMESTAMPTZ, last_error TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -114,6 +119,7 @@ CREATE TABLE IF NOT EXISTS automation_discovery_backlog (
   category TEXT,
   business_name TEXT,
   city TEXT,
+  location_evidence TEXT,
   status TEXT NOT NULL DEFAULT 'available',
   queued_at TIMESTAMPTZ,
   consumed_at TIMESTAMPTZ,
@@ -122,3 +128,33 @@ CREATE TABLE IF NOT EXISTS automation_discovery_backlog (
 
 CREATE INDEX IF NOT EXISTS automation_discovery_backlog_status_idx
   ON automation_discovery_backlog (status, created_at);
+
+CREATE TABLE IF NOT EXISTS automation_discovery_preparation_runs (
+  id BIGSERIAL PRIMARY KEY,
+  preparation_key TEXT NOT NULL UNIQUE,
+  cycle_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'partial',
+  target INTEGER NOT NULL DEFAULT 110,
+  queue_depth_before INTEGER NOT NULL DEFAULT 0,
+  queue_depth_after INTEGER NOT NULL DEFAULT 0,
+  readiness_passed BOOLEAN NOT NULL DEFAULT FALSE,
+  strict_check BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_candidate_count INTEGER NOT NULL DEFAULT 0,
+  dns_examined INTEGER NOT NULL DEFAULT 0,
+  dns_rejected INTEGER NOT NULL DEFAULT 0,
+  dns_deferred INTEGER NOT NULL DEFAULT 0,
+  backlog_added INTEGER NOT NULL DEFAULT 0,
+  already_known INTEGER NOT NULL DEFAULT 0,
+  duplicates INTEGER NOT NULL DEFAULT 0,
+  invalid_url INTEGER NOT NULL DEFAULT 0,
+  platform_only INTEGER NOT NULL DEFAULT 0,
+  http_request_count INTEGER NOT NULL DEFAULT 0,
+  attempts JSONB NOT NULL DEFAULT '[]'::jsonb,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS automation_discovery_preparation_cycle_idx
+  ON automation_discovery_preparation_runs (cycle_date, readiness_passed, completed_at DESC);
+
