@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from audit_overture_gauteng import assess_feature, audit
+import importlib.util
+
+MODULE_PATH = Path(__file__).with_name("audit-overture-gauteng.py")
+SPEC = importlib.util.spec_from_file_location("audit_overture_gauteng", MODULE_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+assess_feature = MODULE.assess_feature
+audit = MODULE.audit
 
 
 def feature(name, website, source="meta", license="CDLA-Permissive-2.0", status="open"):
