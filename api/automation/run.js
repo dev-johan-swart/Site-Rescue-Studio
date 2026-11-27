@@ -251,7 +251,7 @@ module.exports = async function handler(req, res) {
         success: true,
         diagnosticsOnly: true,
         databaseHost: databaseUrl.hostname.toLowerCase(),
-        configuredDatabaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\\/+/, "")),
+        configuredDatabaseName: decodeURIComponent(databaseUrl.pathname.startsWith("/") ? databaseUrl.pathname.slice(1) : databaseUrl.pathname),
         connectedDatabaseName: connectedRows[0]?.database_name || null,
         deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
         vercelRegion: process.env.VERCEL_REGION || null
