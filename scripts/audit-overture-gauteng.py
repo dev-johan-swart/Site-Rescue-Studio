@@ -38,6 +38,9 @@ EXCLUDED_HOSTS = {
     "adidas.com", "regus.com", "sportscene.co.za", "f45training.com",
     "cashbuild.co.za", "goldwagen.com", "cashcrusaders.co.za", "freshstop.co.za",
     "sportsmanswarehouse.co.za", "sterns.co.za", "incredible.co.za",
+    "vans.co.za", "r-stahl.com", "hydehotels.com", "wework.com",
+    "hellmann.com", "delforno.co.za", "pizzaperfect.co.za",
+    "johndorys.com", "twt.co.za", "fabiani.co.za",
 }
 
 
@@ -109,7 +112,9 @@ CHAIN_NAME_TOKENS = {
     "we buy cars", "motus", "avis", "hertz", "europcar", "safair", "airlink",
     "south african airways", "adidas", "regus", "sportscene", "f45 training",
     "cashbuild", "goldwagen", "cash crusaders", "freshstop", "sportsmans warehouse",
-    "sterns", "incredible connection",
+    "sterns", "incredible connection", "vans", "r stahl", "hyde",
+    "wework", "hellmann", "del forno", "pizza perfect", "john dory",
+    "tiger wheel", "fabiani",
 }
 CHAIN_DOMAIN_ROOTS = {
     "sasol.co.za", "engen.co.za", "shell.com", "spar.co.za", "kfc.co.za",
