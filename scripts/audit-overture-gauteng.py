@@ -150,7 +150,9 @@ def is_chain_or_locator(name: str, websites: list[str]) -> bool:
         return True
     for website in websites:
         parsed = urlparse(str(website or "") if "://" in str(website or "") else "https://" + str(website or ""))
-        host = website_host(website)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if host.startswith("www."):
+            host = host[4:]
         if host and any(host == root or host.endswith("." + root) for root in CHAIN_DOMAIN_ROOTS):
             return True
         path = (parsed.path or "").lower()
