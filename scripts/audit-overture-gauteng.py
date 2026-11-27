@@ -35,6 +35,9 @@ EXCLUDED_HOSTS = {
     "domainnamesales.com", "expireddomains.com",
     "wixsite.com", "wordpress.com", "sites.google.com",
     "business.websdocs.com", "blogspot.com", "weebly.com", "business.site",
+    "adidas.com", "regus.com", "sportscene.co.za", "f45training.com",
+    "cashbuild.co.za", "goldwagen.com", "cashcrusaders.co.za", "freshstop.co.za",
+    "sportsmanswarehouse.co.za", "sterns.co.za", "incredible.co.za",
 }
 
 
@@ -104,7 +107,9 @@ CHAIN_NAME_TOKENS = {
     "toyota", "volkswagen", "ford", "bmw", "mercedes", "audi", "hyundai",
     "kia", "nissan", "renault", "suzuki", "haval", "chery", "mahindra",
     "we buy cars", "motus", "avis", "hertz", "europcar", "safair", "airlink",
-    "south african airways",
+    "south african airways", "adidas", "regus", "sportscene", "f45 training",
+    "cashbuild", "goldwagen", "cash crusaders", "freshstop", "sportsmans warehouse",
+    "sterns", "incredible connection",
 }
 CHAIN_DOMAIN_ROOTS = {
     "sasol.co.za", "engen.co.za", "shell.com", "spar.co.za", "kfc.co.za",
