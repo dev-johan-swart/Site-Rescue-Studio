@@ -112,6 +112,7 @@ def audit(path: Path) -> dict:
     categories = Counter()
     eligible = []
     seen_hosts = set()
+    eligible_hosts = set()
     for feature in iter_features(path):
         result = assess_feature(feature)
         counts["features"] += 1
@@ -131,11 +132,13 @@ def audit(path: Path) -> dict:
         if result["eligible"]:
             counts["eligible"] += 1
             eligible.append(result)
+            eligible_hosts.update(result["hosts"])
             categories[result["category"] or "uncategorized"] += 1
             sources.update(result["datasets"])
     return {
         "counts": dict(counts),
-        "unique_website_hosts": len(seen_hosts),
+        "unique_website_hosts_all_sources": len(seen_hosts),
+        "eligible_unique_website_hosts": len(eligible_hosts),
         "eligible_source_counts": dict(sources.most_common()),
         "eligible_category_counts": dict(categories.most_common(20)),
         "sample": eligible[:25],
