@@ -1,6 +1,6 @@
 {
   "source": "Overture Maps Places",
-  "generated_at": "2026-11-27T14:48:44.600409+00:00",
+  "generated_at": "2026-11-27T14:51:44.300017+00:00",
   "overturemaps_client_version": "2.1.1",
   "region": "Gauteng, South Africa",
   "bbox": [
@@ -10,34 +10,34 @@
     -24.5
   ],
   "format": "gzip-compressed JSON Lines",
-  "candidate_count": 3450,
+  "candidate_count": 3442,
   "eligible_source_counts": {
-    "overture": 6858,
-    "microsoft": 6771,
+    "overture": 6523,
+    "microsoft": 6436,
     "uberall": 156,
     "dac": 9
   },
   "eligible_category_counts": {
-    "uncategorized": 1124,
-    "fashion_and_apparel_store": 489,
-    "b2b_office_and_professional_service": 421,
-    "shopping": 400,
-    "hardware_home_and_garden_store": 301,
-    "bank_or_credit_union": 231,
+    "uncategorized": 1063,
+    "b2b_office_and_professional_service": 420,
+    "fashion_and_apparel_store": 396,
+    "shopping": 392,
+    "hardware_home_and_garden_store": 264,
+    "bank_or_credit_union": 223,
     "home_service": 205,
-    "automotive_service": 194,
-    "gas_station": 171,
+    "automotive_service": 193,
+    "gas_station": 170,
     "b2b_service": 160,
     "manufacturer": 151,
     "real_estate_service": 126,
     "financial_service": 113,
     "electronics_store": 111,
     "diagnostics_imaging_or_lab_service": 109,
-    "restaurant": 102,
+    "restaurant": 101,
     "professional_service": 95,
-    "shopping_mall": 89,
-    "food_and_beverage_store": 89,
-    "technical_service": 82
+    "food_and_beverage_store": 85,
+    "technical_service": 82,
+    "supplier_or_distributor": 82
   },
   "filters": [
     "country ZA and Gauteng region aliases only",
@@ -51,7 +51,7 @@
     "one record per unique website host",
     "no phone numbers or email addresses exported"
   ],
-  "source_commit": "fdc4a3b0d8e2998a067671e554e8d7b5dd5be02e",
+  "source_commit": "8d6211e09b5c2e0efa1f7dd9a4b3a6b866ac9abe",
   "licenses": [
     "https://cdla.dev/permissive-2-0/",
     "https://creativecommons.org/publicdomain/zero/1.0/"
