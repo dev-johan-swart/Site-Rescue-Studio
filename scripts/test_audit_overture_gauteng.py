@@ -58,6 +58,12 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertFalse(social["eligible"])
         self.assertFalse(closed["eligible"])
 
+    def test_excludes_platform_hosted_business_sites(self):
+        wix = assess_feature(feature("Example Business", "https://example.wixsite.com/home"))
+        wordpress = assess_feature(feature("Example Business", "https://example.wordpress.com"))
+        self.assertFalse(wix["eligible"])
+        self.assertFalse(wordpress["eligible"])
+
     def test_requires_an_explicit_high_confidence_score(self):
         item = feature("Example Business", "https://example.co.za")
         item["properties"]["confidence"] = None
