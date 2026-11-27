@@ -360,6 +360,7 @@ module.exports = async function handler(req, res) {
     const target = 110;
     const dailyLimit = Math.max(1, Math.min(Number(process.env.AUTOMATION_DISCOVERY_DAILY_LIMIT || 12), 12));
     const preparationProviderDailyLimits = {
+      overture: dailyLimit,
       pretoriaeast: dailyLimit,
       ccbc: dailyLimit,
       openstreetmap: dailyLimit,
