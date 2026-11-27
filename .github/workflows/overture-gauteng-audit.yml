@@ -1,6 +1,9 @@
 name: Overture Gauteng source audit
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 1 * *"
   push:
     branches:
       - fix/discovery-supply-readiness-110-v2
@@ -40,5 +43,16 @@ jobs:
             -f geojsonseq \
             -o "$RUNNER_TEMP/gauteng-places.geojsonseq"
 
-      - name: Audit websites, geography, confidence and provenance
-        run: python scripts/audit-overture-gauteng.py "$RUNNER_TEMP/gauteng-places.geojsonseq"
+      - name: Audit and export deduplicated candidate feed
+        run: |
+          python scripts/audit-overture-gauteng.py \
+            "$RUNNER_TEMP/gauteng-places.geojsonseq" \
+            --export "$RUNNER_TEMP/gauteng-places.jsonl.gz"
+
+      - name: Upload read-only candidate feed for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: overture-gauteng-candidates-${{ github.sha }}
+          path: "$RUNNER_TEMP/gauteng-places.jsonl.gz"
+          if-no-files-found: error
+          retention-days: 1
