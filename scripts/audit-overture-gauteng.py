@@ -243,7 +243,7 @@ def export_candidates(input_path: Path, output_path: Path) -> int:
                     ] + current["locationEvidence"].get("also_seen_source_ids", [])
                 by_host[host] = candidate
             elif current and result["id"] and result["id"] != current.get("source_id"):
-                ids = current["location_evidence"].setdefault("also_seen_source_ids", [])
+                ids = current["locationEvidence"].setdefault("also_seen_source_ids", [])
                 if result["id"] not in ids and len(ids) < 20:
                     ids.append(result["id"])
 
@@ -252,10 +252,10 @@ def export_candidates(input_path: Path, output_path: Path) -> int:
         key=lambda item: (item["_priority"], -item["confidence"], item["city"], item["name"], item["website_normalized"]),
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(output_path, "wt", encoding="utf-8", newline="\\n") as stream:
+    with gzip.open(output_path, "wt", encoding="utf-8") as stream:
         for candidate in candidates:
             candidate.pop("_priority", None)
-            stream.write(json.dumps(candidate, ensure_ascii=False, separators=(",", ":")) + "\\n")
+            stream.write(json.dumps(candidate, ensure_ascii=False, separators=(",", ":")) + "\n")
     return len(candidates)
 
 
