@@ -302,6 +302,7 @@ def export_candidates(input_path: Path, output_path: Path) -> int:
                 "region": "Gauteng",
                 "confidence": result["confidence"],
                 "category": result["category"],
+                "stage_group": "pretoria_centurion" if priority <= 1 else "gauteng",
                 "source_id": result["id"],
                 "locationEvidence": {
                     "provider": "overture_maps",
