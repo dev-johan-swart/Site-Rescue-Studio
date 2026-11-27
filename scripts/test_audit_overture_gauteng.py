@@ -58,6 +58,11 @@ class OvertureAuditTests(unittest.TestCase):
         self.assertFalse(social["eligible"])
         self.assertFalse(closed["eligible"])
 
+    def test_requires_an_explicit_high_confidence_score(self):
+        item = feature("Example Business", "https://example.co.za")
+        item["properties"]["confidence"] = None
+        self.assertFalse(assess_feature(item)["eligible"])
+
     def test_streams_geojson_sequence_and_counts_unique_hosts(self):
         records = [
             feature("One", "https://www.example.co.za"),
