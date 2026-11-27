@@ -263,12 +263,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path, help="Overture Places GeoJSONSeq file")
     parser.add_argument("--export", type=Path, help="Optional gzip JSONL candidate feed output")
+    parser.add_argument("--summary", type=Path, help="Optional JSON summary output")
     args = parser.parse_args()
 
     result = audit(args.input)
     if args.export:
         result["exported_unique_website_hosts"] = export_candidates(args.input, args.export)
         result["export_file"] = str(args.export)
+    if args.summary:
+        args.summary.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
