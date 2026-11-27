@@ -3,7 +3,7 @@ name: Overture Gauteng source audit
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 1 * *"
+    - cron: "0 0 * * 0"
   push:
     branches:
       - fix/discovery-supply-readiness-110-v2
@@ -14,6 +14,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: overture-gauteng-audit
+  cancel-in-progress: false
 
 jobs:
   audit:
