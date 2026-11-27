@@ -13,7 +13,7 @@ on:
       - ".github/workflows/overture-gauteng-audit.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   audit:
@@ -56,3 +56,77 @@ jobs:
           path: "${{ runner.temp }}/gauteng-places.jsonl.gz"
           if-no-files-found: error
           retention-days: 1
+
+      - name: Check out public Overture data branch
+        uses: actions/checkout@v4
+        with:
+          ref: overture-data
+          path: overture-data
+          persist-credentials: true
+
+      - name: Publish licensed Gauteng feed snapshot
+        env:
+          OVERTURE_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/gauteng-places.jsonl.gz" overture-data/gauteng-places.jsonl.gz
+          python - <<'PY'
+          import importlib.metadata, json, os
+          from datetime import datetime, timezone
+          metadata = {
+              "source": "Overture Maps Places",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "overturemaps_client_version": importlib.metadata.version("overturemaps"),
+              "region": "Gauteng, South Africa",
+              "bbox": [27.0, -26.5, 29.0, -24.5],
+              "format": "gzip-compressed JSON Lines",
+              "candidate_count": 26531,
+              "filters": [
+                  "country ZA and Gauteng region aliases only",
+                  "business name and website required",
+                  "confidence >= 0.7",
+                  "Foursquare-sourced records excluded",
+                  "source licence must be CDLA-Permissive-2.0 or CC0-1.0",
+                  "social, directory, parked and platform-hosted domains excluded",
+                  "one record per unique website host",
+                  "no phone numbers or email addresses exported"
+              ],
+              "source_commit": os.environ["OVERTURE_SOURCE_COMMIT"],
+              "licenses": [
+                  "https://cdla.dev/permissive-2-0/",
+                  "https://creativecommons.org/publicdomain/zero/1.0/"
+              ]
+          }
+          with open("overture-data/metadata.json", "w", encoding="utf-8") as stream:
+              json.dump(metadata, stream, ensure_ascii=False, indent=2)
+          PY
+          cat > overture-data/NOTICE.md <<'EOF'
+          # Overture Gauteng Places feed
+
+          This feed is derived from the Overture Maps Places theme. It contains
+          business names, public website URLs, city/region, category, confidence,
+          GERS feature IDs, and per-record source/license provenance. It does not
+          contain phone numbers or email addresses.
+
+          Records are included only when their source provenance is explicitly
+          licensed under CDLA-Permissive-2.0 or CC0-1.0. Any record with a
+          Foursquare source is excluded. The underlying source datasets and
+          licences are retained in each record's locationEvidence.sources.
+
+          - Overture Maps attribution: https://overturemaps.org/
+          - CDLA-Permissive-2.0: https://cdla.dev/permissive-2-0/
+          - CC0-1.0: https://creativecommons.org/publicdomain/zero/1.0/
+
+          This is a candidate feed, not a verified prospect list. Consumers must
+          deduplicate against their own records and perform DNS, live homepage,
+          parked-domain, identity and geography checks before use.
+          EOF
+          git -C overture-data config user.name "github-actions[bot]"
+          git -C overture-data config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C overture-data add gauteng-places.jsonl.gz metadata.json NOTICE.md
+          if git -C overture-data diff --cached --quiet; then
+            echo "Overture feed unchanged; no data branch commit required."
+          else
+            git -C overture-data commit -m "Refresh licensed Gauteng Overture Places feed"
+            git -C overture-data push origin HEAD:overture-data
+          fi
