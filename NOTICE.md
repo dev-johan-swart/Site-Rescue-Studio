@@ -7,8 +7,9 @@ contain phone numbers or email addresses.
 
 Records are included only when their source provenance is explicitly
 licensed under CDLA-Permissive-2.0 or CC0-1.0. Any record with a
-Foursquare source or a structured brand association is excluded to
-reduce chain and franchise locations. The underlying source datasets and
+Foursquare source, a structured brand association, a known national
+chain/franchise name or domain, or a store-locator URL is excluded.
+The underlying source datasets and
 licences are retained in each record's locationEvidence.sources.
 
 - Overture Maps attribution: https://overturemaps.org/
