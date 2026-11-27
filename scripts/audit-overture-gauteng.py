@@ -89,13 +89,13 @@ def is_gauteng_region(value: str) -> bool:
 
 
 CHAIN_NAME_TOKENS = {
-    "sasol", "engen", "shell", "spar", "savemor", "kfc", "nandos",
-    "ocean basket", "total energies", "total elarduspark", "marriott",
+    "sasol", "engen", "shell", "spar", "savemor", "kfc", "nandos", "nando s",
+    "ocean basket", "total energies", "totalenergies", "total elarduspark", "marriott",
     "protea hotels", "glasfit", "seriously addictive mathematics",
     "dischem", "clicks", "pick n pay", "checkers", "woolworths",
     "shoprite", "makro", "builders warehouse", "ackermans", "mr price",
     "truworths", "foschini", "edgars", "mcdonalds", "burger king",
-    "steers", "debonaire", "spur", "wimpy", "chicken licken",
+    "steers", "debonaire", "spur", "wimpy", "chicken licken", "mc donald s", "roman s pizza",
     "hungry lion", "romans pizza", "fishaways", "pedros", "rocomamas",
     "mugg bean", "vida e caffe", "seattle coffee", "city lodge",
     "sun international", "tsogo sun", "radisson", "hilton", "holiday inn",
