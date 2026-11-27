@@ -99,6 +99,24 @@ class OvertureAuditTests(unittest.TestCase):
             result = assess_feature(feature(name, website))
             self.assertFalse(result["eligible"], name)
             self.assertTrue(result["excluded_chain_or_locator"], name)
+
+    def test_excludes_additional_multinational_and_franchise_brands(self):
+        examples = [
+            ("VANS Eastgate", "https://vans.co.za/"),
+            ("R. STAHL South Africa", "https://r-stahl.com/en/global"),
+            ("Hyde Johannesburg Rosebank", "https://hydehotels.com/home/johannesburg/"),
+            ("WeWork The Link", "https://www.wework.com/en-ZA/buildings/the-link"),
+            ("Hellmann Worldwide Logistics", "https://www.hellmann.com/"),
+            ("Pizza Del Forno Glenanda", "https://www.delforno.co.za/stores/glenanda.html"),
+            ("Pizza Perfect Garsfontein", "https://pizzaperfect.co.za/"),
+            ("John Dory's Menlyn", "https://www.johndorys.com/"),
+            ("Tiger Wheel & Tyre Menlyn", "https://stores.twt.co.za/details/menlyn"),
+            ("Fabiani Sammy Marks", "https://www.fabiani.co.za/"),
+        ]
+        for name, website in examples:
+            result = assess_feature(feature(name, website))
+            self.assertFalse(result["eligible"], name)
+            self.assertTrue(result["excluded_chain_or_locator"], name)
         total = assess_feature(feature("TotalEnergies Newlands Service Station", "https://www.budgetgas.co.za/"))
         self.assertFalse(total["eligible"])
         self.assertTrue(total["excluded_chain_or_locator"])
